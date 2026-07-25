@@ -802,6 +802,7 @@ $('itinBannerClose').onclick = clearItinerary;
 // Overpass under the hood). Off by default; turns on per-category via the chip
 // row, then re-queries the current viewport as the user pans/zooms.
 const MIN_LIVE_ZOOM = 13;   // below this the viewport is too wide for a useful/fast query
+const MAX_LIVE_RADIUS = 3000;   // metres — spots are never sourced from further than 3km away
 let liveMeta = { categories: [] };
 let liveCats = new Set();
 let hotspotLayer = null;
@@ -855,7 +856,8 @@ async function fetchLiveSpots(){
     return;
   }
   const center = mainMap.getCenter();
-  const radius = Math.max(500, Math.min(8000, Math.round(center.distanceTo(mainMap.getBounds().getNorthEast()))));
+  // Never search further than 3km out, however far the viewport is zoomed.
+  const radius = Math.max(500, Math.min(MAX_LIVE_RADIUS, Math.round(center.distanceTo(mainMap.getBounds().getNorthEast()))));
   $('liveStatus').textContent = 'Loading…';
   const reqId = ++hsReqSeq;
   try{

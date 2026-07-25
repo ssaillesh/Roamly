@@ -28,7 +28,7 @@ def get_hotspots(
     city: str | None = Query(None, description="City key, e.g. 'toronto'"),
     lat: float | None = Query(None, description="Latitude for an exact-location search"),
     lng: float | None = Query(None, description="Longitude for an exact-location search"),
-    radius: int = Query(3000, ge=300, le=8000, description="Search radius in metres (lat/lng mode)"),
+    radius: int = Query(3000, ge=300, le=3000, description="Search radius in metres (lat/lng mode), 3km max"),
 ):
     category = category.lower()
     if category not in CATEGORIES:

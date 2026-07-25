@@ -70,6 +70,9 @@ CATEGORIES = {
 
 _CACHE_TTL = 60 * 60 * 24 * 7  # 7 days — POIs barely move
 
+# Hard ceiling for a lat/lng ("near me") search: nothing further than 3km away.
+MAX_RADIUS = 3000
+
 
 def _build_query(category: str, lat: float, lng: float, rad: int) -> str:
     sel = CATEGORIES[category]["selectors"]
@@ -123,7 +126,11 @@ def fetch_hotspots(category: str, *, city_key: str | None = None,
                    lat: float | None = None, lng: float | None = None,
                    radius: int = 3000) -> list[dict]:
     """Return normalised hotspots for a category, around either a preset Canadian
-    city or arbitrary lat/lng (e.g. the user's exact location). Redis-cached."""
+    city or arbitrary lat/lng (e.g. the user's exact location). Redis-cached.
+
+    In lat/lng mode the radius is clamped to MAX_RADIUS (3km), so a "near me"
+    search never surfaces a spot further than 3km away.
+    """
     if category not in CATEGORIES:
         return []
     if city_key:
@@ -133,7 +140,7 @@ def fetch_hotspots(category: str, *, city_key: str | None = None,
         lat, lng, radius = city["lat"], city["lng"], city["radius"]
         cache_key = f"hotspots:v6:{city_key}:{category}"
     elif lat is not None and lng is not None:
-        radius = max(500, min(radius, 8000))
+        radius = max(500, min(radius, MAX_RADIUS))
         # Round coords to ~1km so nearby requests share a cache entry.
         cache_key = f"hotspots:v6:{round(lat, 2)}:{round(lng, 2)}:{radius}:{category}"
     else:
