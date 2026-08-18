@@ -68,12 +68,7 @@
   .itin{margin-left:40px; background:var(--card-2); border:1px solid var(--brd); border-radius:20px; overflow:hidden;
     box-shadow:var(--shadow); animation:rise .5s var(--ease) both;}
   @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-  .itin .map{height:200px; background:var(--bg2); position:relative; cursor:pointer;}
-  .map-open{position:absolute; right:10px; bottom:10px; z-index:1000; border:0; cursor:pointer;
-    font-size:12.5px; font-weight:750; padding:8px 14px; border-radius:999px; color:#fff;
-    background:rgba(20,18,28,.78); backdrop-filter:blur(10px); border:1px solid rgba(255,255,255,.16);
-    box-shadow:0 8px 22px -8px rgba(0,0,0,.5); transition:.18s var(--pop);}
-  .map-open:hover{background:linear-gradient(135deg,var(--accent),var(--accent2)); border-color:transparent; transform:translateY(-2px);}
+  .itin .map{height:200px; background:var(--bg2); position:relative;}
   .itin .sum{display:flex; gap:14px; padding:14px 18px; border-bottom:1px solid var(--hair); font-size:13px; color:var(--muted); flex-wrap:wrap;}
   .itin .sum b{color:var(--text);}
   .stops{padding:6px 10px 12px;}
@@ -251,8 +246,7 @@
   <header>
     <a class="logo" href="/"><span class="m">🧭</span><span class="grad">Roamly</span></a>
     <span class="tag">your day, your call ✨</span>
-    <a class="saved-btn" href="app.html" style="margin-left:auto; text-decoration:none; display:inline-flex; align-items:center;">🗺️ Map</a>
-    <button class="saved-btn" id="savedBtn" title="Saved plans" style="margin-left:0;">💾 <span id="savedCount">0</span></button>
+    <button class="saved-btn" id="savedBtn" title="Saved plans" style="margin-left:auto;">💾 <span id="savedCount">0</span></button>
     <div class="loc" id="locBadge" title="Click to turn your location on or off"><span class="dot"></span><span id="locText">location off</span></div>
   </header>
 
@@ -275,7 +269,7 @@
 <script>
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
-// The planner is members-only: same account/token as the map app (app.html).
+// The planner is members-only — sign in via auth.html.
 const token = () => localStorage.getItem('trek_token');
 const authHeaders = () => token() ? { 'Authorization': 'Bearer ' + token() } : {};
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -401,7 +395,7 @@ function appendPlanCard(plan, dayLabel){
   const id = 'map'+(++mapSeq);
   const head = dayLabel ? `<div class="day-head">${esc(dayLabel)}</div>` : '';
   const html = `${head}<div class="itin">
-      <div class="map" id="${id}"><button class="map-open" type="button">🗺️ Open on map</button></div>
+      <div class="map" id="${id}"></div>
       <div class="sum"><span>💸 <b>~$${plan.estimated_cost}</b> / ${plan.party_size}</span>
         <span>✨ <b>${esc(plan.vibe.replace('_',' '))}</b></span>
         <span>📍 <b>${plan.stops.length}</b> stops</span>
@@ -410,23 +404,8 @@ function appendPlanCard(plan, dayLabel){
       ${plan.tip?`<div class="tip">💡 ${esc(plan.tip)}</div>`:''}
       ${eventsHtml(plan.events)}</div>`;
   const wrap = document.createElement('div'); wrap.innerHTML = html;
-  const mapEl = wrap.querySelector(`#${id}`);
-  const openBtn = mapEl.querySelector('.map-open');
-  mapEl.addEventListener('click', (e) => { e.stopPropagation(); openOnAppMap(plan, dayLabel); });
-  openBtn.addEventListener('click', (e) => { e.stopPropagation(); openOnAppMap(plan, dayLabel); });
   while (wrap.firstElementChild) thread.appendChild(wrap.firstElementChild);
   scrollDown(); setTimeout(()=>drawMap(id, plan), 60);
-}
-
-// Hands this exact itinerary off to the full map app — same stops, plotted for
-// real, plus whatever hidden gems are nearby. Opens in a new tab so the chat stays put.
-function openOnAppMap(plan, dayLabel){
-  const payload = {
-    title: dayLabel || plan.intro || 'Your planned night',
-    stops: plan.stops.map(s => ({ name:s.name, lat:s.lat, lng:s.lng, time:s.time||null, label:s.label||null })),
-  };
-  const url = 'app.html?itin=' + encodeURIComponent(JSON.stringify(payload));
-  window.open(url, '_blank', 'noopener');
 }
 
 function appendFoot(buttons){

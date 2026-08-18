@@ -1,22 +1,16 @@
-"""TrekRank FastAPI application entrypoint."""
-import os
-
+"""Sway API entrypoint — the itinerary planner."""
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.api import (
-    auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist,
-    hotspots, plan,
-)
+from app.api import auth, plan
 
 app = FastAPI(
-    title="TrekRank API",
+    title="Sway API",
     version="0.1.0",
-    description="Travel logging, leaderboards, badges and share cards.",
+    description="Chat-driven itinerary planning from real, open-right-now venues.",
 )
 
 app.add_middleware(
@@ -32,14 +26,8 @@ app.add_middleware(RateLimitMiddleware)
 # histogram_quantile in PromQL/Grafana), exposed at GET /metrics.
 Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
-# Serve locally-stored media (share cards) when STORAGE_BACKEND=local.
-if settings.storage_backend == "local":
-    os.makedirs(settings.local_storage_dir, exist_ok=True)
-    app.mount("/media", StaticFiles(directory=settings.local_storage_dir), name="media")
-
 P = settings.api_v1_prefix
-for r in (auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist,
-          hotspots, plan):
+for r in (auth, plan):
     app.include_router(r.router, prefix=P)
 
 
@@ -50,4 +38,4 @@ def health():
 
 @app.get("/", tags=["meta"])
 def root():
-    return {"name": "TrekRank API", "docs": "/docs", "version": "0.1.0"}
+    return {"name": "Sway API", "docs": "/docs", "version": "0.1.0"}

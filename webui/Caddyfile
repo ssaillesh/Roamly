@@ -7,6 +7,7 @@
 :{$PORT:8080} {
 	root * /srv
 	file_server
+	# The landing page is the front door; anything unmatched lands there.
 	try_files {path} {path}.html /index.html
 	encode gzip
 }

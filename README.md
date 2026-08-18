@@ -1,182 +1,114 @@
-# Roamly
+# Sway
 
-An AI trip-night planner and travel map. Tell the planner your budget and vibe
-and it builds a real, timed itinerary from live venues nearby; a separate map
-app surfaces hand-picked hidden gems and can drop that exact itinerary onto
-the map to see what's around it. The backend service (FastAPI/Celery) is
-internally named **TrekRank** — it also does travel-logging: trips, distances,
-friend & global leaderboards, badges, and shareable year-in-travel cards.
+A chat-driven itinerary planner. Tell it your budget and the vibe, and it builds
+a real, timed plan from venues that actually exist and are open — sequenced so
+the stops are close together, fit the budget, and include a hidden gem.
 
 ```
-webui (static HTML)  ──HTTP──▶  FastAPI  ──▶  PostgreSQL (PostGIS-ready)
-                                        ├──▶  Redis (leaderboards, cache, rate limit)
-                                        ├──▶  Celery workers (geocode, distance, badges, share cards)
-                                        └──▶  Object storage (local disk in dev / S3·MinIO in prod)
-
-Geocoding: Nominatim / OpenStreetMap (free, no API key)
+webui/roamly.html  ──▶  FastAPI  ──▶  planner  ──▶  Yelp / Foursquare / Google Places
+  (chat UI)             /plan/*                     OpenStreetMap / Ticketmaster
+                           │                        Nominatim (geocode) · Open-Meteo
+                           │
+                        Postgres (accounts)  ·  Redis (venue + geocode cache)
 ```
 
-Everything uses **free / open-source components** — no paid APIs required. Geocoding is
-the free Nominatim endpoint; share-card storage defaults to the local filesystem.
+## What it does
 
----
+**`POST /plan/chat`** — the concierge. Reads the whole conversation, extracts
+budget / vibe / party size / transport / dietary / interests / avoid / named
+venues, asks one focused follow-up when something essential is missing, then
+returns a full itinerary. With `LLM_API_KEY` set it uses an LLM for extraction
+and narration; without one it falls back to a keyword heuristic and still works.
 
-## What's implemented
+**`POST /plan/options`** — build-your-own. Ranked, tagged candidate venues per
+category (🔥 trending / ⭐ top-rated / 💎 hidden gem / 😴 quiet) plus live events.
 
-**Backend (Python 3.10+, FastAPI):** auth (email register/login + JWT refresh +
-Apple sign-in stub + forgot/reset password + GDPR delete), users/profile/stats/map/search,
-trips CRUD + onboarding backfill, friends (request/accept/reject/suggestions), friend &
-global leaderboards (Redis sorted sets), cursor-paginated activity feed, badges (24 seeded)
-+ evaluation, group challenges, Instagram-Story share-card generation, an AI planner
-(chat / guided "build your own" itinerary / options endpoints backed by live venue data),
-hidden-gem hotspots feed, and a waitlist signup endpoint.
+**`POST /plan/build`** — assembles, sequences and narrates an itinerary from the
+venues the user picked.
 
-**3 Celery workers:** trip processor (geocode → distance → visited tables → stats →
-leaderboards → feed → badge trigger), badge evaluator, share-card generator
-(Pillow, 1080×1920 PNG).
+**`GET /plan/debug`** — which venue sources and the LLM are configured. Never
+returns keys.
 
-**Web UI (`webui/`, static HTML/CSS/JS, no build step):**
-- `index.html` — marketing landing page with an animated itinerary demo and a waitlist form.
-- `auth.html` — the dedicated sign-in / create-account page: animated aurora background,
-  sliding segmented toggle, live field validation, password strength meter, and a
-  forgot-password flow. Any page that needs a session (the planner, the map's account
-  menu) routes here via `?redirect=`; an already-signed-in visitor is bounced straight
-  through before the page even paints.
-- `roamly.html` — the AI planner chat. A short conversational wizard (or free-form chat)
-  builds a budget/vibe itinerary from real, open-right-now venues, with live nearby events
-  woven in on request. Each itinerary card has a mini preview map you can tap to open the
-  exact same stops — plotted for real, with a route line — on `app.html`, in a new tab.
-  Location sharing is a click-to-toggle pill in the header, off by default.
-- `app.html` — the interactive Leaflet map: hidden-gem discovery (filterable by category),
-  a rich spot-detail panel (street-level map + a real photo pulled from Wikipedia/Wikimedia
-  Commons), the same Roamly planner as an on-map chat concierge, and — when arriving from
-  a `roamly.html` itinerary link — the imported stops plotted with a "📍 Near your plan"
-  filter that surfaces hidden gems around that itinerary.
+All three planning routes require a signed-in account (`auth.html`).
 
-**Tests:** 10 pytest integration tests (trips, badges, leaderboards, feed) — 8 passing.
-`test_five_countries_badge` (expects a `streak_3` badge not in the seeded catalog) and
-`test_global_leaderboard` currently fail; pre-existing, unrelated to the web UI/backend
-changes described above.
+## Venue sourcing
 
----
+Candidates are gathered from every configured source, deduped by name, then
+scored on rating, closeness to the anchor, price fit, a hidden-gem bonus and a
+"fun factor" derived from category. Transport mode sets the search radius
+(walk 1.6km / transit 7km / car 9km) and the distance penalty.
 
-## PostGIS
+Every source is optional. With **no keys at all** the planner still runs on
+OpenStreetMap (Overpass) + Nominatim, both free and keyless.
 
-Trip coordinates are stored as plain `lat`/`lng` float columns (portable across any
-PostgreSQL, no PostGIS required), and the default distance calculation is a Haversine
-great-circle formula in Python (`app/services/distance.py` → `distance_km`). An optional
-`distance_km_postgis` helper in the same module computes the equivalent via `ST_Distance`
-over `GEOGRAPHY(POINT, 4326)` for deployments that do have PostGIS enabled (the
-`docker-compose.yml` Postgres image is `postgis/postgis:16-3.4`) — the two methods agree
-to within ~0.5%.
+| Source | Key | Gives |
+|---|---|---|
+| OpenStreetMap Overpass | — | venues, always on |
+| Nominatim | — | geocoding, place verification |
+| Open-Meteo | — | weather line on the plan |
+| Yelp Fusion | `YELP_API_KEY` | ratings, price, photos |
+| Foursquare | `FOURSQUARE_API_KEY` | popularity / foot-traffic signal |
+| Google Places | `GOOGLE_PLACES_API_KEY` | ratings, price, photos |
+| Ticketmaster | `TICKETMASTER_API_KEY` | live events near the plan |
+| Any OpenAI-compatible LLM | `LLM_API_KEY` | extraction + narration |
 
----
+Responses are cached in Redis (venues 7 days, geocodes 30 days), which keeps the
+free tiers well inside their quotas.
 
-## Run it — Option A: native (no Docker)
+## Run it locally
 
-What this machine has: Homebrew PostgreSQL 18 + Redis (running), Python 3.10.
+Needs Postgres and Redis running, plus Python 3.10+.
 
 ```bash
-# prerequisites
 brew services start postgresql@18
 brew services start redis
-createdb trekrank
+createdb sway
 
 cd backend
-./run_local.sh setup           # venv + deps + migrate + seed badges
-./run_local.sh worker          # terminal 1: Celery worker
-./run_local.sh api             # terminal 2: API on http://127.0.0.1:8001
-./run_local.sh smoke           # terminal 3: live end-to-end test
+./run_local.sh setup     # venv, deps, migrate
+./run_local.sh api       # API on :8001
+
+cd ../webui              # any static server
+python3 -m http.server 8080
 ```
 
-Interactive API docs: <http://127.0.0.1:8001/docs>
+Then open <http://127.0.0.1:8080/>. That's the landing page; "Plan tonight"
+takes you through sign-up into the planner, which is members-only. If you're
+already signed in, the landing page's buttons jump straight to the planner.
 
-```bash
-./run_local.sh test            # run the pytest suite
-```
+Configure keys in `backend/.env` (copy `.env.example`). None are required.
 
-## Run it — Option B: full stack via Docker
-
-Brings up Postgres+PostGIS, Redis, MinIO, Prometheus, Grafana, API, and worker:
-
-```bash
-docker compose up --build
-# API on :8000, MinIO console :9001, Grafana :3000, Prometheus :9090
-```
-
-(Docker isn't installed on the current machine, so Option A is the verified path.)
-
----
-
-## Web UI
-
-Static files, no build step — served by Caddy in production (`webui/Dockerfile` +
-`webui/Caddyfile`), or open directly / serve with anything static in dev.
-
-```bash
-cd webui
-python3 -m http.server 5173
-open http://localhost:5173
-```
-
-`webui/config.js` is the single source of truth for the API URL: it points at
-`http://127.0.0.1:8001/api/v1` on `localhost`, and at the deployed backend everywhere
-else — edit that file if your API lives somewhere else. `render.yaml` / `webui/Dockerfile`
-describe the deployed setup (Render backend + a Railway/Caddy static site for `webui/`).
-
----
-
-## Project layout
+## Layout
 
 ```
-Sway/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              FastAPI app + middleware + static media
-│   │   ├── config.py            env-driven settings
-│   │   ├── database.py          SQLAlchemy engine/session
-│   │   ├── models/              ORM models (users, trips, badges, …)
-│   │   ├── schemas/             Pydantic request/response models
-│   │   ├── api/                 routers (auth, users, trips, friends, plan, hotspots, …)
-│   │   ├── services/            geocoding, distance, stats, badges, leaderboard, planner, share
-│   │   ├── workers/             Celery app + 3 workers
-│   │   ├── middleware/          JWT auth + Redis rate limiting
-│   │   └── data/countries.py    ISO country + continent reference data
-│   ├── alembic/                 migrations
-│   ├── scripts/                 seed_badges, smoke_test
-│   ├── tests/                   pytest suite
-│   └── run_local.sh             native launcher
-├── webui/
-│   ├── index.html            marketing landing page + waitlist
-│   ├── auth.html             sign-in / create-account page
-│   ├── roamly.html           AI planner chat
-│   ├── app.html               interactive map + hidden-gem discovery
-│   ├── gems.json              curated hidden-gem catalog
-│   ├── config.js              API_BASE (single source of truth)
-│   └── Dockerfile, Caddyfile  static-site deploy
-├── docker-compose.yml            full prod-like stack (PostGIS/MinIO/Prom/Grafana)
-├── render.yaml                   backend deploy config (Render)
-└── infra/prometheus.yml
+backend/app/
+  api/plan.py         the three planning routes + preference extraction
+  api/auth.py         register / login / refresh / reset
+  services/planner.py candidate gathering, scoring, sequencing, narration
+  services/           llm, yelp, foursquare, google_places, hotspots (OSM),
+                      events, weather, geocoding, experience, security, email
+  models/user.py      the only table
+webui/
+  index.html          landing page — what it does, why, and the CTA into sign-up
+  auth.html           sign in / register
+  roamly.html         the chat planner (self-contained: HTML + CSS + JS)
+  config.js           API base URL — the one place to set it
 ```
 
-## API quick reference
+Each page is a single self-contained file — no build step, no framework, no
+external requests beyond the API. `index.html → auth.html → roamly.html` is the
+whole flow.
 
-`/api/v1` prefix. Highlights:
+## Known issues
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/auth/register` `/auth/login` `/auth/refresh` | JWT |
-| POST | `/auth/forgot-password` `/auth/reset-password` | password recovery |
-| POST | `/trips` | returns `201` immediately; worker fills `distance_km` async |
-| POST | `/trips/backfill` | bulk onboarding import |
-| GET | `/users/{username}/stats` `/users/{username}/map` | detailed stats / visited-places map |
-| POST | `/friends/request`, `/friends/accept/{id}` | friend graph |
-| GET | `/leaderboards/friends?metric=countries&period=2026` | Redis ZSET |
-| GET | `/feed` | cursor-paginated, friends only |
-| GET | `/badges/me` | earned + locked |
-| POST | `/share/card` | 1080×1920 PNG |
-| POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker) |
-| GET | `/hotspots` | curated hidden-gem feed |
-| POST | `/waitlist` | early-access signup |
+Carried over from the previous version of this app and **not yet fixed**:
 
-Full interactive docs at `/docs`.
+- `POST /auth/apple` does not verify the Apple identity token. It will issue a
+  valid session for any account given only its email address. Disable the route
+  or implement JWKS verification before exposing this publicly.
+- With `SENDGRID_API_KEY` unset, `POST /auth/forgot-password` returns the reset
+  token in the response body, which is a full account-takeover path. Configure
+  email, or delete that fallback branch.
+- `JWT_SECRET` silently defaults to a public value. `render.yaml` generates a
+  real one; nothing else does.
+- There are no tests. The previous suite covered only removed features.

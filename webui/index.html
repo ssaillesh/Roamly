@@ -1,398 +1,522 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Roamly — your night, planned</title>
-<meta name="description" content="Tell Roamly your budget and your vibe — get a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
-<meta name="theme-color" content="#ffffff" />
-
-<!-- Open Graph -->
-<meta property="og:title" content="Roamly — your night, planned" />
-<meta property="og:description" content="Budget + vibe in, a real night out — real places, real hours, mapped stop by stop." />
-<meta property="og:type" content="website" />
-
-<script src="/config.js"></script>
-
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Roamly — your night out, planned in one message</title>
+<meta name="description" content="Tell Roamly your budget and your mood. It builds a real, timed itinerary from places near you that are open tonight — walkable, in budget, with a hidden gem you'd never have found." />
+<script src="config.js"></script>
 <style>
   :root{
+    /* Same system as roamly.html / auth.html: white base, ink text, coral→violet brand */
     --accent:#ff5a5f; --accent2:#7c5cff; --hot:#ff3d9a; --lime:#b8f34a;
     --bg:#ffffff; --bg-soft:#f5f4f7; --ink:#1d1d1f; --ink2:#515154; --ink3:#86868b;
     --brd:rgba(0,0,0,.08); --hair:rgba(0,0,0,.06);
-    --r-lg:32px; --r-md:20px; --maxw:1120px;
+    --r-lg:34px; --r-md:20px; --maxw:1080px;
     --ease:cubic-bezier(.22,1,.36,1);
-    --shadow-soft:0 30px 60px -20px rgba(60,40,120,.18);
+    --pop:cubic-bezier(.34,1.56,.64,1);
+    --shadow:0 40px 80px -30px rgba(60,40,120,.28);
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html{scroll-behavior:smooth;}
+  *{box-sizing:border-box;}
+  /* No smooth-scroll: on a page this tall an animated jump to an anchor feels
+     like the page has stopped responding. */
+  html{background:var(--bg);}
   body{
     margin:0; background:var(--bg); color:var(--ink); overflow-x:hidden;
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.5;
+    -webkit-font-smoothing:antialiased; line-height:1.45; letter-spacing:-.01em;
   }
-  a{color:inherit; text-decoration:none;}
-  ::selection{background:var(--accent2); color:#fff;}
-  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px;}
-  .grad{background:linear-gradient(100deg,var(--accent) 10%,var(--hot) 45%,var(--accent2) 90%);
+  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 24px;}
+  .grad{background:linear-gradient(112deg,var(--accent),var(--hot) 45%,var(--accent2));
     -webkit-background-clip:text; background-clip:text; color:transparent;}
 
-  /* ---- nav: slim, translucent, apple-style ---- */
-  header{position:sticky; top:0; z-index:40;
-    background:rgba(255,255,255,.72); backdrop-filter:saturate(1.8) blur(20px);
-    border-bottom:1px solid var(--hair);}
-  .nav{display:flex; align-items:center; gap:28px; height:52px; max-width:var(--maxw); margin:0 auto; padding:0 28px;
-    font-size:13.5px; color:var(--ink2);}
-  .logo{font-weight:750; font-size:16.5px; letter-spacing:-.02em; color:var(--ink);}
-  .nav .links{margin-left:auto; display:flex; align-items:center; gap:24px;}
-  .nav .links a{transition:color .2s;}
-  .nav .links a:hover{color:var(--ink);}
-  .nav .cta{background:var(--ink); color:#fff; padding:7px 16px; border-radius:999px; font-weight:600;}
-  .nav .cta:hover{color:#fff; opacity:.85;}
-
-  /* ---- buttons ---- */
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    font-weight:600; font-size:16px; padding:14px 28px; border-radius:999px;
-    cursor:pointer; transition:.25s var(--ease); border:none;}
-  .btn:hover{transform:translateY(-1px);}
-  .btn-dark{background:var(--ink); color:#fff;}
-  .btn-grad{background:linear-gradient(100deg,var(--accent),var(--accent2)); color:#fff;
-    box-shadow:0 12px 30px -10px rgba(124,92,255,.5);}
-  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--brd);}
-  .btn-light{background:#fff; color:var(--ink);}
-
-  /* ---- hero: apple-scale type, notebooklm soft aurora ---- */
-  .hero{position:relative; text-align:center; padding:130px 0 90px; overflow:hidden;}
-  .aurora{position:absolute; inset:-40% -20% auto; height:130%; z-index:-1; filter:blur(70px); opacity:.5;
+  /* ============ living background ============
+     Painted as three radial gradients on ONE layer. The earlier version used
+     three 52vw divs under filter:blur(80px) — on a retina display that is a
+     ~1500px² texture re-blurred every frame, which is what made scrolling
+     stutter. Gradients are soft by nature, need no filter, and rasterise once;
+     the slow drift is a compositor-only transform. */
+  .aurora{position:fixed; inset:-15%; z-index:-2; pointer-events:none;
     background:
-      radial-gradient(38% 45% at 28% 38%, rgba(255,90,95,.5), transparent 70%),
-      radial-gradient(40% 48% at 72% 32%, rgba(124,92,255,.5), transparent 70%),
-      radial-gradient(30% 40% at 52% 68%, rgba(255,61,154,.35), transparent 70%);
-    animation:aurora 14s ease-in-out infinite alternate;}
-  @keyframes aurora{to{transform:translateX(4%) scale(1.06) rotate(2deg);}}
-  .eyebrow{font-size:14px; font-weight:600; color:var(--accent2); letter-spacing:.01em; margin-bottom:18px;}
-  h1{font-size:clamp(52px,9vw,104px); line-height:1.02; letter-spacing:-.045em; font-weight:750; margin:0 0 22px;}
-  .lead{font-size:clamp(19px,2.4vw,25px); line-height:1.4; color:var(--ink2); font-weight:450;
-    max-width:660px; margin:0 auto 36px; letter-spacing:-.01em;}
-  .cta-row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+      radial-gradient(40vw 40vw at 16% 10%, rgba(255,90,95,.38), transparent 62%),
+      radial-gradient(36vw 36vw at 84% 16%, rgba(124,92,255,.38), transparent 62%),
+      radial-gradient(32vw 32vw at 52% 74%, rgba(255,61,154,.22), transparent 64%);
+    transform:translateZ(0);
+    animation:auroraDrift 44s var(--ease) infinite alternate;
+    transition:opacity .6s var(--ease);}
+  @keyframes auroraDrift{to{transform:translate3d(0,-5%,0) scale(1.09);}}
+  /* One class flip past the hero, instead of writing opacity every frame. */
+  .aurora.dim{opacity:.28;}
 
-  /* ---- demo panel: big rounded notebooklm card ---- */
-  .stage{max-width:720px; margin:80px auto 0; text-align:left;
-    background:rgba(255,255,255,.75); backdrop-filter:blur(20px);
-    border:1px solid var(--brd); border-radius:var(--r-lg); box-shadow:var(--shadow-soft);
-    padding:28px 28px 24px; min-height:320px;}
-  .stage .bar{display:flex; gap:7px; margin-bottom:20px;}
-  .stage .bar i{width:10px; height:10px; border-radius:50%; background:var(--hair); display:block;}
-  .msg{display:flex; gap:11px; margin-bottom:14px; animation:rise .45s var(--ease) both;}
-  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-  .av{width:30px; height:30px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center;
-    font-size:14px; color:#fff; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2));}
-  .bubble{padding:11px 15px; border-radius:18px; font-size:15px; background:var(--bg-soft); border-top-left-radius:6px;}
+  /* ============ nav ============ */
+  nav{position:fixed; top:0; left:0; right:0; z-index:60; height:56px;
+    display:flex; align-items:center; transition:background .4s var(--ease), border-color .4s var(--ease),
+      backdrop-filter .4s var(--ease), transform .45s var(--ease);
+    border-bottom:1px solid transparent;}
+  /* Opaque rather than backdrop-filter: a blurred backdrop on a fixed bar is
+     re-computed on every scroll frame, which is far too costly for the effect. */
+  nav.solid{background:rgba(255,255,255,.94); border-bottom-color:var(--hair);}
+  nav .wrap{display:flex; align-items:center; gap:14px; width:100%;}
+  .nav-mark{display:inline-flex; align-items:center; gap:8px; text-decoration:none; color:var(--ink);
+    font-weight:800; font-size:17px; letter-spacing:-.03em; opacity:0; transform:translateY(-6px);
+    transition:opacity .4s var(--ease), transform .4s var(--ease); pointer-events:none;}
+  nav.solid .nav-mark{opacity:1; transform:none; pointer-events:auto;}
+  .nav-sp{margin-left:auto;}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+    font:inherit; font-weight:750; text-decoration:none; border:0; border-radius:999px; white-space:nowrap;
+    transition:transform .2s var(--pop), box-shadow .25s var(--ease), background .25s;}
+  .btn:active{transform:scale(.96);}
+  .btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff;
+    padding:13px 26px; font-size:15.5px; box-shadow:0 14px 34px -12px rgba(124,92,255,.6);}
+  .btn-primary:hover{transform:translateY(-2px); box-shadow:0 22px 44px -14px rgba(124,92,255,.66);}
+  .btn-sm{padding:9px 19px; font-size:14px;}
+  .btn-ghost{background:rgba(255,255,255,.86); color:var(--ink); padding:13px 24px; font-size:15.5px;
+    border:1px solid var(--brd);}
+  .btn-ghost:hover{background:#fff;}
+
+  /* ============ hero ============ */
+  .hero{height:100svh; min-height:560px; display:grid; place-items:center; position:relative;
+    text-align:center; padding:0 24px;}
+  /* transform/opacity are written straight onto this element by the scroll loop.
+     They used to be calc() off a custom property set on :root, which invalidated
+     style for the whole document on every single frame. */
+  .hero-in{will-change:transform,opacity;}
+  .mark{width:clamp(104px,15vw,158px); height:clamp(104px,15vw,158px); margin:0 auto;}
+  .mark .ring{transform-origin:50% 50%; animation:ringSpin 34s linear infinite;}
+  /* Idle animations off once the hero is gone — no point compositing them. */
+  body.past-hero .mark .ring, body.past-hero .mark .needle,
+  body.past-hero .aurora{animation-play-state:paused;}
+  .mark .needle{transform-origin:50% 50%; animation:needle 7s var(--ease) infinite;}
+  @keyframes ringSpin{to{transform:rotate(360deg);}}
+  @keyframes needle{
+    0%,100%{transform:rotate(-11deg);} 28%{transform:rotate(15deg);}
+    52%{transform:rotate(-6deg);} 76%{transform:rotate(9deg);}
+  }
+  .wordmark{font-size:clamp(58px,13vw,142px); line-height:.92; font-weight:860; letter-spacing:-.055em;
+    margin:20px 0 0;}
+  .tagline{font-size:clamp(18px,2.6vw,27px); color:var(--ink2); font-weight:500; letter-spacing:-.02em;
+    margin:22px auto 0; max-width:22ch;}
+  .hero-cta{margin-top:38px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;}
+  .cue{position:absolute; bottom:34px; left:50%; transform:translateX(-50%); font-size:12px;
+    font-weight:650; letter-spacing:.14em; text-transform:uppercase; color:var(--ink3);
+    display:flex; flex-direction:column; align-items:center; gap:10px;}
+  .cue i{width:1px; height:34px; background:linear-gradient(var(--ink3), transparent);
+    animation:cue 2.1s var(--ease) infinite;}
+  @keyframes cue{0%{transform:scaleY(.3); transform-origin:top; opacity:0;}
+    45%{transform:scaleY(1); opacity:1;} 100%{transform:scaleY(1); transform-origin:bottom; opacity:0;}}
+
+  /* ============ pinned scroll stages ============ */
+  .track{position:relative;}
+  .pin{position:sticky; top:0; height:100svh; display:grid; place-items:center; overflow:hidden;}
+
+  /* Elements that stage in as scroll progress passes their data-at value.
+     No will-change here: these animate on a beat change, not continuously, and
+     19 permanently-promoted layers cost more than they save. */
+  [data-at]{opacity:0; transform:translate3d(0,22px,0);
+    transition:opacity .62s var(--ease), transform .62s var(--ease);}
+  [data-at].on{opacity:1; transform:none;}
+
+  /* ---- stage 1: the chat replaying itself ---- */
+  .phone{width:min(430px,88vw); background:#fff; border:1px solid var(--brd); border-radius:30px;
+    box-shadow:var(--shadow); overflow:hidden;}
+  .phone-bar{display:flex; align-items:center; gap:7px; padding:15px 18px; border-bottom:1px solid var(--hair);}
+  .phone-bar i{width:9px; height:9px; border-radius:50%; background:var(--hair);}
+  .phone-bar span{margin-left:auto; font-size:12px; font-weight:700; color:var(--ink3); letter-spacing:-.01em;}
+  .thread{padding:18px; min-height:392px;}
+  .msg{display:flex; gap:10px; margin-bottom:13px; align-items:flex-start;}
+  .msg .av{width:27px; height:27px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center;
+    font-size:12px; font-weight:800; background:var(--bg-soft); color:var(--ink2);}
+  .bubble{padding:11px 15px; border-radius:18px; font-size:14.5px; background:var(--bg-soft);
+    border-top-left-radius:6px; max-width:82%;}
   .msg.me{flex-direction:row-reverse;}
-  .msg.me .av{background:linear-gradient(135deg,var(--accent2),var(--hot));}
-  .msg.me .bubble{background:var(--ink); color:#fff; border-radius:18px; border-top-right-radius:6px;}
-  .stops{margin-top:4px; border-top:1px solid var(--hair); padding-top:14px;}
-  .stop{display:flex; align-items:baseline; gap:12px; padding:8px 2px; font-size:15px;}
-  .stop .time{font-size:11.5px; font-weight:700; color:#fff; background:var(--accent); padding:3px 9px; border-radius:999px;}
-  .stop .name{font-weight:650; letter-spacing:-.01em;}
-  .stop .cat{color:var(--ink3); font-size:13px;}
-  .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
-    background:var(--ink3); animation:blink 1.2s infinite;}
-  .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
-  @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
+  .msg.me .bubble{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff;
+    font-weight:600; border-radius:18px; border-top-right-radius:6px;}
+  .msg.me .av{background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#fff;}
+  .typing{display:inline-flex; gap:4px; padding:4px 2px;}
+  .typing i{width:6px; height:6px; border-radius:50%; background:var(--ink3); animation:blink 1.25s infinite;}
+  .typing i:nth-child(2){animation-delay:.16s;} .typing i:nth-child(3){animation-delay:.32s;}
+  @keyframes blink{0%,80%,100%{opacity:.25; transform:translateY(0);} 40%{opacity:1; transform:translateY(-3px);}}
+  .plan{border:1px solid var(--brd); border-radius:var(--r-md); overflow:hidden; margin-top:14px;}
+  .plan-sum{display:flex; gap:13px; padding:12px 15px; background:var(--bg-soft); font-size:12.5px;
+    color:var(--ink2); flex-wrap:wrap; border-bottom:1px solid var(--hair);}
+  .plan-sum b{color:var(--ink);}
+  .stop{display:flex; gap:12px; padding:12px 15px; align-items:baseline; border-bottom:1px solid var(--hair);}
+  .stop:last-child{border-bottom:0;}
+  .stop .t{font-size:10.5px; font-weight:800; color:#fff; background:var(--ink); padding:3px 8px;
+    border-radius:999px; flex:0 0 auto;}
+  .stop .n{flex:1; min-width:0;} .stop .n b{display:block; font-size:14px;}
+  .stop .n span{font-size:12px; color:var(--ink3);}
+  .stop .c{font-size:12.5px; font-weight:750; color:var(--ink2);}
 
-  /* ---- big statement sections (apple rhythm) ---- */
-  section{padding:130px 0;}
-  .kicker{font-size:14px; font-weight:650; color:var(--accent2); margin-bottom:14px;}
-  h2{font-size:clamp(38px,5.6vw,64px); line-height:1.06; letter-spacing:-.035em; font-weight:730; margin:0 0 18px;}
-  .sub{font-size:clamp(17px,2vw,21px); color:var(--ink2); max-width:620px; letter-spacing:-.01em;}
-  .center{text-align:center;}
-  .center .sub{margin-left:auto; margin-right:auto;}
+  /* Rows collapse to nothing until their beat, so the card fills in top-down
+     instead of holding an empty bordered box open. The thread's min-height keeps
+     the frame itself a constant size, so nothing jumps as the plan builds. */
+  .thread .msg[data-at]{max-height:0; margin-bottom:0; overflow:hidden;
+    transition:max-height .55s var(--ease), margin .55s var(--ease),
+               opacity .45s var(--ease), transform .55s var(--ease);}
+  .thread .msg[data-at].on{max-height:220px; margin-bottom:13px;}
+  .plan [data-at]{max-height:0; padding-top:0; padding-bottom:0; border-bottom-width:0; overflow:hidden;
+    transition:max-height .55s var(--ease), padding .55s var(--ease), border-width .3s var(--ease),
+               opacity .45s var(--ease), transform .55s var(--ease);}
+  .plan [data-at].on{max-height:130px; padding-top:12px; padding-bottom:12px; border-bottom-width:1px;}
 
-  /* ---- bento grid ---- */
-  .bento{display:grid; grid-template-columns:repeat(6,1fr); gap:16px; margin-top:64px;}
-  .cell{background:var(--bg-soft); border-radius:var(--r-lg); padding:36px 32px; position:relative; overflow:hidden;
-    transition:transform .35s var(--ease), box-shadow .35s var(--ease);}
-  .cell:hover{transform:translateY(-4px); box-shadow:var(--shadow-soft);}
-  .cell h3{font-size:22px; letter-spacing:-.02em; margin:0 0 8px; font-weight:700;}
-  .cell p{margin:0; color:var(--ink2); font-size:15.5px; max-width:44ch;}
-  .cell .ico{font-size:34px; display:block; margin-bottom:16px;}
-  .c-4{grid-column:span 4;} .c-3{grid-column:span 3;} .c-2{grid-column:span 2;}
-  .cell.tint-a{background:linear-gradient(140deg,#fff1f1,#fde9f4);}
-  .cell.tint-b{background:linear-gradient(140deg,#efeaff,#f3f0ff);}
-  .cell.tint-c{background:linear-gradient(140deg,#f3fadf,#eef8ec);}
-  @media(max-width:1024px){.bento{grid-template-columns:1fr 1fr;} .c-4,.c-3,.c-2{grid-column:auto;} .c-4{grid-column:span 2;}}
-  @media(max-width:640px){.bento{grid-template-columns:1fr;} .c-4{grid-column:auto;}}
+  .stage{display:flex; flex-direction:column; align-items:center; gap:26px; width:100%;}
+  .stage-label{margin:0; text-align:center; font-size:13px; font-weight:800; letter-spacing:.13em;
+    text-transform:uppercase; color:var(--accent2);}
 
-  /* ---- steps ---- */
-  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:64px;}
-  @media(max-width:860px){.steps{grid-template-columns:1fr;}}
-  .step{background:#fff; border:1px solid var(--brd); border-radius:var(--r-lg); padding:36px 32px;}
-  .step .n{font-size:15px; font-weight:700; color:var(--accent2); margin-bottom:14px; display:block;}
-  .step h3{font-size:21px; margin:0 0 8px; letter-spacing:-.02em;}
-  .step p{margin:0; color:var(--ink2); font-size:15.5px;}
+  /* ---- stage 2: statement lines that swap while pinned ---- */
+  .says{position:relative; width:100%; display:grid; place-items:center; padding:0 24px;}
+  /* No max-width here: the explicit <br> in each headline sets the line breaks,
+     and a ch-based cap would re-wrap them into ragged extra lines. */
+  .say{grid-area:1/1; text-align:center; opacity:0; transform:translate3d(0,30px,0) scale(.97);
+    transition:opacity .6s var(--ease), transform .6s var(--ease);}
+  .say.on{opacity:1; transform:none;}
+  .say h2{font-size:clamp(36px,8vw,86px); line-height:1.02; letter-spacing:-.045em; font-weight:860; margin:0;}
+  .say p{font-size:clamp(16px,2.2vw,21px); color:var(--ink2); margin:20px auto 0; max-width:30ch; font-weight:500;}
 
-  /* ---- dark hotspots band (apple dark section) ---- */
-  .dark{background:#0b0b0f; color:#f5f5f7; border-radius:var(--r-lg); margin:0 20px; overflow:hidden; position:relative;}
-  .dark section{padding:120px 0;}
-  .dark h2{color:#f5f5f7;}
-  .dark .sub{color:#a1a1a6;}
-  .dark .glow{position:absolute; inset:auto -10% -60% -10%; height:80%; filter:blur(80px); opacity:.55;
-    background:radial-gradient(50% 60% at 30% 50%, rgba(255,90,95,.55), transparent 70%),
-               radial-gradient(50% 60% at 70% 50%, rgba(124,92,255,.6), transparent 70%);}
-  .dark .inner{position:relative; z-index:1;}
+  /* ---- generic float-in sections ---- */
+  .float{opacity:0; transform:translate3d(0,40px,0) scale(.985);
+    transition:opacity .85s var(--ease), transform .85s var(--ease);}
+  .float.on{opacity:1; transform:none;}
 
-  /* ---- waitlist ---- */
-  .wl{background:var(--bg-soft); border-radius:var(--r-lg); margin:130px 20px; padding:110px 28px; text-align:center;}
-  .wl-box{max-width:520px; margin:40px auto 0; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
-  .wl-box input{flex:1 1 280px; font:inherit; font-size:16px; padding:14px 22px; border-radius:999px;
-    border:1px solid var(--brd); background:#fff; color:var(--ink); outline:none; transition:border-color .2s;}
-  .wl-box input:focus{border-color:var(--accent2);}
-  .wl-note{color:var(--ink3); font-size:14px; margin-top:16px; min-height:20px;}
+  section{padding:clamp(80px,13vh,140px) 0;}
+  .kicker{font-size:12.5px; font-weight:800; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--accent2); margin:0 0 16px;}
+  h2.big{font-size:clamp(30px,5.2vw,54px); line-height:1.04; letter-spacing:-.04em; font-weight:860; margin:0;}
+  .lede{font-size:18px; color:var(--ink2); max-width:52ch; margin:20px 0 0; font-weight:500;}
 
-  footer{padding:40px 28px 56px; text-align:center; color:var(--ink3); font-size:13px;}
-  footer .links{display:flex; gap:22px; justify-content:center; margin-bottom:12px; color:var(--ink2);}
+  .grid{display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:52px;}
+  .cell{background:var(--bg-soft); border-radius:var(--r-md); padding:30px 26px; position:relative;
+    overflow:hidden; transition:transform .45s var(--ease), box-shadow .45s var(--ease);}
+  .cell:hover{transform:translateY(-4px); box-shadow:0 24px 44px -26px rgba(60,40,120,.4);}
+  .cell .ic{font-size:24px; display:block; margin-bottom:14px;}
+  .cell h3{margin:0 0 8px; font-size:17px; letter-spacing:-.025em;}
+  .cell p{margin:0; font-size:14.5px; color:var(--ink2);}
 
-  /* ---- reveal ---- */
-  .reveal{opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease);}
-  .reveal.in{opacity:1; transform:none;}
-  .d1{transition-delay:.08s;} .d2{transition-delay:.16s;} .d3{transition-delay:.24s;}
-  @media(prefers-reduced-motion:reduce){
-    .aurora,.dots span{animation:none;}
-    .reveal{opacity:1; transform:none; transition:none;}
+  /* ---- dark finale ---- */
+  .dark{background:#08080b; color:#f5f5f7; border-radius:var(--r-lg); margin:0 16px;
+    padding:clamp(80px,14vh,150px) 32px; text-align:center; position:relative; overflow:hidden;}
+  .dark::after{content:''; position:absolute; left:50%; bottom:-45%; width:120%; height:90%;
+    transform:translateX(-50%) translateY(calc(var(--dark-p,0) * -12%));
+    background:radial-gradient(ellipse at 50% 50%, rgba(124,92,255,.5), rgba(255,61,154,.16) 45%, transparent 70%);
+    filter:blur(40px); pointer-events:none;}
+  .dark > *{position:relative;}
+  .dark h2{font-size:clamp(32px,6.4vw,68px); line-height:1.03; letter-spacing:-.045em; font-weight:860; margin:0;}
+  .dark .kicker{color:var(--lime);}
+  .dark p{color:#a1a1a6; font-size:18px; max-width:46ch; margin:24px auto 0; font-weight:500;}
+
+  .final{text-align:center;}
+  .final h2{max-width:15ch; margin:0 auto;}
+  .final .btn-primary{margin-top:34px;}
+  .final .fine{margin-top:16px; font-size:13.5px; color:var(--ink3);}
+
+  footer{border-top:1px solid var(--hair); padding:28px 0 40px; font-size:13.5px; color:var(--ink3);}
+  footer .wrap{display:flex; gap:18px; align-items:center; flex-wrap:wrap;}
+  footer a{color:var(--ink2); text-decoration:none;} footer a:hover{color:var(--ink);}
+
+  @media (max-width:820px){
+    .grid{grid-template-columns:1fr;}
+    .thread{min-height:352px;}
   }
-
-  /* ---- responsive: tablet ---- */
-  @media(max-width:1024px){
-    section{padding:96px 0;}
-    .dark section{padding:90px 0;}
-    .hero{padding:96px 0 72px;}
-    .bento,.steps{margin-top:48px;}
-    .wl{margin:96px 16px; padding:80px 24px;}
-    .dark{margin:0 16px;}
+  @media (max-width:620px){
+    .wrap{padding:0 18px;}
+    .dark{margin:0 10px;}
   }
-
-  /* ---- responsive: phone ---- */
-  @media(max-width:640px){
-    .wrap{padding:0 20px;}
-    .nav{padding:0 20px; gap:16px;}
-    .nav .links{gap:14px;}
-    .nav .links a:not(.cta){display:none;}   /* keep logo + primary CTA */
-    section{padding:72px 0;}
-    .dark section{padding:64px 0;}
-    .hero{padding:64px 0 56px;}
-    h1{font-size:clamp(44px,13vw,60px);}
-    .lead{font-size:17px;}
-    .cta-row .btn{width:100%; max-width:340px;}
-    .stage{margin-top:48px; padding:18px 16px 16px; min-height:280px; border-radius:24px;}
-    .bubble{font-size:14px;}
-    .msg{max-width:100%;}
-    .stop{flex-wrap:wrap; gap:8px;}
-    .cell,.step{padding:26px 22px; border-radius:24px;}
-    .cell h3,.step h3{font-size:19px;}
-    .dark,.wl{margin-left:10px; margin-right:10px; border-radius:24px;}
-    .wl{padding:64px 18px;}
-    .wl-box input,.wl-box .btn{flex:1 1 100%;}
-    footer .links{flex-wrap:wrap; gap:12px 18px;}
-  }
-
-  /* very small phones */
-  @media(max-width:380px){
-    h1{font-size:40px;}
-    .stage{padding:14px 12px;}
-    .stop .cat{flex-basis:100%; padding-left:2px;}
-  }
-
-  /* short landscape phones: trim vertical rhythm */
-  @media(max-height:480px) and (orientation:landscape){
-    .hero{padding:48px 0 40px;}
-    section{padding:56px 0;}
+  /* Motion off: no scroll-driven transforms, everything simply visible. */
+  @media (prefers-reduced-motion:reduce){
+    *{animation:none !important; transition:none !important;}
+    [data-at],.say,.float{opacity:1 !important; transform:none !important;}
+    .hero-in{transform:none !important; opacity:1 !important;}
+    .say{position:relative; grid-area:auto; margin-bottom:64px;}
+    .says{display:block;}
+    .pin{position:relative; height:auto; padding:80px 0;}
+    .track{height:auto !important;}
+    html{scroll-behavior:auto;}
+    .cue{display:none;}
   }
 </style>
 </head>
 <body>
 
-<header>
-  <nav class="nav">
-    <a class="logo" href="/">Roamly</a>
-    <div class="links">
-      <a href="#how">How it works</a>
-      <a href="#features">Features</a>
-      <a href="app.html">Map</a>
-      <a href="#waitlist">Early access</a>
-      <a href="auth.html?redirect=roamly.html" class="cta">Plan my night</a>
-    </div>
-  </nav>
-</header>
+<div class="aurora" aria-hidden="true"></div>
 
-<!-- HERO -->
-<section class="hero">
-  <div class="aurora"></div>
+<nav id="nav">
   <div class="wrap">
-    <div class="eyebrow">Roamly</div>
-    <h1>Your night,<br><span class="grad">planned.</span></h1>
-    <p class="lead">Tell it your budget and your vibe. Get a real itinerary of places near you —
-      timed, mapped, and ready to go.</p>
-    <div class="cta-row">
-      <a href="auth.html?redirect=roamly.html" class="btn btn-grad">Plan my night</a>
-      <a href="#how" class="btn btn-ghost">See how it works</a>
-    </div>
+    <a class="nav-mark" href="#top">
+      <svg width="24" height="24" viewBox="0 0 100 100" aria-hidden="true">
+        <defs><linearGradient id="ng" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff5a5f"/><stop offset="1" stop-color="#7c5cff"/></linearGradient></defs>
+        <circle cx="50" cy="50" r="42" fill="none" stroke="url(#ng)" stroke-width="9"/>
+        <path d="M50 26 L60 50 L50 74 L40 50 Z" fill="url(#ng)"/>
+      </svg>
+      <span class="grad">Roamly</span>
+    </a>
+    <span class="nav-sp"></span>
+    <a class="btn btn-primary btn-sm" id="navCta" href="auth.html">Sign in</a>
+  </div>
+</nav>
 
-    <div class="stage" id="demo-stage">
-      <div class="bar"><i></i><i></i><i></i></div>
-      <div id="demo"></div>
+<!-- ===================== HERO ===================== -->
+<div class="hero" id="top">
+  <div class="hero-in">
+    <svg class="mark" viewBox="0 0 100 100" role="img" aria-label="Roamly">
+      <defs>
+        <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#ff5a5f"/><stop offset=".5" stop-color="#ff3d9a"/>
+          <stop offset="1" stop-color="#7c5cff"/>
+        </linearGradient>
+      </defs>
+      <g class="ring">
+        <circle cx="50" cy="50" r="41" fill="none" stroke="url(#g1)" stroke-width="7"
+                stroke-linecap="round" stroke-dasharray="196 62"/>
+      </g>
+      <g class="needle">
+        <path d="M50 21 L61.5 50 L50 79 L38.5 50 Z" fill="url(#g1)"/>
+        <circle cx="50" cy="50" r="5.5" fill="#fff"/>
+      </g>
+    </svg>
+    <h1 class="wordmark grad">Roamly</h1>
+    <p class="tagline">Your night out, planned in one message.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary" id="heroCta" href="auth.html">Plan tonight — free</a>
+      <a class="btn btn-ghost" href="#watch">See it work</a>
     </div>
   </div>
-</section>
-
-<!-- HOW -->
-<section id="how">
-  <div class="wrap center">
-    <div class="kicker reveal">How it works</div>
-    <h2 class="reveal">Three words in.<br>A whole night out.</h2>
-    <p class="sub reveal d1">No endless scrolling. No 47 open tabs. Just say what kind of night you want.</p>
-    <div class="steps">
-      <div class="step reveal"><span class="n">01</span><h3>Say the vibe</h3>
-        <p>Chill, chaotic, romantic, "we just got paid" — plus your budget. That's the whole input.</p></div>
-      <div class="step reveal d1"><span class="n">02</span><h3>Get a real plan</h3>
-        <p>A stop-by-stop itinerary from real, open-right-now places near you — timed, budgeted, mapped.</p></div>
-      <div class="step reveal d2"><span class="n">03</span><h3>Go</h3>
-        <p>Every stop opens in Maps. Don't love one? Swap it in a tap and keep the night moving.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- FEATURES BENTO -->
-<section id="features" style="padding-top:0;">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">Features</div>
-      <h2 class="reveal">Built on real places.<br>Not a listicle from 2019.</h2>
-    </div>
-    <div class="bento">
-      <div class="cell c-4 tint-a reveal"><span class="ico">🍜</span><h3>Real venues, live data</h3>
-        <p>Restaurants, bars, and dessert spots pulled live every time you plan — with ratings, price levels, and opening hours that are actually current.</p></div>
-      <div class="cell c-2 tint-b reveal d1"><span class="ico">🎟️</span><h3>Live events</h3>
-        <p>Shows, gigs, and pop-ups happening tonight get woven into the plan.</p></div>
-      <div class="cell c-2 tint-c reveal"><span class="ico">🌦️</span><h3>Weather-aware</h3>
-        <p>Raining? Short walks, cozy stops. Golden hour? Patio time.</p></div>
-      <div class="cell c-2 reveal d1"><span class="ico">💸</span><h3>Budget that behaves</h3>
-        <p>Set a number and the whole night fits inside it.</p></div>
-      <div class="cell c-2 tint-b reveal d2"><span class="ico">💬</span><h3>Chat to tweak</h3>
-        <p>"Make it cheaper." "More dancing." "Closer to me." Done.</p></div>
-      <div class="cell c-3 reveal"><span class="ico">🗺️</span><h3>Mapped stop by stop</h3>
-        <p>See the whole route at a glance, and open any stop in Google Maps instantly.</p></div>
-      <div class="cell c-3 tint-a reveal d1"><span class="ico">🔁</span><h3>Swap anything</h3>
-        <p>Every stop comes with alternates on deck — one tap and the plan rebalances around it.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- DARK HOTSPOTS BAND -->
-<div class="dark reveal">
-  <div class="glow"></div>
-  <section class="inner">
-    <div class="wrap center">
-      <div class="kicker">The map</div>
-      <h2>Explore before<br>you commit.</h2>
-      <p class="sub" style="margin:0 auto 40px;">Hand-picked hidden gems, your verified travels, and a concierge that plans real outings — all on one interactive map.</p>
-      <a href="app.html" class="btn btn-light">Open the map</a>
-    </div>
-  </section>
+  <div class="cue" aria-hidden="true"><span>Scroll</span><i></i></div>
 </div>
 
-<!-- WAITLIST -->
-<div class="wl" id="waitlist">
-  <div class="kicker reveal">Early access</div>
-  <h2 class="reveal">Be first in your city.</h2>
-  <p class="sub reveal d1" style="margin-left:auto; margin-right:auto;">Roamly is rolling out city by city. Drop your email and be first in line when it hits yours.</p>
-  <form class="wl-box reveal d2" id="wlForm">
-    <input type="email" id="wlEmail" placeholder="you@example.com" required />
-    <button class="btn btn-dark" type="submit">Join the waitlist</button>
-  </form>
-  <div class="wl-note" id="wlNote"></div>
+<!-- ===================== STAGE 1 — the chat, replaying ===================== -->
+<div class="track" id="watch" data-track="chat" style="height:300vh">
+  <div class="pin">
+   <div class="stage">
+    <p class="stage-label" data-at="0.02">One message. That's the whole job.</p>
+    <div class="phone">
+      <div class="phone-bar"><i></i><i></i><i></i><span>Roamly</span></div>
+      <div class="thread">
+        <div class="msg me" data-at="0.10">
+          <div class="av">you</div>
+          <div class="bubble">I've got $120 for a chill date night, we'll walk</div>
+        </div>
+        <div class="msg" data-at="0.20" data-until="0.30" id="typingRow">
+          <div class="av">🧭</div>
+          <div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div>
+        </div>
+        <div class="msg" data-at="0.30">
+          <div class="av">🧭</div>
+          <div class="bubble">An easy evening on foot — everything inside a kilometre. Here's your night:</div>
+        </div>
+        <div class="plan">
+          <div class="plan-sum" data-at="0.40">
+            <span>💸 <b>~$152</b></span><span>🚶 <b>1.0 km</b></span><span>📍 <b>4</b> stops</span>
+          </div>
+          <div class="stop" data-at="0.50"><span class="t">6:00 PM</span>
+            <span class="n"><b>Larry Sefton Park</b><span>Scenic &amp; free</span></span><span class="c">$0</span></div>
+          <div class="stop" data-at="0.58"><span class="t">7:00 PM</span>
+            <span class="n"><b>Enigma Escape Room</b><span>Activity</span></span><span class="c">~$28</span></div>
+          <div class="stop" data-at="0.66"><span class="t">8:30 PM</span>
+            <span class="n"><b>Hana Don</b><span>Dinner</span></span><span class="c">~$30</span></div>
+          <div class="stop" data-at="0.74"><span class="t">10:00 PM</span>
+            <span class="n"><b>The Corner Comedy Club</b><span>Vibes &amp; drinks</span></span><span class="c">~$18</span></div>
+        </div>
+      </div>
+    </div>
+   </div>
+  </div>
 </div>
+
+<!-- ===================== STAGE 2 — statements ===================== -->
+<div class="track" data-track="says" style="height:270vh">
+  <div class="pin">
+    <div class="says">
+      <div class="say" data-say="0">
+        <h2>Real places.<br /><span class="grad">Never invented.</span></h2>
+        <p>Every stop comes from live venue data — not a language model's imagination.</p>
+      </div>
+      <div class="say" data-say="1">
+        <h2>Open when<br /><span class="grad">you get there.</span></h2>
+        <p>Hours are checked against the hour you'll actually walk in.</p>
+      </div>
+      <div class="say" data-say="2">
+        <h2>All within<br /><span class="grad">a short walk.</span></h2>
+        <p>Stops are chosen close together, so the night isn't spent in transit.</p>
+      </div>
+      <div class="say" data-say="3">
+        <h2>And one<br /><span class="grad">hidden gem.</span></h2>
+        <p>Never just the four highest-rated places. Always one you'd never have picked.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== HOW ===================== -->
+<section>
+  <div class="wrap">
+    <div class="float">
+      <p class="kicker">How it works</p>
+      <h2 class="big">Say it like you'd<br />text a friend.</h2>
+      <p class="lede">No forms. No filters. No twelve tabs open comparing menus.</p>
+    </div>
+    <div class="grid">
+      <div class="cell float"><span class="ic">💬</span><h3>Tell it the night</h3>
+        <p>“$120, chill date night, we'll walk.” That's genuinely enough to start.</p></div>
+      <div class="cell float"><span class="ic">📍</span><h3>It reads your streets</h3>
+        <p>Live venues around you — what's open, what it costs, what's on tonight.</p></div>
+      <div class="cell float"><span class="ic">🗺️</span><h3>You get a route</h3>
+        <p>Stop by stop, with times, costs and directions. Not a list to sort through.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== DARK FINALE ===================== -->
+<div class="track" data-track="dark" style="height:auto">
+  <div class="dark float" id="darkPanel">
+    <p class="kicker">The point</p>
+    <h2>Spontaneity,<br />on tap.</h2>
+    <p>The best nights start with someone saying “let's go out” at six o'clock —
+       and they usually die right there, in the deciding.</p>
+  </div>
+</div>
+
+<section class="final">
+  <div class="wrap float">
+    <h2 class="big">What are you doing tonight?</h2>
+    <a class="btn btn-primary" id="footCta" href="auth.html">Plan tonight — free</a>
+    <p class="fine">Free. One message is all it takes.</p>
+  </div>
+</section>
 
 <footer>
-  <div class="links">
-    <a href="roamly.html">Planner</a>
-    <a href="app.html">Map</a>
-    <a href="#how">How it works</a>
-    <a href="#waitlist">Early access</a>
+  <div class="wrap">
+    <span class="grad" style="font-weight:800; letter-spacing:-.03em;">🧭 Roamly</span>
+    <span class="nav-sp"></span>
+    <a href="auth.html">Sign in</a>
+    <a href="#watch">See it work</a>
   </div>
-  <div>© 2026 Roamly · your night, planned</div>
 </footer>
 
 <script>
-const API = window.API_BASE;
+(function(){
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ---- scroll reveal ---- */
-const io = new IntersectionObserver((entries) => {
-  for (const en of entries) if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
-}, { threshold: .15 });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-
-/* ---- animated chat demo (loops through scenarios) ---- */
-const SCENARIOS = [
-  { ask: '$60, date night, something a little fancy 🍷',
-    reply: "Say less. Here's your night — three stops, all within a 12-minute walk:",
-    stops: [['7:00','Bar Isabel','· dinner · Spanish'],['8:45','Civil Liberties','· cocktails'],['10:15',"Sweet Olenka's",'· dessert']] },
-  { ask: '$30, chill night with the roomies 🍕',
-    reply: 'Cozy and cheap — I got you:',
-    stops: [['6:30','Superpoint','· pizza slices'],['8:00','Snakes & Lattes','· board games'],['9:45','Night Owl','· cheap pints']] },
-  { ask: 'we just got paid. go crazy 🤑',
-    reply: 'Turning it up. Tonight goes like this:',
-    stops: [['7:30','Omakase bar','· dinner · sushi'],['9:30','Rooftop lounge','· skyline drinks'],['11:30','Basement disco','· dancing']] },
-];
-const demo = document.getElementById('demo');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-function el(html){ const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
-async function playDemo(){
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let i = 0;
-  for(;;){
-    const s = SCENARIOS[i % SCENARIOS.length]; i++;
-    demo.innerHTML = '';
-    demo.appendChild(el(`<div class="msg me"><div class="av">🙂</div><div class="bubble">${s.ask}</div></div>`));
-    if (!reduce) {
-      const typing = el(`<div class="msg"><div class="av">R</div><div class="bubble dots"><span></span><span></span><span></span></div></div>`);
-      demo.appendChild(typing); await sleep(1100); typing.remove();
-    }
-    demo.appendChild(el(`<div class="msg"><div class="av">R</div><div class="bubble">${s.reply}</div></div>`));
-    const stops = el(`<div class="stops"></div>`); demo.appendChild(stops);
-    for (const [t, n, c] of s.stops) {
-      if (!reduce) await sleep(450);
-      const row = el(`<div class="stop"><span class="time">${t}</span><span class="name">${n}</span><span class="cat">${c}</span></div>`);
-      row.style.animation = 'rise .4s var(--ease) both'; stops.appendChild(row);
-    }
-    await sleep(4800);
-  }
-}
-playDemo();
-
-/* ---- waitlist form ---- */
-document.getElementById('wlForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('wlEmail').value.trim();
-  const note = document.getElementById('wlNote');
-  note.textContent = 'Adding you…';
-  try {
-    const res = await fetch(`${API}/waitlist`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email })
+  /* Signed in already? Skip the login page entirely. */
+  if (localStorage.getItem('trek_token')) {
+    ['navCta','heroCta','footCta'].forEach(function(id){
+      var a = document.getElementById(id); if (!a) return;
+      a.href = 'roamly.html';
+      a.textContent = id === 'navCta' ? 'Open Roamly' : 'Open the planner';
     });
-    if (!res.ok) throw new Error();
-    const data = await res.json();
-    note.textContent = data.already_joined
-      ? "You're already on the list — see you soon."
-      : "You're in — we'll be in touch.";
-  } catch {
-    const list = JSON.parse(localStorage.getItem('roamly_waitlist') || '[]');
-    if (!list.includes(email)) list.push(email);
-    localStorage.setItem('roamly_waitlist', JSON.stringify(list));
-    note.textContent = "You're in — we'll be in touch.";
   }
-  e.target.reset();
-});
+
+  if (reduce) return;   // CSS already shows the finished state
+
+  var nav    = document.getElementById('nav');
+  var tracks = [].slice.call(document.querySelectorAll('.track[data-track]'));
+  var floats = [].slice.call(document.querySelectorAll('.float'));
+  var heroIn = document.querySelector('.hero-in');
+  var cue    = document.querySelector('.cue');
+  var aurora = document.querySelector('.aurora');
+  var vh = window.innerHeight;
+  var boxes = [];
+  var lastY = -1, navSolid = false, auroraDim = false, heroLive = true;
+
+  /* Cache geometry once per resize so the scroll loop never forces layout. */
+  function measure(){
+    vh = window.innerHeight;
+    boxes = tracks.map(function(t){
+      var r = t.getBoundingClientRect(), top = r.top + window.scrollY;
+      return { el:t, top:top, height:t.offsetHeight, active:-1,
+               items:[].slice.call(t.querySelectorAll('[data-at]')),
+               says:[].slice.call(t.querySelectorAll('[data-say]')),
+               kind:t.dataset.track };
+    });
+  }
+
+  var clamp = function(v){ return v < 0 ? 0 : v > 1 ? 1 : v; };
+
+  function frame(){
+    var y = window.scrollY;
+    ticking = false;
+    if (y === lastY) return;          // nothing moved — do no work at all
+    lastY = y;
+
+    /* Hero: write transform/opacity straight onto the one element that needs
+       them, and stop entirely once it's scrolled away. */
+    if (y < vh * 1.15){
+      var hp = clamp(y / (vh * 0.85));
+      heroIn.style.transform = 'translate3d(0,' + (-60 * hp).toFixed(1) + 'px,0) scale(' +
+                               (1 - 0.16 * hp).toFixed(3) + ')';
+      heroIn.style.opacity = (1 - hp * 1.5).toFixed(3);
+      cue.style.opacity = (1 - hp * 2.4).toFixed(3);
+      heroLive = true;
+    } else if (heroLive){
+      heroIn.style.opacity = '0'; cue.style.opacity = '0';
+      heroLive = false;
+    }
+
+    /* Class flips only when the state actually changes, so we're not
+       invalidating style on every frame for no reason. */
+    var wantSolid = y > vh * 0.6;
+    if (wantSolid !== navSolid){
+      nav.classList.toggle('solid', wantSolid);
+      document.body.classList.toggle('past-hero', wantSolid);
+      navSolid = wantSolid;
+    }
+    if (wantSolid !== auroraDim){ aurora.classList.toggle('dim', wantSolid); auroraDim = wantSolid; }
+
+    for (var i = 0; i < boxes.length; i++){
+      var b = boxes[i];
+      /* Skip any track that isn't on screen. */
+      if (b.top - y > vh || (b.top + b.height) - y < 0) continue;
+
+      var span = b.height - vh;
+      var p = span > 0 ? clamp((y - b.top) / span) : (y > b.top - vh * 0.7 ? 1 : 0);
+
+      if (b.kind === 'chat'){
+        /* Staged reveal: each element appears as scroll passes its data-at, and
+           an optional data-until retires it again (the typing dots, once the
+           reply lands) so the exchange plays like a real conversation. */
+        for (var j = 0; j < b.items.length; j++){
+          var el = b.items[j], until = el.dataset.until;
+          var on = p >= parseFloat(el.dataset.at) && (until === undefined || p < parseFloat(until));
+          if (on !== el._on){ el.classList.toggle('on', on); el._on = on; }
+        }
+      }
+      else if (b.kind === 'says'){
+        /* Split the pinned run into equal beats, one statement each. */
+        var n = b.says.length;
+        var active = Math.min(n - 1, Math.floor(p * n * 0.999));
+        if (active !== b.active){
+          for (var k = 0; k < n; k++) b.says[k].classList.toggle('on', k === active);
+          b.active = active;
+        }
+      }
+      else if (b.kind === 'dark'){
+        /* Scoped to the panel — a custom property on :root would invalidate
+           style for the entire document on every frame. */
+        b.el.style.setProperty('--dark-p', p.toFixed(3));
+      }
+    }
+  }
+
+  var ticking = false;
+  function onScroll(){ if (!ticking){ ticking = true; requestAnimationFrame(frame); } }
+
+  /* Plain sections just float in once. */
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if (e.isIntersecting){ e.target.classList.add('on'); io.unobserve(e.target); }
+    });
+  }, { rootMargin: '0px 0px -12% 0px' });
+  floats.forEach(function(el, i){
+    el.style.transitionDelay = (i % 3) * 90 + 'ms';
+    io.observe(el);
+  });
+
+  measure(); frame();
+  window.addEventListener('scroll', onScroll, { passive:true });
+  window.addEventListener('resize', function(){ measure(); lastY = -1; frame(); });
+  window.addEventListener('load', function(){ measure(); lastY = -1; frame(); });
+})();
 </script>
 </body>
 </html>

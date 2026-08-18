@@ -1,14 +1,15 @@
-"""initial schema: enable extensions + create all tables (incl. PostGIS geography)
+"""init: users table
+
+The planner is members-only, so accounts are the only persisted state. Every
+other table (trips, badges, friendships, leaderboards, challenges, feed,
+waitlist) belonged to the travel-logging product and was removed.
 
 Revision ID: 0001_init
 Revises:
-Create Date: 2026-06-22
 """
-from alembic import op
 import sqlalchemy as sa
-
-from app.database import Base
-import app.models  # noqa: F401  (populate metadata)
+from alembic import op
+from sqlalchemy.dialects import postgresql
 
 revision = "0001_init"
 down_revision = None
@@ -17,19 +18,20 @@ depends_on = None
 
 
 def upgrade() -> None:
-    bind = op.get_bind()
-    op.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
-    # PostGIS is the production datastore (see docker-compose's postgis image).
-    # It is optional for the portable/native runtime: only enable it when the
-    # extension is actually available, so a vanilla PostgreSQL still migrates.
-    postgis_available = bind.execute(
-        sa.text("SELECT 1 FROM pg_available_extensions WHERE name = 'postgis'")
-    ).scalar()
-    if postgis_available:
-        op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
-    Base.metadata.create_all(bind=bind)
+    op.create_table(
+        "users",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("apple_id", sa.String(255), nullable=True, unique=True),
+        sa.Column("email", sa.String(255), nullable=False, unique=True),
+        sa.Column("username", sa.String(30), nullable=False, unique=True),
+        sa.Column("display_name", sa.String(100), nullable=False),
+        sa.Column("password_hash", sa.String(255), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.func.now()),
+    )
+    op.create_index("ix_users_username", "users", ["username"])
 
 
 def downgrade() -> None:
-    bind = op.get_bind()
-    Base.metadata.drop_all(bind=bind)
+    op.drop_index("ix_users_username", table_name="users")
+    op.drop_table("users")

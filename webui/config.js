@@ -6,5 +6,4 @@
 window.API_BASE =
   (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
     ? 'http://127.0.0.1:8001/api/v1'
-    : 'https://trekrank.onrender.com/api/v1';
-    
+    : 'https://sway-api.onrender.com/api/v1';

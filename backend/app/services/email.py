@@ -51,16 +51,16 @@ def send_email(to_email: str, subject: str, html: str, text: str | None = None) 
 
 def send_password_reset(to_email: str, reset_token: str) -> bool:
     reset_link = f"{settings.frontend_base_url}/?reset_token={reset_token}"
-    subject = "Reset your TrekRank password"
+    subject = "Reset your Sway password"
     html = f"""
       <p>Hi,</p>
-      <p>We received a request to reset your TrekRank password.
+      <p>We received a request to reset your Sway password.
          Click the link below to choose a new one. This link expires in 15 minutes.</p>
       <p><a href="{reset_link}">Reset my password</a></p>
       <p>If the link doesn't work, paste this code into the app:</p>
       <p style="font-family:monospace;word-break:break-all">{reset_token}</p>
       <p>If you didn't request this, you can safely ignore this email.</p>
-      <p>— TrekRank</p>
+      <p>— Sway</p>
     """
     return send_email(to_email, subject, html)
 

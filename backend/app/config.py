@@ -9,12 +9,12 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Core
-    app_name: str = "TrekRank"
+    app_name: str = "Sway"
     api_v1_prefix: str = "/api/v1"
     environment: str = "development"
 
-    # Database
-    database_url: str = "postgresql+psycopg2://saillesh@localhost:5432/trekrank"
+    # Database — accounts only (the planner itself persists nothing).
+    database_url: str = "postgresql+psycopg2://saillesh@localhost:5432/sway"
 
     # Redis (broker + cache + leaderboards + rate limiting)
     redis_url: str = "redis://localhost:6379/0"
@@ -41,27 +41,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24  # 1 day
     refresh_token_expire_minutes: int = 60 * 24 * 30  # 30 days
 
-    # Storage: "local" (filesystem) or "s3" (MinIO/S3). MVP defaults to local.
-    storage_backend: str = "local"
-    local_storage_dir: str = "./media"
-    public_base_url: str = "http://localhost:8000"
-
-    # S3 / MinIO (used only when storage_backend == "s3")
-    s3_endpoint: str = "http://localhost:9000"
-    s3_bucket: str = "trekrank-photos"
-    s3_access_key: str = "minioadmin"
-    s3_secret_key: str = "minioadmin"
-
     # Geocoding (Nominatim / OpenStreetMap — free, no key)
     nominatim_url: str = "https://nominatim.openstreetmap.org/search"
-    geocode_user_agent: str = "TrekRank/0.1 (mvp; contact dev@trekrank.app)"
+    geocode_user_agent: str = "Sway/0.1 (mvp; contact dev@sway.app)"
     geocode_cache_ttl: int = 60 * 60 * 24 * 30  # 30 days
 
     # Email (SendGrid Web API). Leave key blank to disable sending — the
     # password-reset endpoint then returns the token directly (dev fallback).
     sendgrid_api_key: str = ""
     email_from: str = ""  # must be a SendGrid-verified sender (Single Sender or domain)
-    email_from_name: str = "TrekRank"
+    email_from_name: str = "Sway"
     # Where the web UI is hosted; used to build the reset link in emails.
     frontend_base_url: str = "http://127.0.0.1:8080"
 
@@ -90,9 +79,6 @@ class Settings(BaseSettings):
     # Rate limiting (requests per window per client)
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
-
-    # Leaderboard cache TTL
-    leaderboard_ttl_seconds: int = 300  # 5 minutes
 
 
 @lru_cache

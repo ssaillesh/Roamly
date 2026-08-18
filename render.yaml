@@ -1,54 +1,62 @@
-# Render Blueprint — TrekRank backend.
+# Render Blueprint — Sway planner backend.
 #
-# The API and the Celery worker run in ONE web service (via backend/start.sh)
-# so they share a disk. The EXIF photo pipeline depends on the worker being able
-# to read the photo the API just saved — separate services with separate disks
-# would break geolocation. (For durable storage later, switch STORAGE_BACKEND to
-# S3/R2 and you can split them into independent services.)
+# One web service. The planner runs in-request (external venue APIs + a Redis
+# cache), so there is no background worker and no shared disk to coordinate.
 #
 # Deploy: push this repo to GitHub, then in Render: New → Blueprint → pick the repo.
 
 databases:
-  - name: trekrank-db
-    databaseName: trekrank
-    user: trek
+  - name: sway-db
+    databaseName: sway
+    user: sway
     plan: free
 
 services:
-  - type: keyvalue            # Render's managed Redis (broker + cache)
-    name: trekrank-redis
+  - type: keyvalue            # Render's managed Redis (venue/geocode cache + rate limiting)
+    name: sway-redis
     plan: free
     ipAllowList: []           # internal-only
-    maxmemoryPolicy: noeviction
+    maxmemoryPolicy: allkeys-lru
 
   - type: web
-    name: trekrank-api
+    name: sway-api
     runtime: python
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: sh start.sh   # runs migrations + seeds + Celery worker + uvicorn
+    startCommand: sh start.sh   # runs migrations + uvicorn
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
         fromDatabase:
-          name: trekrank-db
+          name: sway-db
           property: connectionString
       - key: REDIS_URL
         fromService:
           type: keyvalue
-          name: trekrank-redis
+          name: sway-redis
           property: connectionString
-      - key: STORAGE_BACKEND
-        value: local
       - key: JWT_SECRET
         generateValue: true
       - key: ENVIRONMENT
         value: production
       # Nominatim asks for a descriptive UA with contact info — set your email.
       - key: GEOCODE_USER_AGENT
-        value: "TrekRank/1.0 (your-email@example.com)"
-      # After the first deploy, set this to the service's public URL,
-      # e.g. https://trekrank-api.onrender.com  (used to build photo URLs).
-      - key: PUBLIC_BASE_URL
+        value: "Sway/1.0 (your-email@example.com)"
+      # Planner brain. Without it the deterministic planner still works.
+      - key: LLM_API_KEY
+        sync: false
+      # Password reset cannot deliver without these — see the README.
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      # Optional venue sources; unset => OpenStreetMap only.
+      - key: YELP_API_KEY
+        sync: false
+      - key: FOURSQUARE_API_KEY
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
+      - key: TICKETMASTER_API_KEY
         sync: false

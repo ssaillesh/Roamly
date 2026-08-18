@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Ping /health
         run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 https://trekrank.onrender.com/health)
+          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 https://sway-api.onrender.com/health)
           echo "status: $status"
           if [ "$status" != "200" ]; then
             echo "::warning::Health check returned $status"
