@@ -1,21 +1,27 @@
-name: Keep API warm
+name: API health check
 
 on:
   schedule:
-    # Every 10 minutes — comfortably inside Render free tier's ~15min idle
-    # spin-down window, so /health never has to cold-start a real user.
-    - cron: "*/10 * * * *"
+    # Hourly outage alert only. Keeping the API awake is done by cron-job.org
+    # pinging /health every 5 min (see the job in the cron-job.org dashboard): GitHub's
+    # cron is best-effort (runs arrive late or get dropped, so it can't beat
+    # Render's 15-min idle spin-down), and a 10-min schedule would burn ~4,300
+    # billed Actions minutes a month on a private repo.
+    - cron: "17 * * * *"
   workflow_dispatch: {}
 
 jobs:
   ping:
-    runs-on: ubuntu-latest
+    # Pinned: only needs curl, and avoids the ubuntu-latest → 26 migration notice.
+    runs-on: ubuntu-24.04
     steps:
       - name: Ping /health
         run: |
           # A cold start can take over a minute, so allow 90s and retry once.
+          # `|| true`: steps run under `bash -e`, so a curl timeout (exit 28)
+          # would otherwise abort the script before the retry or error message.
           for attempt in 1 2; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://trekrank.onrender.com/health)
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://trekrank.onrender.com/health) || true
             echo "attempt $attempt status: $status"
             [ "$status" = "200" ] && exit 0
           done
