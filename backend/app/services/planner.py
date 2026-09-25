@@ -1,6 +1,6 @@
 """Itinerary planner — turns budget + vibe + context into an ordered plan of real
-nearby places. Optimises for: stops CLOSE together (no crossing town), best value
-(great rating for the price), and a hidden-gem or two. Uses Yelp (ratings/prices)
+nearby places. Optimises for: stops CLOSE together (no crossing town) and best value
+(great rating for the price). Uses Yelp (ratings/prices)
 when keyed, falls back to OpenStreetMap. An optional LLM writes the narration.
 """
 import math
@@ -11,7 +11,7 @@ from app.services import foursquare
 from app.services import geocoding
 from app.services import google_places
 from app.services import yelp
-from app.services.hotspots import fetch_hotspots
+from app.services.osm_places import fetch_places
 from app.services import llm
 from app.services import weather as weather_svc
 from app.services import events as events_svc
@@ -32,7 +32,7 @@ FUN_WEIGHT = 1.3
 
 # How much popularity/buzz counts. Higher = favour the busy, well-known, trendy
 # spots a younger crowd wants (Cactus Club-type places with thousands of reviews)
-# over tiny high-rated gems. log10(reviews) so 2000 reviews ≈ 3.3, 80 ≈ 1.9.
+# over tiny little-known spots. log10(reviews) so 2000 reviews ≈ 3.3, 80 ≈ 1.9.
 BUZZ_WEIGHT = 0.7
 
 # Foursquare popularity is 0..1 from real foot traffic — the closest thing to a
@@ -306,7 +306,7 @@ def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, c
             else:
                 cands.append(g)
     if len(cands) < 5:
-        for h in fetch_hotspots(slot["osm"], lat=anchor[0], lng=anchor[1], radius=radius):
+        for h in fetch_places(slot["osm"], lat=anchor[0], lng=anchor[1], radius=radius):
             cands.append({"source": "osm", "name": h["name"], "lat": h["lat"], "lng": h["lng"],
                           "rating": None, "review_count": None, "price": None,
                           "categories": [h.get("subtype") or slot["osm"]],
@@ -314,10 +314,10 @@ def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, c
     return cands
 
 
-def _score(c, anchor, penalty, want_gem, fancy=False, apply_fun=False, interests=""):
+def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests=""):
     """Higher is better. Balances rating, closeness, price preference (cheaper for
-    value vibes / pricier when they want fancy), a hidden-gem bonus, and — for
-    activity/leisure slots — a fun/hype signal that's independent of star rating."""
+    value vibes / pricier when they want fancy), and — for activity/leisure
+    slots — a fun/hype signal that's independent of star rating."""
     rating = c.get("rating") or 3.6                      # neutral for unrated OSM
     dist = _haversine_km(anchor[0], anchor[1], c["lat"], c["lng"])
     level = PRICE_LEVEL.get(c.get("price"), 2)
@@ -330,9 +330,6 @@ def _score(c, anchor, penalty, want_gem, fancy=False, apply_fun=False, interests
         # Excitement matters here, not just satisfaction — so a high-energy
         # experience can out-rank a better-reviewed but sleepy one.
         score += experience.fun_factor_for(c.get("categories")) * FUN_WEIGHT
-    rc = c.get("review_count")
-    if want_gem and not fancy and rc is not None and rating >= 4.0 and rc < 350:
-        score += 0.8                                     # reward the under-the-radar spot
     return score
 
 
@@ -347,28 +344,23 @@ def tag_for(c) -> tuple[str | None, str | None]:
         return ("🔥", "Buzzing")
     if rating >= 4.7 and rc >= 30:
         return ("⭐", "Top-rated")
-    if 0 < rc < 60 and rating >= 4.4:
-        return ("💎", "Hidden gem")
     if fun <= 2.3:
         return ("😴", "Low-key")
     return (None, None)
 
 
-def _pick(cands, used, anchor, penalty, want_gem, vary=False, fancy=False, apply_fun=False,
+def _pick(cands, used, anchor, penalty, vary=False, fancy=False, apply_fun=False,
           interests="", rng=random, explore=False):
     ranked = sorted(
         (c for c in cands if c.get("name") and c["name"].lower() not in used),
-        key=lambda c: _score(c, anchor, penalty, want_gem, fancy, apply_fun, interests), reverse=True)
+        key=lambda c: _score(c, anchor, penalty, fancy, apply_fun, interests), reverse=True)
     if not ranked:
         return None
-    # Surprise mode: a wide weighted draw tilted toward hidden gems — deliberately
-    # off the beaten path, but never the genuinely weak tail of the ranking.
+    # Surprise mode: a wide, even draw from the strong top of the ranking —
+    # adventurous, but never the genuinely weak tail.
     if explore and len(ranked) > 1:
         pool = ranked[:min(10, len(ranked))]
-        def gem_weight(c):
-            rc = c.get("review_count") or 0
-            return 1.8 if (c.get("rating") or 0) >= 4.2 and 0 < rc < 400 else 1.0
-        return rng.choices(pool, weights=[gem_weight(c) for c in pool], k=1)[0]
+        return rng.choice(pool)
     # On a "try another", draw rank-weighted from the strong top slice — better
     # picks stay likelier, but the pool is wide enough that re-rolls really differ.
     if vary and len(ranked) > 1:
@@ -431,9 +423,6 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                     slots[i] = "activity"
                 seen_cafe = True
 
-    # Surface the hidden gem on the activity if there is one, else the last stop.
-    gem_index = slots.index("activity") if "activity" in slots else len(slots) - 1
-
     center = (lat, lng)
     chain = tconf.get("chain", False)   # only walking chains stops tightly together
     fancy = vibe == "extravagant"       # bias picks toward pricier/upscale venues
@@ -469,12 +458,12 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         apply_fun = slot_key in ("activity", "leisure")
         cands = [c for c in _gather(search_from, slot_key, price_pref, r, dietary, term_override, cat_override)
                  if not avoid_match(c, avoid)]
-        pick = _pick(cands, used, search_from, tconf["penalty"], (i == gem_index), vary, fancy, apply_fun,
+        pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
                      interests, rng=rng, explore=surprise)
         if not pick and r < radius:
             cands = [c for c in _gather(search_from, slot_key, price_pref, radius, dietary, term_override, cat_override)
                      if not avoid_match(c, avoid)]
-            pick = _pick(cands, used, search_from, tconf["penalty"], (i == gem_index), vary, fancy, apply_fun,
+            pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
                          interests, rng=rng, explore=surprise)
         if not pick:
             continue
@@ -618,7 +607,7 @@ def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
     apply_fun = slot_key in ("activity", "leisure")
     fancy = vibe == "extravagant"
     ranked = sorted((c for c in cands if c.get("name")),
-                    key=lambda c: _score(c, (lat, lng), tconf["penalty"], False, fancy, apply_fun, interests),
+                    key=lambda c: _score(c, (lat, lng), tconf["penalty"], fancy, apply_fun, interests),
                     reverse=True)
     seen, out = set(), []
     for c in ranked:

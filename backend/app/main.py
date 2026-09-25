@@ -9,8 +9,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from app.config import settings
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.api import (
-    auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist,
-    hotspots, plan,
+    auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist, plan,
 )
 
 app = FastAPI(
@@ -39,7 +38,7 @@ if settings.storage_backend == "local":
 
 P = settings.api_v1_prefix
 for r in (auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist,
-          hotspots, plan):
+          plan):
     app.include_router(r.router, prefix=P)
 
 

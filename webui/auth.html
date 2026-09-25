@@ -23,7 +23,9 @@
     --accent:#ff5a5f; --accent2:#7c5cff; --hot:#ff3d9a; --lime:#b8f34a;
     --ink:#1d1d1f; --ink2:#515154; --ink3:#86868b;
     --brd:rgba(255,255,255,.14); --hair:rgba(255,255,255,.09);
-    --card:rgba(20,18,28,.62); --card-solid:#141219;
+    /* Near-opaque instead of backdrop-blurred: a blur over the animated blobs
+       is recomputed every frame and lagged the whole browser. */
+    --card:rgba(20,18,28,.9); --card-solid:#141219;
     --shadow:0 40px 90px -30px rgba(0,0,0,.7), 0 10px 30px -12px rgba(124,92,255,.25);
     --ease:cubic-bezier(.22,1,.36,1);
     --pop:cubic-bezier(.34,1.56,.64,1);
@@ -42,18 +44,14 @@
   .grad{background:linear-gradient(100deg,var(--accent) 10%,var(--hot) 45%,var(--accent2) 90%);
     -webkit-background-clip:text; background-clip:text; color:transparent;}
 
-  /* ---------- living aurora backdrop ---------- */
+  /* ---------- aurora backdrop ----------
+     Static on purpose: animating these huge 90px-blurred blobs made the
+     compositor redraw the whole viewport 60x/s while idle, lagging the browser. */
   .bg{position:fixed; inset:0; z-index:0; overflow:hidden;}
-  .bg i{position:absolute; border-radius:50%; filter:blur(90px); opacity:.55; will-change:transform;}
-  .bg .b1{width:640px; height:640px; left:-160px; top:-160px; background:radial-gradient(circle,rgba(255,90,95,.55),transparent 70%);
-    animation:float1 22s ease-in-out infinite alternate;}
-  .bg .b2{width:720px; height:720px; right:-220px; top:-120px; background:radial-gradient(circle,rgba(124,92,255,.55),transparent 70%);
-    animation:float2 26s ease-in-out infinite alternate;}
-  .bg .b3{width:560px; height:560px; left:30%; bottom:-260px; background:radial-gradient(circle,rgba(255,61,154,.4),transparent 70%);
-    animation:float3 20s ease-in-out infinite alternate;}
-  @keyframes float1{from{transform:translate(0,0) scale(1);} to{transform:translate(60px,40px) scale(1.12);}}
-  @keyframes float2{from{transform:translate(0,0) scale(1);} to{transform:translate(-50px,60px) scale(1.08);}}
-  @keyframes float3{from{transform:translate(0,0) scale(1);} to{transform:translate(30px,-40px) scale(1.15);}}
+  .bg i{position:absolute; border-radius:50%; filter:blur(90px); opacity:.55;}
+  .bg .b1{width:640px; height:640px; left:-160px; top:-160px; background:radial-gradient(circle,rgba(255,90,95,.55),transparent 70%);}
+  .bg .b2{width:720px; height:720px; right:-220px; top:-120px; background:radial-gradient(circle,rgba(124,92,255,.55),transparent 70%);}
+  .bg .b3{width:560px; height:560px; left:30%; bottom:-260px; background:radial-gradient(circle,rgba(255,61,154,.4),transparent 70%);}
   .grain{position:fixed; inset:0; z-index:1; opacity:.035; pointer-events:none;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
 
@@ -63,9 +61,9 @@
     justify-content:space-between; padding:20px 26px; pointer-events:none;}
   header.top > *{pointer-events:auto;}
   .back{display:inline-flex; align-items:center; gap:7px; font-size:13.5px; font-weight:650; color:#e6e6ea;
-    background:rgba(255,255,255,.06); border:1px solid var(--brd); padding:8px 15px 8px 12px; border-radius:999px;
-    backdrop-filter:blur(14px); transition:.2s var(--ease); text-decoration:none;}
-  .back:hover{background:rgba(255,255,255,.12); transform:translateX(-2px);}
+    background:rgba(28,26,36,.9); border:1px solid var(--brd); padding:8px 15px 8px 12px; border-radius:999px;
+    transition:.2s var(--ease); text-decoration:none;}
+  .back:hover{background:rgba(44,42,54,.95); transform:translateX(-2px);}
   .top-logo{font-weight:850; letter-spacing:-.02em; font-size:17px; display:inline-flex; align-items:center; gap:6px;}
 
   .stage-wrap{flex:1 1 640px; display:flex; align-items:center; justify-content:center; position:relative;
@@ -78,12 +76,12 @@
   .preview{width:100%; max-width:460px;}
   .eyebrow{font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#c9b8ff; margin-bottom:16px;
     display:flex; align-items:center; gap:9px;}
-  .eyebrow .dot{width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); animation:pulse 2s infinite;}
+  .eyebrow .dot{width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); animation:pulse 2s 3;}  /* finite: an infinite loop keeps the page redrawing at 60fps */
   @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
   .preview h1{font-size:clamp(32px,3.2vw,44px); line-height:1.08; letter-spacing:-.03em; font-weight:800; margin:0 0 14px;}
   .preview p{font-size:16px; color:#b9b9c2; max-width:38ch; margin:0 0 34px;}
 
-  .stage{background:var(--card); backdrop-filter:blur(24px) saturate(160%); border:1px solid var(--brd);
+  .stage{background:var(--card); border:1px solid var(--brd);
     border-radius:26px; box-shadow:var(--shadow); padding:22px 22px 18px; min-height:280px;
     animation:cardIn 1s var(--pop) both;}
   @keyframes cardIn{from{opacity:0; transform:translateY(18px) scale(.97);} to{opacity:1; transform:none;}}
@@ -115,7 +113,7 @@
   .stat span{font-size:11.5px; color:#8f8f98;}
 
   /* ---------- right: auth card ---------- */
-  .card{width:100%; max-width:400px; background:var(--card); backdrop-filter:blur(28px) saturate(160%);
+  .card{width:100%; max-width:400px; background:var(--card);
     border:1px solid var(--brd); border-radius:28px; box-shadow:var(--shadow); padding:34px 30px 28px;
     position:relative; overflow:hidden; animation:cardIn .7s var(--pop) both; transition:transform .25s var(--ease);}
   .card::before{content:""; position:absolute; inset:0 0 auto 0; height:1px;
@@ -220,7 +218,7 @@
     .card{padding:28px 20px 24px; border-radius:24px;}
   }
   @media(prefers-reduced-motion:reduce){
-    .bg i,.eyebrow .dot,.dots span{animation:none;}
+    .eyebrow .dot,.dots span{animation:none;}
     .card,.stage,.stat,.msg{animation:none;}
   }
 </style>

@@ -2,10 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
-  "headers": [
-    {
-      "source": "/gems.json",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
-    }
+  "redirects": [
+    { "source": "/app", "destination": "/roamly", "permanent": false }
   ]
 }

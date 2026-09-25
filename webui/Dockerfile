@@ -1,10 +1,8 @@
 FROM caddy:2-alpine
 
 COPY index.html /srv/index.html
-COPY app.html /srv/app.html
 COPY auth.html /srv/auth.html
 COPY roamly.html /srv/roamly.html
-COPY gems.json /srv/gems.json
 COPY config.js /srv/config.js
 COPY Caddyfile /etc/caddy/Caddyfile
 

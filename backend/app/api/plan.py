@@ -3,7 +3,7 @@ planner is a members-only feature (debug stays open for ops).
 
 With an LLM key it runs as a sharp concierge that reads the whole conversation,
 extracts what it needs, asks one focused follow-up when required, then builds a
-real plan optimised for close-together, best-value, hidden-gem stops. Without a
+real plan optimised for close-together, best-value stops. Without a
 key it degrades to a keyword heuristic so the app still works.
 """
 import random
@@ -86,7 +86,7 @@ IMPORTANT: if the latest message asks for a NEW or SEPARATE plan (a "plan B", a 
 another group / different people, "start over", a different day), extract preferences from
 THAT request alone — do not carry over budget, vibe, group or interests from earlier plans
 unless the user explicitly says "same as before". Ask again for anything now missing.
-Planning is optimised for stops close together, best value, and a hidden gem — so a
+Planning is optimised for stops close together and best value — so a
 walkable, budget-fitting plan. Prefer to gather time_of_day, transport, group_type and
 dietary when natural, but NEVER block a plan on them: if budget and vibe are known,
 set ready=true and leave the rest null. Ask at most what's essential, in one question."""

@@ -1,9 +1,8 @@
 # Roamly
 
-An AI trip-night planner and travel map. Tell the planner your budget and vibe
-and it builds a real, timed itinerary from live venues nearby; a separate map
-app surfaces hand-picked hidden gems and can drop that exact itinerary onto
-the map to see what's around it. The backend service (FastAPI/Celery) is
+An AI trip-night planner. Tell it your budget and vibe and it builds a real,
+timed itinerary from live venues nearby, with a route map of the stops. The
+backend service (FastAPI/Celery) is
 internally named **TrekRank** — it also does travel-logging: trips, distances,
 friend & global leaderboards, badges, and shareable year-in-travel cards.
 
@@ -28,8 +27,9 @@ Apple sign-in stub + forgot/reset password + GDPR delete), users/profile/stats/m
 trips CRUD + onboarding backfill, friends (request/accept/reject/suggestions), friend &
 global leaderboards (Redis sorted sets), cursor-paginated activity feed, badges (24 seeded)
 + evaluation, group challenges, Instagram-Story share-card generation, an AI planner
-(chat / guided "build your own" itinerary / options endpoints backed by live venue data),
-hidden-gem hotspots feed, and a waitlist signup endpoint.
+(chat / guided "build your own" itinerary / options endpoints backed by live venue data,
+with an OpenStreetMap fallback when the keyed venue APIs come up short), and a waitlist
+signup endpoint.
 
 **3 Celery workers:** trip processor (geocode → distance → visited tables → stats →
 leaderboards → feed → badge trigger), badge evaluator, share-card generator
@@ -37,21 +37,15 @@ leaderboards → feed → badge trigger), badge evaluator, share-card generator
 
 **Web UI (`webui/`, static HTML/CSS/JS, no build step):**
 - `index.html` — marketing landing page with an animated itinerary demo and a waitlist form.
-- `auth.html` — the dedicated sign-in / create-account page: animated aurora background,
+- `auth.html` — the dedicated sign-in / create-account page: soft aurora background,
   sliding segmented toggle, live field validation, password strength meter, and a
-  forgot-password flow. Any page that needs a session (the planner, the map's account
-  menu) routes here via `?redirect=`; an already-signed-in visitor is bounced straight
+  forgot-password flow. Any page that needs a session (the planner) routes here via
+  `?redirect=`; an already-signed-in visitor is bounced straight
   through before the page even paints.
 - `roamly.html` — the AI planner chat. A short conversational wizard (or free-form chat)
   builds a budget/vibe itinerary from real, open-right-now venues, with live nearby events
-  woven in on request. Each itinerary card has a mini preview map you can tap to open the
-  exact same stops — plotted for real, with a route line — on `app.html`, in a new tab.
+  woven in on request. Each itinerary card has a mini route map of its stops.
   Location sharing is a click-to-toggle pill in the header, off by default.
-- `app.html` — the interactive Leaflet map: hidden-gem discovery (filterable by category),
-  a rich spot-detail panel (street-level map + a real photo pulled from Wikipedia/Wikimedia
-  Commons), the same Roamly planner as an on-map chat concierge, and — when arriving from
-  a `roamly.html` itinerary link — the imported stops plotted with a "📍 Near your plan"
-  filter that surfaces hidden gems around that itinerary.
 
 **Tests:** 10 pytest integration tests (trips, badges, leaderboards, feed) — 8 passing.
 `test_five_countries_badge` (expects a `streak_3` badge not in the seeded catalog) and
@@ -137,7 +131,7 @@ Sway/
 │   │   ├── database.py          SQLAlchemy engine/session
 │   │   ├── models/              ORM models (users, trips, badges, …)
 │   │   ├── schemas/             Pydantic request/response models
-│   │   ├── api/                 routers (auth, users, trips, friends, plan, hotspots, …)
+│   │   ├── api/                 routers (auth, users, trips, friends, plan, …)
 │   │   ├── services/            geocoding, distance, stats, badges, leaderboard, planner, share
 │   │   ├── workers/             Celery app + 3 workers
 │   │   ├── middleware/          JWT auth + Redis rate limiting
@@ -150,8 +144,6 @@ Sway/
 │   ├── index.html            marketing landing page + waitlist
 │   ├── auth.html             sign-in / create-account page
 │   ├── roamly.html           AI planner chat
-│   ├── app.html               interactive map + hidden-gem discovery
-│   ├── gems.json              curated hidden-gem catalog
 │   ├── config.js              API_BASE (single source of truth)
 │   └── Dockerfile, Caddyfile  static-site deploy
 ├── docker-compose.yml            full prod-like stack (PostGIS/MinIO/Prom/Grafana)
@@ -176,7 +168,6 @@ Sway/
 | GET | `/badges/me` | earned + locked |
 | POST | `/share/card` | 1080×1920 PNG |
 | POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker) |
-| GET | `/hotspots` | curated hidden-gem feed |
 | POST | `/waitlist` | early-access signup |
 
 Full interactive docs at `/docs`.
