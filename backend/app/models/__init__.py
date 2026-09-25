@@ -7,9 +7,11 @@ from app.models.badge import Badge, UserBadge
 from app.models.challenge import Challenge, ChallengeParticipant
 from app.models.activity import ActivityFeed
 from app.models.waitlist import WaitlistSignup
+from app.models.user_profile import TasteProfile
 
 __all__ = [
     "WaitlistSignup",
+    "TasteProfile",
     "User",
     "Friendship",
     "Trip",

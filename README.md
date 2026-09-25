@@ -28,8 +28,9 @@ trips CRUD + onboarding backfill, friends (request/accept/reject/suggestions), f
 global leaderboards (Redis sorted sets), cursor-paginated activity feed, badges (24 seeded)
 + evaluation, group challenges, Instagram-Story share-card generation, an AI planner
 (chat / guided "build your own" itinerary / options endpoints backed by live venue data,
-with an OpenStreetMap fallback when the keyed venue APIs come up short), and a waitlist
-signup endpoint.
+with an OpenStreetMap fallback when the keyed venue APIs come up short), a taste profile
+(14-question onboarding survey whose answers become planner defaults — crew, budget, pace,
+crowds, energy, food rules, loves & hard nopes, no-alcohol), and a waitlist signup endpoint.
 
 **3 Celery workers:** trip processor (geocode → distance → visited tables → stats →
 leaderboards → feed → badge trigger), badge evaluator, share-card generator
@@ -40,9 +41,14 @@ leaderboards → feed → badge trigger), badge evaluator, share-card generator
 - `auth.html` — the dedicated sign-in / create-account page: soft aurora background,
   sliding segmented toggle, live field validation, password strength meter, and a
   forgot-password flow. Any page that needs a session (the planner) routes here via
-  `?redirect=`; an already-signed-in visitor is bounced straight
+  `?redirect=`; new accounts continue to the taste survey; an already-signed-in visitor is bounced straight
   through before the page even paints.
-- `roamly.html` — the AI planner chat. A short conversational wizard (or free-form chat)
+- `profile.html` — the taste survey: 14 tap-only questions, autosaved per answer (leave and
+  resume anytime), ending in a profile result ("🌙 Cozy Foodie Explorer"). Required before the
+  first plan; editable later via "✏️ My taste" in the planner.
+- `roamly.html` — the AI planner chat. Opens on a *ready card* pre-filled from the taste profile
+  (crew · mood · budget · time · transport · where) — one tap on **Plan it** builds a plan, and
+  chip-built requests skip the LLM entirely. A short conversational wizard (or free-form chat)
   builds a budget/vibe itinerary from real, open-right-now venues, with live nearby events
   woven in on request. Each itinerary card has a mini route map of its stops.
   Location sharing is a click-to-toggle pill in the header, off by default.
@@ -144,6 +150,7 @@ Sway/
 │   ├── index.html            marketing landing page + waitlist
 │   ├── auth.html             sign-in / create-account page
 │   ├── roamly.html           AI planner chat
+│   ├── profile.html          taste survey
 │   ├── config.js              API_BASE (single source of truth)
 │   └── Dockerfile, Caddyfile  static-site deploy
 ├── docker-compose.yml            full prod-like stack (PostGIS/MinIO/Prom/Grafana)
@@ -167,7 +174,8 @@ Sway/
 | GET | `/feed` | cursor-paginated, friends only |
 | GET | `/badges/me` | earned + locked |
 | POST | `/share/card` | 1080×1920 PNG |
-| POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker) |
+| POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker); optional structured `prefs` |
+| GET/PUT | `/users/me/profile` · GET `/users/me/profile/questions` | taste survey (partial saves merge) |
 | POST | `/waitlist` | early-access signup |
 
 Full interactive docs at `/docs`.

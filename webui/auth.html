@@ -482,9 +482,11 @@ $('authForm').addEventListener('submit', async (e) => {
     if (d.refresh_token) localStorage.setItem('trek_refresh', d.refresh_token);
 
     $('successTitle').textContent = d.user.is_new_user ? `Welcome, ${d.user.display_name || d.user.username} 🎉` : `Welcome back, ${d.user.display_name || d.user.username} 👋`;
-    $('successSub').textContent = 'Taking you to your plan…';
+    // New accounts take the taste survey first; it forwards on to REDIRECT after.
+    const next = mode === 'register' ? 'profile.html?redirect=' + encodeURIComponent(REDIRECT) : REDIRECT;
+    $('successSub').textContent = mode === 'register' ? 'First, a quick survey so plans fit you…' : 'Taking you to your plan…';
     $('success').classList.add('on');
-    setTimeout(() => { location.href = REDIRECT; }, 950);
+    setTimeout(() => { location.href = next; }, 950);
   }catch(err){
     $('formMsg').className = 'msg-box err';
     $('formMsg').textContent = err.message || 'Something went wrong — try again.';

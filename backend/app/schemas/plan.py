@@ -70,6 +70,11 @@ class ChatRequest(BaseModel):
     exclude: list[str] = Field(default_factory=list)
     seed: int | None = None
     surprise: bool = False
+    # Structured preferences from tappable chips (the planner's "ready card"):
+    # budget (total), vibe, party_size, group_type, time_of_day, transport,
+    # location, interests, avoid, dietary, days. When present, the LLM extraction
+    # round trip is skipped entirely — faster and deterministic.
+    prefs: dict | None = None
 
 
 class ChatResponse(BaseModel):

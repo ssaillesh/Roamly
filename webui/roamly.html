@@ -240,13 +240,32 @@
   .quiz .skip{display:block; text-align:center; margin-top:14px; color:var(--muted2); font-size:13px; cursor:pointer;}
   .quiz .skip:hover{color:var(--accent);}
   @keyframes qin{from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:none;}}
+  /* ---- ready card: a plan pre-filled from the taste profile, one tap to go ---- */
+  .ready{margin:2px 0 6px 40px; background:var(--card); border:1px solid var(--brd); border-radius:20px;
+    box-shadow:var(--shadow); padding:16px 16px 14px; max-width:620px;}
+  .ready .pills{display:flex; flex-wrap:wrap; gap:8px;}
+  .ready .pill{border:1px solid var(--brd); background:var(--bg2); color:var(--text); border-radius:999px;
+    padding:8px 13px; font:inherit; font-size:14px; font-weight:700; cursor:pointer;}
+  .ready .pill.open{border-color:var(--accent2); color:var(--accent2); background:#fff;}
+  .ready .choices{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; padding-top:10px; border-top:1px solid var(--hair);}
+  .ready .choices:empty{display:none;}
+  .ready .choices .chip.on{border-color:transparent; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2));}
+  .ready .choices input{flex:1 1 180px; border:1px solid var(--brd); border-radius:999px; padding:8px 14px; font:inherit; font-size:14px;}
+  .ready .go{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px;}
+  .ready .plan-it{border:0; border-radius:999px; padding:12px 22px; font:inherit; font-weight:750; font-size:15px; color:#fff;
+    cursor:pointer; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 10px 22px -12px rgba(124,92,255,.8);}
+  .ready .plan-it:disabled{opacity:.5; cursor:default;}
+  .ready .alt{border:0; background:none; font:inherit; font-size:13.5px; font-weight:650; color:var(--muted); cursor:pointer; padding:6px 8px;}
+  .ready .alt:hover{color:var(--accent2);}
+  @media (max-width:560px){ .ready{margin-left:0;} }
 </style>
 </head>
 <body>
   <header>
     <a class="logo" href="/"><span class="m">🧭</span><span class="grad">Roamly</span></a>
     <span class="tag">your day, your call ✨</span>
-    <button class="saved-btn" id="savedBtn" title="Saved plans" style="margin-left:auto;">💾 <span id="savedCount">0</span></button>
+    <a class="saved-btn" href="profile.html?edit=1&amp;redirect=roamly.html" title="Edit your taste profile" style="margin-left:auto;">✏️ My taste</a>
+    <button class="saved-btn" id="savedBtn" title="Saved plans" style="margin-left:0;">💾 <span id="savedCount">0</span></button>
     <div class="loc" id="locBadge" title="Click to turn your location on or off"><span class="dot"></span><span id="locText">location off</span></div>
   </header>
 
@@ -287,7 +306,8 @@ function getLoc(){
   navigator.geolocation.getCurrentPosition(
     p => { userLoc = {lat:p.coords.latitude, lng:p.coords.longitude};
            $('locBadge').classList.remove('busy'); $('locBadge').classList.add('on');
-           $('locText').textContent = 'near you'; },
+           $('locText').textContent = 'near you';
+           if (readyEl) renderReady(); },   // ready card's 📍 pill → "Near you"
     () => { $('locBadge').classList.remove('busy','on'); $('locText').textContent = 'location off'; userLoc = null; },
     { enableHighAccuracy:true, timeout:10000, maximumAge:300000 }
   );
@@ -626,11 +646,12 @@ async function buildItinerary(){
   finally{ updateBuildBar(); }
 }
 
-async function fetchOptions(){
+async function fetchOptions(prefs){
   try{
     const r = await apiFetch(`${API}/plan/options`, {
       method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng })
+      body: JSON.stringify(prefs ? { messages:[], prefs, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng }
+                                 : { messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng })
     });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
     const res = await r.json();
@@ -661,78 +682,149 @@ async function send(text, display, o={}){
         exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9),
         surprise: !!o.surprise }) });
     if (r.status === 401){ typing(false); $('send').disabled=false; requireSignIn(); return; }
-    const res = await r.json();
-    typing(false);
-    const bot = res.message || '…';
-    addMsgTyped(bot); messages.push({role:'assistant', content:bot});
-    if (res.type==='itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
-    else if (res.type==='itinerary' && res.plan) renderPlan(res.plan);      // auto-generated, with images
-    else addQuick(res.quick_replies);                                        // LLM's follow-up question
+    showChatResponse(await r.json());
   }catch(e){ typing(false); addMsg('assistant','Hmm, I hit a snag reaching the planner. Try again?'); }
   finally{ $('send').disabled=false; $('input').focus(); }
+}
+
+function showChatResponse(res){
+  typing(false);
+  const bot = res.message || '…';
+  addMsgTyped(bot); messages.push({role:'assistant', content:bot});
+  if (res.type==='itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
+  else if (res.type==='itinerary' && res.plan) renderPlan(res.plan);      // auto-generated, with images
+  else addQuick(res.quick_replies);                                        // follow-up question
 }
 
 $('send').onclick = ()=>send($('input').value);
 $('input').addEventListener('keydown', e=>{ if(e.key==='Enter') send($('input').value); });
 window.send = send;
 
-/* ---------- conversational wizard (asks questions to build the plan) ---------- */
-const WIZ = [
-  { key:'crew',   q:"What are we planning? 🎉", chips:[
-      ['💘 Date night','date'],['🎉 With the crew','friends'],['🧍 Solo trip','solo'],['👨‍👩‍👧 Family day','family']] },
-  { key:'vibe',   q:"Love it — what's the mood?", chips:[
-      ['😌 Chill','chill'],['🎊 Fun & social','night_out'],['🤠 Adventurous','adventurous'],['🥂 Fancy','extravagant']] },
-  { key:'energy', q:"How wild are we going?", chips:[
-      ['🌙 Low-key','low'],['⚖️ Balanced','mid'],['🚀 Send it','high']] },
-  { key:'budget', q:"Nice. What's the budget?", chips:[
-      ['$50','50'],['$100','100'],['$200','200'],['💸 No cap','500']] },
-  { key:'time',   q:"Last one — when's this happening?", chips:[
-      ['🌆 Tonight','evening'],['🌤️ Afternoon','afternoon'],['☀️ Full day','morning']] },
-];
-let wiz = { i:0, ans:{}, active:false, chipsEl:null };
+/* ---------- ready card: the taste profile pre-fills the plan; one tap to go ---------- */
+// Stable traits come from the survey (profile.html); each pill is only for what's
+// different *this time*. Tapping "Plan it" sends structured prefs, which skips the
+// server's LLM extraction entirely.
+const READY = {
+  group_type: { icon:'👫', options:[['solo','🧍 Solo'],['date','💘 Date'],['friends','🎉 Friends'],['family','👨‍👩‍👧 Family']] },
+  vibe:       { icon:'✨', options:[['chill','😌 Chill'],['romantic','💘 Romantic'],['adventurous','🤠 Adventurous'],['extravagant','🥂 Fancy'],['night_out','🎊 Night out']] },
+  budget:     { icon:'💸', options:[[50,'$50'],[100,'$100'],[200,'$200'],[500,'💸 No cap']] },
+  time_of_day:{ icon:'🕖', options:[['morning','☀️ Full day'],['afternoon','🌤️ Afternoon'],['evening','🌆 Evening'],['night','🌙 Late night']] },
+  transport:  { icon:'🚶', options:[['walk','🚶 Walk'],['transit','🚇 Transit'],['car','🚗 Car']] },
+};
+const PARTY = { solo:1, date:2, friends:4, family:4 };
+let profile = null, ready = null, readyEl = null, budgetTouched = false;
 
-function startWizard(){
-  addMsg('assistant', "Hey, I'm <b>Roamly</b> 🧭 — tell me what you're planning and I'll build it. A date night? A solo adventure? A day out with the crew? Just say the word (a budget helps too!).");
-  addQuick(['💘 Plan a date night','🧍 Solo adventure','🎉 Day out with friends','👨‍👩‍👧 Family day out','🎲 Surprise me']);
+function labelFor(key, val){
+  if (key === 'location') return val ? `📍 ${val}` : (userLoc ? '📍 Near you' : '📍 Where?');
+  if (key === 'budget'){ const o = READY.budget.options.find(([v]) => v === val); return o ? o[1] : `💸 ~$${Math.round(val)}`; }
+  const o = READY[key].options.find(([v]) => v === val);
+  return o ? o[1] : READY[key].icon + ' Any';
 }
-function askStep(){
-  const step = WIZ[wiz.i];
-  addMsg('assistant', step.q);
-  const row = document.createElement('div'); row.className = 'quick';
-  step.chips.forEach(([label,val]) => {
-    const b = document.createElement('button'); b.className='chip'; b.textContent=label;
-    b.onclick = () => answerStep(step.key, val, label);
-    row.appendChild(b);
+function readySummary(){
+  return ['group_type','vibe','budget','time_of_day','transport'].map(k => labelFor(k, ready[k]))
+    .concat(ready.location ? [labelFor('location', ready.location)] : []).join(' · ');
+}
+
+function startReady(p){
+  profile = p;
+  const d = p.defaults || {};
+  ready = { group_type: d.group_type || 'date', vibe: d.vibe || 'chill', time_of_day: d.time_of_day || 'evening',
+            transport: d.transport || 'transit', location: '' };
+  ready.party_size = d.party_size || PARTY[ready.group_type] || 2;
+  ready.budget = Math.round(d.budget || 100);
+  const a = p.archetype;
+  addMsg('assistant', `Hey${a ? ` ${esc(a.emoji)} <b>${esc(a.title)}</b>` : ''} — here's a plan made for you. Tap anything to change it, or just type what you want.`);
+  readyEl = document.createElement('div'); readyEl.className = 'ready';
+  thread.appendChild(readyEl); renderReady(); scrollDown();
+}
+
+function renderReady(openKey){
+  const keys = ['group_type','vibe','budget','time_of_day','transport','location'];
+  readyEl.innerHTML = `
+    <div class="pills">${keys.map(k => `<button class="pill${k === openKey ? ' open' : ''}" data-k="${k}">${esc(labelFor(k, ready[k]))}</button>`).join('')}</div>
+    <div class="choices"></div>
+    <div class="go">
+      <button class="plan-it">✨ Plan it</button>
+      <button class="alt" data-a="surprise">🎲 Surprise me</button>
+      <button class="alt" data-a="pick">🧩 Pick spots myself</button>
+    </div>`;
+  readyEl.querySelectorAll('.pill').forEach(b => b.onclick = () => renderReady(b.dataset.k === openKey ? null : b.dataset.k));
+  readyEl.querySelector('.plan-it').onclick = () => planIt();
+  readyEl.querySelector('[data-a="surprise"]').onclick = () => planIt({ surprise:true });
+  readyEl.querySelector('[data-a="pick"]').onclick = () => planIt({ pick:true });
+  const box = readyEl.querySelector('.choices');
+  if (!openKey) return;
+  if (openKey === 'location'){
+    box.innerHTML = `<button class="chip" data-v="me">📍 Use my location</button>
+      <input id="readyCity" placeholder="or type a city / neighbourhood" value="${esc(ready.location)}" />`;
+    box.querySelector('[data-v="me"]').onclick = () => { ready.location = ''; if (!userLoc) getLoc(); setTimeout(() => renderReady(), 50); };
+    const inp = box.querySelector('#readyCity');
+    inp.onkeydown = e => { if (e.key === 'Enter'){ ready.location = inp.value.trim(); renderReady(); } };
+    inp.onblur = () => { ready.location = inp.value.trim(); };
+    inp.focus();
+    return;
+  }
+  READY[openKey].options.forEach(([v, label]) => {
+    const c = document.createElement('button');
+    c.className = 'chip' + (ready[openKey] === v ? ' on' : ''); c.textContent = label;
+    c.onclick = () => {
+      ready[openKey] = v;
+      if (openKey === 'budget') budgetTouched = true;
+      if (openKey === 'group_type'){
+        ready.party_size = PARTY[v] || 2;
+        // keep the profile's per-person spend when the crew changes, unless they picked a budget
+        const pp = profile && profile.defaults && profile.defaults.budget_per_person;
+        if (pp && !budgetTouched) ready.budget = Math.round(pp * ready.party_size);
+      }
+      renderReady();
+    };
+    box.appendChild(c);
   });
-  thread.appendChild(row); scrollDown();
-  wiz.chipsEl = row;
 }
-function answerStep(key, val, label){
-  if (wiz.chipsEl){ wiz.chipsEl.remove(); wiz.chipsEl = null; }
-  addMsg('user', esc(label));
-  wiz.ans[key] = val; wiz.i++;
-  if (wiz.i < WIZ.length) askStep();
-  else { wiz.active = false; messages.push({role:'user', content:wizToPrompt(wiz.ans)}); typing(true); fetchOptions(); }
-}
-function wizToPrompt(a){
-  const crew = {date:'date night', friends:'day with the crew', solo:'solo day', family:'family day'}[a.crew] || 'day out';
-  const vibe = {chill:'chill', night_out:'fun social', adventurous:'adventurous', extravagant:'fancy'}[a.vibe] || '';
-  const energy = {low:'relaxed low-key', mid:'', high:'thrilling wild exciting send it'}[a.energy] || '';
-  const when = a.time === 'morning' ? 'full day' : (a.time === 'afternoon' ? 'this afternoon' : '');
-  const per = (a.crew === 'friends' || a.crew === 'family') ? ' each' : '';
-  return `${vibe} ${crew} ${when}, ${energy}, $${a.budget}${per}`.replace(/\s+/g,' ').replace(/ ,/g,',').trim();
+
+async function planIt(o = {}){
+  if (!token()){ requireSignIn(); return; }
+  const prefs = { group_type: ready.group_type, party_size: ready.party_size, vibe: ready.vibe,
+                  budget: ready.budget, time_of_day: ready.time_of_day, transport: ready.transport };
+  if (ready.location) prefs.location = ready.location;
+  if (!userLoc && !ready.location){ renderReady('location'); return; }      // need a where first
+  const summary = readySummary();
+  addMsg('user', esc(o.surprise ? `🎲 Surprise me · ${summary}` : summary));
+  // Keep a text trace so later free-text turns ("make it cheaper") have context.
+  messages.push({ role:'user', content:`Plan: ${summary}${o.surprise ? ' (surprise me)' : ''}` });
+  typing(true);
+  if (o.pick){ fetchOptions(prefs); return; }
+  const btn = readyEl.querySelector('.plan-it'); btn.disabled = true;
+  try{
+    const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
+      headers:{'Content-Type':'application/json', ...authHeaders()},
+      body: JSON.stringify({ messages:[], prefs, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
+        exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9), surprise: !!o.surprise }) });
+    if (r.status === 401){ typing(false); requireSignIn(); return; }
+    showChatResponse(await r.json());
+  }catch(e){ typing(false); addMsg('assistant','Hmm, I hit a snag reaching the planner. Try again?'); }
+  finally{ btn.disabled = false; }
 }
 
 /* ---------- boot ---------- */
-// No session at all → straight to the dedicated sign-in/create-account page
-// instead of dropping an unauthenticated visitor into the chat log.
-if (!token()){
-  location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search));
-} else {
+// No session → the sign-in page. No finished taste survey → the survey first
+// (it forwards back here). Otherwise straight to the pre-filled ready card.
+(async function boot(){
+  if (!token()){
+    location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search));
+    return;
+  }
   getLoc();
   $('savedCount').textContent = getSaved().length;
-  startWizard();
-}
+  let p = null;
+  try{
+    const r = await apiFetch(`${API}/users/me/profile`, { headers: authHeaders() });
+    if (r.status === 401){ requireSignIn(); return; }
+    if (r.ok) p = await r.json();
+  }catch(e){ /* server asleep/unreachable — fall through to plain defaults */ }
+  if (p && !p.completed){ location.replace('profile.html?redirect=roamly.html'); return; }
+  startReady(p || { defaults:{} });
+})();
 </script>
 </body>
 </html>

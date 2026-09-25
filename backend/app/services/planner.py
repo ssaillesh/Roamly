@@ -40,6 +40,30 @@ BUZZ_WEIGHT = 0.7
 # a slightly better-rated sleepy one, without drowning out rating/distance.
 POPULARITY_WEIGHT = 1.5
 
+# ---- taste-profile knobs (all neutral by default: no profile → no change) ----
+# crowd_pref in [-1, 1] scales buzz + popularity: "quiet & cozy" (-1) keeps 40% of
+# their pull, "buzzing & busy" (+1) gets 160%.
+CROWD_SCALE = 0.6
+# Energy match for activity/leisure picks: points lost per unit of distance between
+# a venue's arousal (experience.arousal_for, ~1–5) and the user's preferred energy.
+ENERGY_WEIGHT = 0.8
+# Soft nudge for things the profile says it loves (cuisines, activities). Smaller
+# than an explicitly *requested* interest (_interest_bonus = 2.5) on purpose.
+LIKE_WEIGHT = 1.2
+# Venues that exist to serve alcohol — filtered out for a "no alcohol" profile.
+# Compared after normalising category titles ("Cocktail Bars" → "cocktailbars",
+# Foursquare "Night Club" → "nightclub", OSM "pub"). Gastropubs stay: they're
+# restaurants first.
+_ALCOHOL_CATS = {"bar", "bars", "pub", "pubs", "cocktailbar", "cocktailbars", "winebar", "winebars",
+                 "beerbar", "beerbars", "brewery", "breweries", "brewpub", "brewpubs", "danceclub",
+                 "danceclubs", "nightclub", "nightclubs", "lounge", "lounges", "nightlife",
+                 "sportsbar", "sportsbars", "divebar", "divebars", "beergarden", "beergardens",
+                 "whiskeybar", "whiskeybars", "tikibar", "tikibars", "speakeasy", "speakeasies"}
+_ALCOHOL_TERMS = {"rooftop", "speakeasy", "wine bar", "cocktail", "craft beer", "brewery", "sake",
+                  "hookah", "nightclub"}
+# The evening "vibes" stop without the bar: shows, games, music.
+NO_ALCOHOL_LEISURE = "comedyclubs,karaoke,musicvenues,bowling,arcades,escapegames,theater"
+
 # "activity" = real things to do (aquarium, arcade, escape room, museum, bowling…).
 # "leisure"  = evening vibes (lounge, hookah, cocktail/live-music, karaoke…).
 # Every plan is built as activity + food + leisure so it's never all restaurants.
@@ -207,6 +231,23 @@ def _interest_bonus(c, interests):
     return 2.5 if any(t.strip() in hay for t in tokens) else 0.0
 
 
+def _like_bonus(c, likes):
+    """Soft nudge toward what the taste profile loves (cuisines, activities).
+    Unlike stated `interests`, likes never re-route the search — they only
+    re-rank what was found, so a sushi lover doesn't get sushi every time."""
+    toks = _tokens(likes)
+    if not toks:
+        return 0.0
+    hay = (c.get("name") or "").lower() + " " + " ".join(
+        str(x).lower() for x in (c.get("categories") or []))
+    return LIKE_WEIGHT if any(t in hay for t in toks) else 0.0
+
+
+def _is_alcohol_venue(c):
+    return any(re.sub(r"[^a-z0-9]", "", str(x).lower()) in _ALCOHOL_CATS
+               for x in (c.get("categories") or []))
+
+
 def _norm_name(s: str) -> str:
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
@@ -314,22 +355,31 @@ def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, c
     return cands
 
 
-def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests=""):
+def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste=None):
     """Higher is better. Balances rating, closeness, price preference (cheaper for
     value vibes / pricier when they want fancy), and — for activity/leisure
-    slots — a fun/hype signal that's independent of star rating."""
+    slots — a fun/hype signal that's independent of star rating.
+
+    `taste` (from the user's taste profile, all optional): likes → soft bonus,
+    crowd_pref → how much buzz counts, energy → match venue energy on
+    activity/leisure stops. None/empty leaves the score exactly as before."""
+    taste = taste or {}
+    crowd = 1 + CROWD_SCALE * (taste.get("crowd_pref") or 0)
     rating = c.get("rating") or 3.6                      # neutral for unrated OSM
     dist = _haversine_km(anchor[0], anchor[1], c["lat"], c["lng"])
     level = PRICE_LEVEL.get(c.get("price"), 2)
     score = rating * 2.0 - dist * penalty
     score += _interest_bonus(c, interests)   # what they ASKED for outranks generic hits
-    score += (c.get("popularity") or 0) * POPULARITY_WEIGHT   # Foursquare foot-traffic trendiness
+    score += _like_bonus(c, taste.get("likes"))   # what their profile loves, gently
+    score += (c.get("popularity") or 0) * POPULARITY_WEIGHT * crowd   # Foursquare foot-traffic trendiness
     score += (level - 1) * 0.6 if fancy else -(level - 1) * 0.5   # tier preference
-    score += math.log10((c.get("review_count") or 0) + 1) * BUZZ_WEIGHT   # buzz / popularity
+    score += math.log10((c.get("review_count") or 0) + 1) * BUZZ_WEIGHT * crowd   # buzz / popularity
     if apply_fun:
         # Excitement matters here, not just satisfaction — so a high-energy
         # experience can out-rank a better-reviewed but sleepy one.
         score += experience.fun_factor_for(c.get("categories")) * FUN_WEIGHT
+        if taste.get("energy") is not None:
+            score -= abs(experience.arousal_for(c.get("categories")) - taste["energy"]) * ENERGY_WEIGHT
     return score
 
 
@@ -350,10 +400,10 @@ def tag_for(c) -> tuple[str | None, str | None]:
 
 
 def _pick(cands, used, anchor, penalty, vary=False, fancy=False, apply_fun=False,
-          interests="", rng=random, explore=False):
+          interests="", rng=random, explore=False, taste=None):
     ranked = sorted(
         (c for c in cands if c.get("name") and c["name"].lower() not in used),
-        key=lambda c: _score(c, anchor, penalty, fancy, apply_fun, interests), reverse=True)
+        key=lambda c: _score(c, anchor, penalty, fancy, apply_fun, interests, taste), reverse=True)
     if not ranked:
         return None
     # Surprise mode: a wide, even draw from the strong top of the ranking —
@@ -383,7 +433,8 @@ def _slots_for(vibe, time_of_day, group_type, length):
 def build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport="any",
                time_of_day=None, group_type=None, dietary="", interests="", avoid="",
                radius=None, exclude=None, vary=False, target_stops=4,
-               requested_venues=None, seed=None, surprise=False):
+               requested_venues=None, seed=None, surprise=False,
+               likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
     with time_itinerary_generation("single_day"):
         return _build_plan(
             lat=lat, lng=lng, budget=budget, vibe=vibe, party_size=party_size,
@@ -391,13 +442,16 @@ def build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport="
             dietary=dietary, interests=interests, avoid=avoid, radius=radius,
             exclude=exclude, vary=vary, target_stops=target_stops,
             requested_venues=requested_venues, seed=seed, surprise=surprise,
+            likes=likes, crowd_pref=crowd_pref, energy=energy, no_alcohol=no_alcohol,
+            radius_scale=radius_scale,
         )
 
 
 def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport="any",
                 time_of_day=None, group_type=None, dietary="", interests="", avoid="",
                 radius=None, exclude=None, vary=False, target_stops=4,
-                requested_venues=None, seed=None, surprise=False):
+                requested_venues=None, seed=None, surprise=False,
+                likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
     # A caller-supplied seed makes the draw reproducible; each new seed is a
     # genuinely different roll. Surprise mode implies variety.
     rng = random.Random(seed) if seed is not None else random
@@ -405,9 +459,12 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     vibe = vibe if vibe in VIBE_PLANS else DEFAULT_VIBE
     price_pref = VIBE_PLANS[vibe]["price"]
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
-    radius = radius or tconf["radius"]
+    radius = radius or int(tconf["radius"] * (radius_scale or 1.0))
     used = set(exclude or ())
     slots = _slots_for(vibe, time_of_day, group_type, target_stops)
+    taste = {"likes": likes, "crowd_pref": crowd_pref, "energy": energy}
+    if no_alcohol:
+        slots = ["dessert" if s == "drinks" else s for s in slots]
 
     # Weather-aware: on a wet/cold day, keep it indoors — swap the outdoor scenic
     # stop for a cosy cafe and force indoor activities.
@@ -445,6 +502,10 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             t = interest_term_for(slot_key, interests)
             if t:
                 term_override = "nightclub" if t in ("clubbing", "club", "dance", "dj", "rave") else t
+        if no_alcohol and slot_key == "leisure":
+            cat_override = NO_ALCOHOL_LEISURE      # shows, games, music — not a bar
+            if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
+                term_override = None
         # Walk mode: chain each stop near the last for a tight walkable route.
         # City mode: search the whole central-city radius from the centre, so you
         # get the best spots across town (still bounded to the city by `radius`).
@@ -457,14 +518,14 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
         apply_fun = slot_key in ("activity", "leisure")
         cands = [c for c in _gather(search_from, slot_key, price_pref, r, dietary, term_override, cat_override)
-                 if not avoid_match(c, avoid)]
+                 if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
         pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
-                     interests, rng=rng, explore=surprise)
+                     interests, rng=rng, explore=surprise, taste=taste)
         if not pick and r < radius:
             cands = [c for c in _gather(search_from, slot_key, price_pref, radius, dietary, term_override, cat_override)
-                     if not avoid_match(c, avoid)]
+                     if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
             pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
-                         interests, rng=rng, explore=surprise)
+                         interests, rng=rng, explore=surprise, taste=taste)
         if not pick:
             continue
         used.add(pick["name"].lower())
@@ -586,7 +647,8 @@ def _to_option(c, slot_key):
 
 
 def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
-                   interests="", dietary="", transport="any", avoid="", limit=6):
+                   interests="", dietary="", transport="any", avoid="", limit=6,
+                   likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
     """Ranked, tagged candidate venues for one category — the picker's menu."""
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
     price_pref = VIBE_PLANS.get(vibe, VIBE_PLANS[DEFAULT_VIBE])["price"]
@@ -602,12 +664,18 @@ def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
         t = interest_term_for(slot_key, interests)
         if t:
             term_override = "nightclub" if t in ("clubbing", "club", "dance", "dj", "rave") else t
-    cands = [c for c in _gather((lat, lng), slot_key, price_pref, tconf["radius"], dietary, term_override, cat_override)
-             if not avoid_match(c, avoid)]
+    if no_alcohol and slot_key == "leisure":
+        cat_override = NO_ALCOHOL_LEISURE
+        if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
+            term_override = None
+    radius = int(tconf["radius"] * (radius_scale or 1.0))
+    cands = [c for c in _gather((lat, lng), slot_key, price_pref, radius, dietary, term_override, cat_override)
+             if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
     apply_fun = slot_key in ("activity", "leisure")
     fancy = vibe == "extravagant"
     ranked = sorted((c for c in cands if c.get("name")),
-                    key=lambda c: _score(c, (lat, lng), tconf["penalty"], fancy, apply_fun, interests),
+                    key=lambda c: _score(c, (lat, lng), tconf["penalty"], fancy, apply_fun, interests,
+                                         {"likes": likes, "crowd_pref": crowd_pref, "energy": energy}),
                     reverse=True)
     seen, out = set(), []
     for c in ranked:

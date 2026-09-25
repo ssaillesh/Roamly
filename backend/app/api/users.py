@@ -1,15 +1,19 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import User, VisitedCountry, VisitedCity, Badge, UserBadge
+from app.models import User, VisitedCountry, VisitedCity, Badge, UserBadge, TasteProfile
 from app.middleware.auth import get_current_user
 from app.schemas.user import (
     UserProfile, UserPublic, UserUpdate, UserStats, UserMap, MapCountry, MapCity,
     FeaturedBadgesUpdate,
 )
+from app.schemas.profile import SurveyOut, TasteProfileOut, TasteProfileUpdate
 from app.schemas.social import BadgeOut
+from app.services import taste_profile
 from app.services.stats import detailed_stats
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -84,6 +88,51 @@ def set_featured_badges(
     db.commit()
     db.refresh(user)
     return _profile(user, include_email=True)
+
+
+# ---- taste profile (onboarding survey) ----
+
+def _taste_out(row: TasteProfile | None) -> TasteProfileOut:
+    answers = (row.answers if row else None) or {}
+    done = bool(row and row.completed_at)
+    return TasteProfileOut(
+        answers=answers, completed=done,
+        missing=[q for q in taste_profile.REQUIRED if q not in answers],
+        archetype=taste_profile.archetype(answers) if done else None,
+        summary=taste_profile.summary(answers),
+        defaults=taste_profile.defaults_for(answers),
+    )
+
+
+@router.get("/me/profile/questions", response_model=SurveyOut)
+def taste_questions():
+    return SurveyOut(version=taste_profile.SURVEY_VERSION, questions=taste_profile.QUESTIONS)
+
+
+@router.get("/me/profile", response_model=TasteProfileOut)
+def get_taste_profile(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return _taste_out(db.get(TasteProfile, user.id))
+
+
+@router.put("/me/profile", response_model=TasteProfileOut)
+def save_taste_profile(body: TasteProfileUpdate, user: User = Depends(get_current_user),
+                       db: Session = Depends(get_db)):
+    """Save survey answers. Merges by default so the survey can autosave one
+    answer at a time and resume later; completion is stamped once every required
+    question is answered."""
+    row = db.get(TasteProfile, user.id) or TasteProfile(user_id=user.id, answers={})
+    incoming = taste_profile.validate(body.answers)
+    answers = incoming if body.replace else {**(row.answers or {}), **incoming}
+    row.answers = answers
+    row.survey_version = taste_profile.SURVEY_VERSION
+    if taste_profile.is_complete(answers):
+        row.completed_at = row.completed_at or datetime.now(timezone.utc)
+    else:
+        row.completed_at = None
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _taste_out(row)
 
 
 @router.get("/search", response_model=list[UserPublic])

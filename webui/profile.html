@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Roamly — your taste profile</title>
+<meta name="description" content="A quick survey so Roamly plans outings that actually fit you." />
+<meta name="theme-color" content="#ffffff" />
+<link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
+<script src="/config.js"></script>
+<style>
+  :root{
+    --accent:#ff5a5f; --accent2:#7c5cff; --hot:#ff3d9a;
+    --bg0:#ffffff; --bg2:#f5f4f7; --card:#ffffff;
+    --brd:rgba(0,0,0,.08); --hair:rgba(0,0,0,.06);
+    --text:#1d1d1f; --muted:#515154; --muted2:#86868b;
+    --shadow:0 20px 45px -16px rgba(60,40,120,.18);
+    --ease:cubic-bezier(.22,1,.36,1);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; min-height:100%;}
+  /* Static background on purpose — no animated/blurred layers (see the lag fixes). */
+  body{background:
+      radial-gradient(720px 480px at 88% -6%, rgba(124,92,255,.08), transparent 62%),
+      radial-gradient(680px 520px at 6% 8%, rgba(255,90,95,.07), transparent 58%),
+      var(--bg0);
+    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.5;}
+  a{color:inherit; text-decoration:none;}
+  .grad{background:linear-gradient(110deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+
+  header{display:flex; align-items:center; gap:10px; padding:16px 20px; max-width:720px; margin:0 auto;}
+  .logo{font-size:20px; font-weight:750; letter-spacing:-.02em;}
+  .saved{margin-left:auto; font-size:12.5px; color:var(--muted2); transition:opacity .3s;}
+
+  main{max-width:640px; margin:0 auto; padding:8px 20px 48px;}
+  .meta{display:flex; justify-content:space-between; font-size:13px; color:var(--muted2); font-weight:600; margin:10px 0 8px;}
+  .bar{height:6px; background:var(--bg2); border-radius:999px; overflow:hidden;}
+  .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2));
+    border-radius:999px; transition:width .35s var(--ease);}
+
+  .card{margin-top:22px; background:var(--card); border:1px solid var(--brd); border-radius:24px;
+    box-shadow:var(--shadow); padding:28px 24px 22px;}
+  .card h1{font-size:clamp(24px,5vw,30px); letter-spacing:-.025em; line-height:1.15; margin:0 0 6px;}
+  .hint{color:var(--muted2); font-size:14px; margin:0 0 18px;}
+  .opts{display:flex; flex-wrap:wrap; gap:10px;}
+  .opt{border:1.5px solid var(--brd); background:#fff; color:var(--text); border-radius:14px; padding:13px 16px;
+    font:inherit; font-size:15.5px; font-weight:600; cursor:pointer; transition:.15s var(--ease);}
+  .opt:hover{border-color:rgba(124,92,255,.45);}
+  .opt.on{border-color:transparent; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2));
+    box-shadow:0 10px 22px -12px rgba(124,92,255,.7);}
+  .single .opt{flex:1 1 calc(50% - 10px); text-align:left;}
+
+  .nav{display:flex; align-items:center; gap:10px; margin-top:22px;}
+  .btn{border:0; border-radius:999px; padding:12px 22px; font:inherit; font-weight:650; font-size:15px; cursor:pointer;}
+  .btn-primary{background:var(--text); color:#fff; margin-left:auto;}
+  .btn-primary:disabled{opacity:.35; cursor:default;}
+  .btn-ghost{background:transparent; color:var(--muted); padding-left:6px;}
+  .btn-ghost:disabled{visibility:hidden;}
+  .err{color:#c2334b; font-size:13.5px; margin-top:12px; min-height:1em;}
+
+  .result{text-align:center;}
+  .result .emoji{font-size:54px; line-height:1;}
+  .result .kicker{font-size:13px; font-weight:700; color:var(--accent2); letter-spacing:.02em; margin-top:14px;}
+  .result h1{margin:4px 0 16px;}
+  .chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:22px;}
+  .chips span{background:var(--bg2); border-radius:999px; padding:6px 12px; font-size:13.5px; font-weight:600; color:var(--muted);}
+  .result .nav{justify-content:center;}
+  .result .btn-primary{margin-left:0;}
+  .loading{color:var(--muted2); text-align:center; padding:60px 0;}
+  @media (max-width:480px){ .single .opt{flex-basis:100%;} .card{padding:24px 18px 18px;} }
+</style>
+</head>
+<body>
+  <header>
+    <a class="logo" href="/"><span>🧭</span> <span class="grad">Roamly</span></a>
+    <span class="saved" id="saved"></span>
+  </header>
+  <main id="main"><div class="loading">Loading your survey…</div></main>
+
+<script>
+const API = window.API_BASE;
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const token = () => localStorage.getItem('trek_token');
+const headers = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token() });
+const params = new URLSearchParams(location.search);
+const REDIRECT = params.get('redirect') || 'roamly.html';
+const EDITING = params.has('edit');
+
+let questions = [], answers = {}, i = 0;
+
+async function api(path, opts){
+  const r = await apiFetch(API + path, { headers: headers(), ...opts });
+  if (r.status === 401){ location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); throw new Error('signed out'); }
+  if (!r.ok) throw new Error('Could not reach the server — your answers are kept, try again.');
+  return r.json();
+}
+
+/* Autosave one answer at a time, so leaving mid-way resumes where you stopped. */
+async function save(qid, value){
+  answers[qid] = value;
+  const el = $('saved');
+  try{
+    await api('/users/me/profile', { method:'PUT', body: JSON.stringify({ answers: { [qid]: value } }) });
+    el.textContent = 'Saved ✓'; el.style.opacity = 1;
+    setTimeout(() => { el.style.opacity = 0; }, 1200);
+    return true;
+  }catch(e){
+    const err = $('err'); if (err) err.textContent = e.message;
+    return false;
+  }
+}
+
+function render(){
+  const q = questions[i];
+  const multi = q.type === 'multi';
+  // Hard nopes can't include something you just said you love.
+  const loved = new Set(q.id === 'nopes' ? (answers.loves || []) : []);
+  const options = q.options.filter(o => !loved.has(o.id));
+  const val = answers[q.id];
+  const chosen = multi ? new Set(val || []) : new Set(val ? [val] : []);
+  $('main').innerHTML = `
+    <div class="meta"><span>${esc(q.section)}</span><span>${i + 1} of ${questions.length}</span></div>
+    <div class="bar"><i style="width:${(i / questions.length) * 100}%"></i></div>
+    <div class="card">
+      <h1>${esc(q.q)}</h1>
+      <p class="hint">${esc(q.hint || (multi ? 'Pick as many as you like' : 'Tap one'))}</p>
+      <div class="opts ${multi ? 'multi' : 'single'}">
+        ${options.map(o => `<button class="opt${chosen.has(o.id) ? ' on' : ''}" data-id="${esc(o.id)}">${esc(o.label)}</button>`).join('')}
+      </div>
+      <div class="nav">
+        <button class="btn btn-ghost" id="back" ${i === 0 ? 'disabled' : ''}>← Back</button>
+        ${multi ? `<button class="btn btn-primary" id="next">${chosen.size ? 'Continue' : (q.optional ? 'None — skip' : 'Continue')}</button>` : ''}
+      </div>
+      <div class="err" id="err"></div>
+    </div>`;
+  requestAnimationFrame(() => { const b = document.querySelector('.bar i'); if (b) b.style.width = ((i + 1) / questions.length * 100) + '%'; });
+
+  $('back').onclick = () => { if (i > 0){ i--; render(); } };
+  document.querySelectorAll('.opt').forEach(btn => {
+    btn.onclick = async () => {
+      const id = btn.dataset.id;
+      if (multi){
+        chosen.has(id) ? chosen.delete(id) : chosen.add(id);
+        btn.classList.toggle('on');
+        const next = $('next');
+        next.textContent = chosen.size ? 'Continue' : (q.optional ? 'None — skip' : 'Continue');
+        next.disabled = !q.optional && !chosen.size;
+      } else {
+        document.querySelectorAll('.opt').forEach(b => b.classList.toggle('on', b === btn));
+        if (await save(q.id, id)) setTimeout(advance, 220);   // tap = answer + next
+      }
+    };
+  });
+  if (multi){
+    const next = $('next');
+    next.disabled = !q.optional && !chosen.size;
+    next.onclick = async () => { if (await save(q.id, [...chosen])) advance(); };
+  }
+}
+
+function advance(){
+  if (i < questions.length - 1){ i++; render(); }
+  else finish();
+}
+
+async function finish(){
+  $('main').innerHTML = '<div class="loading">Building your profile…</div>';
+  let p;
+  try { p = await api('/users/me/profile'); }
+  catch(e){ $('main').innerHTML = `<div class="loading">${esc(e.message)}</div>`; return; }
+  if (!p.completed){            // e.g. an answer failed to save — send them to it
+    i = Math.max(0, questions.findIndex(q => p.missing.includes(q.id)));
+    answers = p.answers || {}; render();
+    $('err').textContent = 'One answer didn’t save — pick it again.';
+    return;
+  }
+  const a = p.archetype || { emoji:'🧭', title:'Explorer' };
+  $('main').innerHTML = `
+    <div class="bar"><i style="width:100%"></i></div>
+    <div class="card result">
+      <div class="emoji">${esc(a.emoji)}</div>
+      <div class="kicker">YOU'RE A</div>
+      <h1>${esc(a.title)}</h1>
+      <div class="chips">${(p.summary || []).map(c => `<span>${esc(c)}</span>`).join('')}</div>
+      <div class="nav">
+        <button class="btn btn-ghost" id="edit">Edit answers</button>
+        <button class="btn btn-primary" id="go">Looks right — let's plan →</button>
+      </div>
+    </div>`;
+  $('edit').onclick = () => { i = 0; render(); };
+  $('go').onclick = () => location.href = REDIRECT;
+}
+
+/* ---------- boot ---------- */
+(async function boot(){
+  if (!token()){ location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); return; }
+  try{
+    const [qs, p] = await Promise.all([api('/users/me/profile/questions'), api('/users/me/profile')]);
+    questions = qs.questions; answers = p.answers || {};
+    if (p.completed && !EDITING){ finish(); return; }          // already done → show result
+    // Resume at the first unanswered question (or the top when editing).
+    const first = questions.findIndex(q => !(q.id in answers));
+    i = EDITING || first < 0 ? 0 : first;
+    render();
+  }catch(e){
+    $('main').innerHTML = `<div class="loading">${esc(e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>

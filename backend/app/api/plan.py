@@ -10,14 +10,16 @@ import random
 import re
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.database import get_db
 from app.middleware.auth import get_current_user
-from app.models import User
+from app.models import User, TasteProfile
 from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
 )
-from app.services import foursquare, google_places, llm, yelp
+from app.services import foursquare, google_places, llm, yelp, taste_profile
 from app.services import events as events_svc
 from app.services.geocoding import geocode, geocode_place
 from app.services.planner import (
@@ -178,12 +180,15 @@ def _guess_location_coords(req):
     return None
 
 
-def _target_stops(text, time_of_day):
-    """How many stops to fill — a whole day is more; an evening is fewer."""
+def _target_stops(text, time_of_day, default=None):
+    """How many stops to fill — a whole day is more; an evening is fewer. The
+    taste profile's pace is the default when the request doesn't say."""
     if any(k in text for k in ["full day", "all day", "whole day", "entire day", "day trip",
                                 "fill the day", "more the merrier", "packed", "jam pack",
                                 "jam-pack", "as much as", "maximize", "lots to do", "the whole thing"]):
         return 6
+    if default:
+        return int(default)
     return {"morning": 5, "afternoon": 5, "night": 4}.get(time_of_day, 4)
 
 
@@ -275,7 +280,8 @@ def _clean(prefs):
     keep = {}
     for k in ("budget", "vibe", "party_size", "days", "time_of_day",
               "transport", "group_type", "dietary", "interests", "avoid",
-              "requested_venues"):
+              "requested_venues", "likes", "crowd_pref", "energy", "no_alcohol",
+              "radius_scale"):
         v = prefs.get(k)
         if v not in (None, "", "null") and v != []:
             keep[k] = v
@@ -294,19 +300,108 @@ def _needs(prefs):
     return None
 
 
-def _resolve(req: ChatRequest):
-    """Shared: extract prefs + resolve the location. Returns (lat, lng, prefs)."""
-    text = _joined_user_text(req)
-    prefs = (_llm_extract(req) if llm.available() else None) or _heuristic_extract(text)
+def _taste_defaults(db: Session, user: User) -> dict:
+    """Planner defaults from the user's taste profile ({} if they have none)."""
+    row = db.get(TasteProfile, user.id)
+    return taste_profile.defaults_for(row.answers) if row and row.answers else {}
+
+
+_PREF_CHOICES = {
+    "vibe": set(VIBE_PLANS), "group_type": {"date", "friends", "family", "solo"},
+    "time_of_day": {"morning", "afternoon", "evening", "night"},
+    "transport": {"walk", "transit", "car", "any"},
+}
+
+
+def _structured(raw: dict) -> dict:
+    """Sanitise chip-sent prefs (untrusted client input) into the same shape the
+    extractor produces. Unknown keys and bad values are dropped."""
+    out = {}
+    for k, allowed in _PREF_CHOICES.items():
+        if raw.get(k) in allowed:
+            out[k] = raw[k]
+    for k, lo, hi in (("party_size", 1, 20), ("days", 1, 5)):
+        try:
+            out[k] = max(lo, min(hi, int(raw[k])))
+        except (KeyError, TypeError, ValueError):
+            pass
+    try:
+        if raw.get("budget") is not None:
+            out["budget"] = max(0.0, min(float(raw["budget"]), 10000.0))
+    except (TypeError, ValueError):
+        pass
+    for k, n in (("location", 100), ("interests", 200), ("avoid", 200), ("dietary", 100)):
+        if isinstance(raw.get(k), str) and raw[k].strip():
+            out[k] = raw[k].strip()[:n]
+    return out
+
+
+def _words(s):
+    return {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", (s or "").lower())}
+
+
+def _apply_taste_early(prefs, taste):
+    """Profile traits the request didn't state. Runs right after extraction.
+    The LLM always fills party_size (default 2), so the crew only comes from the
+    profile when the request names no group at all."""
+    if not taste:
+        return
+    if not prefs.get("group_type") and taste.get("group_type"):
+        prefs["group_type"] = taste["group_type"]
+        prefs["party_size"] = taste.get("party_size", prefs.get("party_size"))
+    for k in ("time_of_day", "transport", "dietary"):
+        if not prefs.get(k) and taste.get(k):
+            prefs[k] = taste[k]
+
+
+def _apply_taste_late(prefs, taste):
+    """Profile fallbacks that must come AFTER the request-driven logic in
+    _resolve: nopes after the interest scrub (so a stated interest beats a
+    profile nope), budget after the per-person conversion (so it isn't scaled
+    twice), vibe after surprise (so "surprise me" still surprises)."""
+    if not taste:
+        return
+    stated = _words(prefs.get("interests"))
+    if taste.get("avoid"):
+        keep = [t for t in taste["avoid"].split(", ")
+                if not any(w.startswith(x) or x.startswith(w) for w in stated for x in _words(t))]
+        prefs["avoid"] = ", ".join(dict.fromkeys(filter(None, [prefs.get("avoid"), *keep])))
+    if taste.get("likes"):
+        banned = _words(prefs.get("avoid"))
+        prefs["likes"] = ", ".join(t for t in taste["likes"].split(", ") if not (_words(t) & banned))
+    if not prefs.get("budget") and taste.get("budget_per_person"):
+        prefs["budget"] = taste["budget_per_person"] * int(prefs.get("party_size") or taste.get("party_size") or 2)
+    if not prefs.get("vibe") and taste.get("vibe"):
+        prefs["vibe"] = taste["vibe"]
+    for k in ("crowd_pref", "energy", "no_alcohol", "radius_scale"):
+        if k in taste:
+            prefs[k] = taste[k]
+    if taste.get("vary"):
+        prefs["vary"] = True
+    if taste.get("target_stops"):
+        prefs.setdefault("target_stops", taste["target_stops"])
+
+
+def _resolve(req: ChatRequest, taste: dict | None = None):
+    """Shared: extract prefs + resolve the location. Returns (lat, lng, prefs).
+    Anything the request states wins; the taste profile fills the gaps."""
+    structured = req.prefs is not None
+    # Chip-sent prefs skip the LLM entirely and never run text heuristics.
+    text = "" if structured else _joined_user_text(req)
+    if structured:
+        prefs = _structured(req.prefs)
+    else:
+        prefs = (_llm_extract(req) if llm.available() else None) or _heuristic_extract(text)
+    _apply_taste_early(prefs, taste)
 
     # A city the user names wins over the device pin.
     lat, lng = req.lat, req.lng
-    loc_name = prefs.get("location") or _extract_location(_orig_user_text(req))
+    loc_name = prefs.get("location") or (None if structured else _extract_location(_orig_user_text(req)))
     if loc_name:
         coords = geocode(loc_name, None)
         if coords:
             lat, lng = coords
-    if lat is None or lng is None:
+    if (lat is None or lng is None) and not structured:
         coords = _guess_location_coords(req)
         if coords:
             lat, lng = coords
@@ -342,7 +437,7 @@ def _resolve(req: ChatRequest):
     per_person = (bool(prefs.get("budget_per_person"))
                   or bool(re.search(r"\b(each|per person|per head|a head|pp|/ ?person)\b", text))
                   or group_kw or prefs.get("group_type") == "friends")
-    if prefs.get("budget") and per_person:
+    if prefs.get("budget") and per_person and not structured:   # chip budgets are already totals
         prefs["budget"] = float(prefs["budget"]) * int(prefs.get("party_size") or 2)
     if req.surprise or any(w in text for w in ["surprise", "random", "you pick", "you choose", "whatever"]):
         prefs["surprise"] = True
@@ -356,7 +451,7 @@ def _resolve(req: ChatRequest):
         prefs["time_of_day"] = "morning"
 
     # Deterministic "make it fancier/cheaper" tier shifts.
-    last = req.messages[-1].content.lower() if req.messages else ""
+    last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
     if any(w in last for w in ["fancier", "fancy", "nicer", "upscale", "classier", "classy",
                                "bougie", "boujee", "high end", "high-end", "luxury", "luxurious",
                                "more expensive", "splurge", "baller", "treat ourselves", "treat myself"]):
@@ -368,15 +463,18 @@ def _resolve(req: ChatRequest):
     elif any(w in last for w in ["cheaper", "cheap", "budget friendly", "more affordable",
                                  "affordable", "save money", "less expensive", "cost less", "on a budget"]):
         prefs["vibe"] = "chill"
+    _apply_taste_late(prefs, taste)
     return lat, lng, prefs
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, user: User = Depends(get_current_user)):
+def chat(req: ChatRequest, user: User = Depends(get_current_user),
+         db: Session = Depends(get_db)):
     req = _fresh_cut(req)
-    text = _joined_user_text(req)
-    last = req.messages[-1].content.lower() if req.messages else ""
-    lat, lng, prefs = _resolve(req)
+    structured = req.prefs is not None
+    text = "" if structured else _joined_user_text(req)
+    last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
+    lat, lng, prefs = _resolve(req, _taste_defaults(db, user))
     if lat is None or lng is None:
         return ChatResponse(type="message",
             message="Tell me where — enable location, or just name a city (e.g. \"in Toronto\") — plus your budget and vibe.")
@@ -397,14 +495,14 @@ def chat(req: ChatRequest, user: User = Depends(get_current_user)):
     # A client-sent exclude list (venues already shown) also counts as a re-roll.
     opts["vary"] = bool(req.exclude) or any(w in last for w in ["another", "different", "something else",
                                             "try again", "switch", "change it", "new plan",
-                                            "not this", "plan b"])
+                                            "not this", "plan b"]) or bool(prefs.get("vary"))
     opts["surprise"] = bool(prefs.get("surprise"))
     if req.seed is not None:
         opts["seed"] = req.seed
     if req.exclude:
         opts["exclude"] = {n.lower() for n in req.exclude if n}
     # How full to make the day (whole day → more stops; evening → fewer).
-    opts["target_stops"] = _target_stops(text, opts.get("time_of_day"))
+    opts["target_stops"] = _target_stops(text, opts.get("time_of_day"), prefs.get("target_stops"))
 
     if days > 1:
         trip = [Plan(**d) for d in build_trip(days=days, lat=lat, lng=lng, budget=budget, **opts) if d["stops"]]
@@ -428,10 +526,11 @@ def chat(req: ChatRequest, user: User = Depends(get_current_user)):
 
 
 @router.post("/options", response_model=OptionsResponse)
-def options(req: ChatRequest, user: User = Depends(get_current_user)):
+def options(req: ChatRequest, user: User = Depends(get_current_user),
+            db: Session = Depends(get_db)):
     """Build-your-own: ranked, tagged candidate venues per category to pick from."""
     req = _fresh_cut(req)
-    lat, lng, prefs = _resolve(req)
+    lat, lng, prefs = _resolve(req, _taste_defaults(db, user))
     if lat is None or lng is None:
         return OptionsResponse(ok=False,
             message="Enable location or name a city (e.g. \"in Toronto\") so I can pull nearby options.")
@@ -449,7 +548,12 @@ def options(req: ChatRequest, user: User = Depends(get_current_user)):
     for slot_key, label, icon, hint in option_sections(time_of_day, vibe, group_type):
         opts = gather_options(slot_key, lat=lat, lng=lng, vibe=vibe, group_type=group_type,
                               interests=interests, dietary=dietary, transport=transport,
-                              avoid=prefs.get("avoid", "") or "", limit=6)
+                              avoid=prefs.get("avoid", "") or "", limit=6,
+                              likes=prefs.get("likes", "") or "",
+                              crowd_pref=prefs.get("crowd_pref") or 0.0,
+                              energy=prefs.get("energy"),
+                              no_alcohol=bool(prefs.get("no_alcohol")),
+                              radius_scale=prefs.get("radius_scale") or 1.0)
         if opts:
             sections.append(Section(key=slot_key, label=label, icon=icon, hint=hint,
                                     options=[Option(**o) for o in opts]))
