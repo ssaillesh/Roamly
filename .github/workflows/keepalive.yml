@@ -13,8 +13,12 @@ jobs:
     steps:
       - name: Ping /health
         run: |
-          status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 https://trekrank.onrender.com/health)
-          echo "status: $status"
-          if [ "$status" != "200" ]; then
-            echo "::warning::Health check returned $status"
-          fi
+          # A cold start can take over a minute, so allow 90s and retry once.
+          for attempt in 1 2; do
+            status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 https://trekrank.onrender.com/health)
+            echo "attempt $attempt status: $status"
+            [ "$status" = "200" ] && exit 0
+          done
+          # Fail the run (not just warn) so an outage triggers GitHub's failure email.
+          echo "::error::Health check returned $status after 2 attempts — the API is down"
+          exit 1

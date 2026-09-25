@@ -11,23 +11,24 @@
 <meta property="og:type" content="website" />
 
 <link rel="preconnect" href="https://unpkg.com" />
+<link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
 <style>
   :root{
     --accent:#ff5a5f; --accent2:#7c5cff;
     --bg0:#0b0b0f; --bg1:#131318; --bg2:#1c1c22;
     /* Solid, layered surfaces so chrome reads cleanly over the busy map. */
-    --card:rgba(22,22,28,.82); --card-2:rgba(30,30,38,.92); --card-solid:#141419;
+    --card:rgba(22,22,28,.94); --card-2:rgba(30,30,38,.92); --card-solid:#141419;
     --card-brd:rgba(255,255,255,.1); --hair:rgba(255,255,255,.07);
     --text:#f5f5f7; --muted:#a1a1a6; --muted2:#86868b;
     --gold:#ffd166; --rose:#ff7a9c; --gem:#ff8fb4;
     --shadow:0 24px 70px -12px rgba(0,0,0,.65), 0 6px 18px -8px rgba(0,0,0,.5);
-    --glass:saturate(180%) blur(26px);
+    /* No backdrop blur over the map: re-blurring the tiles behind every panel on
+       each pan/zoom frame made the map stutter on low-end devices. */
+    --glass:none;
     --ease:cubic-bezier(.22,1,.36,1);            /* apple-style spring-out */
     --ease-soft:cubic-bezier(.4,0,.2,1);
   }
@@ -45,8 +46,8 @@
   #map{position:fixed; inset:0; z-index:1; background:var(--bg2);}
   .main-toggle{position:fixed; right:20px; bottom:22px; left:auto; top:auto; z-index:16;}
   .locate-btn{position:fixed; right:20px; bottom:74px; z-index:16; width:46px; height:46px; border-radius:50%;
-    border:1px solid var(--card-brd); background:rgba(20,20,26,.85); color:var(--text); font-size:19px;
-    cursor:pointer; box-shadow:var(--shadow); backdrop-filter:blur(14px); transition:transform .2s, background .2s;}
+    border:1px solid var(--card-brd); background:rgba(20,20,26,.94); color:var(--text); font-size:19px;
+    cursor:pointer; box-shadow:var(--shadow); transition:transform .2s, background .2s;}
   .locate-btn:hover{transform:translateY(-2px); background:rgba(124,92,255,.18);}
   .hidden{display:none !important;}
   /* themed cluster bubbles */
@@ -74,8 +75,8 @@
   /* ---------- custom zoom buttons (bottom-right, off the logo) ---------- */
   .zoom-ctrl{position:fixed; right:20px; bottom:128px; z-index:16; display:flex; flex-direction:column;
     border-radius:14px; overflow:hidden; box-shadow:var(--shadow); border:1px solid var(--card-brd);}
-  .zoom-ctrl button{width:46px; height:42px; border:0; background:rgba(20,20,26,.85); color:var(--text);
-    font-size:22px; font-weight:600; cursor:pointer; backdrop-filter:blur(14px); transition:background .2s;}
+  .zoom-ctrl button{width:46px; height:42px; border:0; background:rgba(20,20,26,.94); color:var(--text);
+    font-size:22px; font-weight:600; cursor:pointer; transition:background .2s;}
   .zoom-ctrl button:first-child{border-bottom:1px solid var(--hair);}
   .zoom-ctrl button:hover{background:rgba(124,92,255,.18);}
 
@@ -179,8 +180,7 @@
   .spot-map-wrap{position:relative; height:220px; flex:0 0 auto;}
   #spotMap{position:absolute; inset:0; background:var(--bg2);}
   .map-toggle{position:absolute; bottom:12px; left:12px; z-index:500; display:flex; gap:4px;
-    background:rgba(11,11,15,.8); border:1px solid var(--card-brd); border-radius:999px; padding:4px;
-    backdrop-filter:blur(10px);}
+    background:rgba(11,11,15,.92); border:1px solid var(--card-brd); border-radius:999px; padding:4px;}
   .map-toggle button{border:0; background:transparent; color:var(--muted); font-weight:700; font-size:12px;
     padding:6px 14px; border-radius:999px; cursor:pointer;}
   .map-toggle button.active{background:linear-gradient(180deg,var(--accent),var(--accent2)); color:#fff;}
@@ -255,7 +255,7 @@
   .rchat{position:fixed; right:18px; bottom:86px; z-index:46; width:min(400px, calc(100vw - 24px));
     height:min(560px, calc(100vh - 120px)); display:flex; flex-direction:column;
     background:var(--card-2); border:1px solid var(--card-brd); border-radius:20px; overflow:hidden;
-    box-shadow:0 30px 70px -20px rgba(0,0,0,.7); backdrop-filter:blur(18px);
+    box-shadow:0 30px 70px -20px rgba(0,0,0,.7);
     transform:translateY(12px); opacity:0; pointer-events:none; transition:.25s ease;}
   .rchat.open{transform:none; opacity:1; pointer-events:auto;}
   .rchat-head{display:flex; align-items:center; gap:9px; padding:13px 16px; border-bottom:1px solid var(--hair); font-weight:800;}
@@ -434,6 +434,8 @@
     </div>
   </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 <script>
 const API_BASE = window.API_BASE;
 
@@ -811,7 +813,7 @@ let hsReqSeq = 0;
 
 async function loadHotspotMeta(){
   try{
-    liveMeta = await fetch(`${API_BASE}/hotspots/meta`).then(r => r.json());
+    liveMeta = await apiFetch(`${API_BASE}/hotspots/meta`).then(r => r.json());
   }catch(e){ liveMeta = { categories: [] }; }
   renderLiveChips();
 }
@@ -862,7 +864,7 @@ async function fetchLiveSpots(){
   const reqId = ++hsReqSeq;
   try{
     const batches = await Promise.all([...liveCats].map(cat =>
-      fetch(`${API_BASE}/hotspots?category=${encodeURIComponent(cat)}&lat=${center.lat}&lng=${center.lng}&radius=${radius}`)
+      apiFetch(`${API_BASE}/hotspots?category=${encodeURIComponent(cat)}&lat=${center.lat}&lng=${center.lng}&radius=${radius}`)
         .then(r => r.json()).catch(() => ({ hotspots: [] }))
     ));
     if (reqId !== hsReqSeq) return;   // a newer viewport superseded this request
@@ -926,7 +928,7 @@ let acctProfile = null;
 
 async function fetchProfile(){
   if (acctProfile || !store.token) return acctProfile;
-  try{ acctProfile = await fetch(`${API_BASE}/users/me`, { headers:{Authorization:'Bearer '+store.token} }).then(r=>r.json()); }catch(e){}
+  try{ acctProfile = await apiFetch(`${API_BASE}/users/me`, { headers:{Authorization:'Bearer '+store.token} }).then(r=>r.json()); }catch(e){}
   return acctProfile;
 }
 function closeAcctMenu(){ $('acctMenu').classList.add('hidden'); }
@@ -975,7 +977,7 @@ $('setSave').onclick = async () => {
   if (em && (!acctProfile || em!==acctProfile.email)) body.email = em;
   try{
     if (Object.keys(body).length){
-      const r = await fetch(`${API_BASE}/users/me`, { method:'PATCH',
+      const r = await apiFetch(`${API_BASE}/users/me`, { method:'PATCH',
         headers:{Authorization:'Bearer '+store.token,'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (!r.ok){ const e = await r.json().catch(()=>({})); throw new Error(e.detail||'Could not save'); }
       acctProfile = await r.json();
@@ -1011,7 +1013,7 @@ $('authBtn').onclick = async () => {
       if(!un){ setMsg('authMsg','Pick a username.','err'); $('authBtn').disabled=false; return; }
       body={email,password,username:un,display_name:$('displayName').value.trim()||un}; path='/auth/register';
     } else { body={email,password}; path='/auth/login'; }
-    const r=await fetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    const r=await apiFetch(API_BASE+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
     const d=await r.json();
     if(!r.ok) throw new Error(d.detail||'Auth failed');
     store.set(d.access_token, d.user.username);
@@ -1101,7 +1103,7 @@ async function rcSend(text, o={}){
   rcMessages.push({role:'user', content:text});
   rcTyping(true); $('rcSend').disabled = true;
   try{
-    const r = await fetch(`${API_BASE}/plan/chat`, { method:'POST',
+    const r = await apiFetch(`${API_BASE}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', 'Authorization':'Bearer '+store.token},
       body: JSON.stringify({ messages: rcMessages, lat: userLoc && userLoc.lat, lng: userLoc && userLoc.lng,
         exclude: [...rcSeen], seed: Math.floor(Math.random()*1e9), surprise: !!o.surprise }) });

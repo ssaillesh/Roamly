@@ -8,14 +8,20 @@ set -e
 echo "Running database migrations..."
 alembic upgrade head
 
-echo "Seeding badges..."
-python -m scripts.seed_badges || echo "Badge seed skipped/failed (non-fatal)"
+# Seeding and healing are non-fatal and can be slow (healing geocodes each stuck
+# trip via Nominatim at ~1 req/s), so run them in the background — the API must
+# bind its port quickly or a cold start looks like an outage.
+(
+  echo "Seeding badges..."
+  python -m scripts.seed_badges || echo "Badge seed skipped/failed (non-fatal)"
+  echo "Healing any trips stuck in 'processing'..."
+  python -m scripts.reprocess_stuck || echo "Reprocess skipped/failed (non-fatal)"
+) &
 
-echo "Healing any trips stuck in 'processing'..."
-python -m scripts.reprocess_stuck || echo "Reprocess skipped/failed (non-fatal)"
-
+# One solo-pool worker: prefork children double memory on a 512 MB free
+# instance, and the prefork pool also crashes on macOS in local dev.
 echo "Starting Celery worker (background)..."
-celery -A app.workers worker -l info -c 2 &
+celery -A app.workers worker -l info --pool=solo &
 
 echo "Starting API on port ${PORT:-8000}..."
 exec uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"

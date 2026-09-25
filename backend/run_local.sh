@@ -37,7 +37,7 @@ case "${1:-setup}" in
     PUBLIC_BASE_URL="http://127.0.0.1:${PORT}" "$VENV/bin/uvicorn" app.main:app --host 127.0.0.1 --port "$PORT" --reload
     ;;
   worker)
-    "$VENV/bin/celery" -A app.workers worker -l info -c 4
+    "$VENV/bin/celery" -A app.workers worker -l info --pool=solo
     ;;
   test)
     CELERY_TASK_ALWAYS_EAGER=1 "$VENV/bin/python" -m pytest -q

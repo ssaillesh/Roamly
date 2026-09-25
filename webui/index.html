@@ -67,7 +67,8 @@
       radial-gradient(38% 45% at 28% 38%, rgba(255,90,95,.5), transparent 70%),
       radial-gradient(40% 48% at 72% 32%, rgba(124,92,255,.5), transparent 70%),
       radial-gradient(30% 40% at 52% 68%, rgba(255,61,154,.35), transparent 70%);
-    animation:aurora 14s ease-in-out infinite alternate;}
+    animation:aurora 14s ease-in-out infinite alternate; will-change:transform;}
+  .aurora.paused{animation-play-state:paused;}
   @keyframes aurora{to{transform:translateX(4%) scale(1.06) rotate(2deg);}}
   .eyebrow{font-size:14px; font-weight:600; color:var(--accent2); letter-spacing:.01em; margin-bottom:18px;}
   h1{font-size:clamp(52px,9vw,104px); line-height:1.02; letter-spacing:-.045em; font-weight:750; margin:0 0 22px;}
@@ -325,6 +326,11 @@
 <script>
 const API = window.API_BASE;
 
+/* ---- pause the blurred aurora once the hero scrolls out of view ---- */
+const aurora = document.querySelector('.aurora');
+if (aurora) new IntersectionObserver(([e]) => aurora.classList.toggle('paused', !e.isIntersecting))
+  .observe(aurora.parentElement);
+
 /* ---- scroll reveal ---- */
 const io = new IntersectionObserver((entries) => {
   for (const en of entries) if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
@@ -376,7 +382,7 @@ document.getElementById('wlForm').addEventListener('submit', async (e) => {
   const note = document.getElementById('wlNote');
   note.textContent = 'Adding you…';
   try {
-    const res = await fetch(`${API}/waitlist`, {
+    const res = await apiFetch(`${API}/waitlist`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email })
     });

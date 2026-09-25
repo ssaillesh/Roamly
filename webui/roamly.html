@@ -7,8 +7,8 @@
 <meta name="description" content="Tell me your budget and your vibe — I'll plan a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
 <meta name="theme-color" content="#ffffff" />
 <link rel="preconnect" href="https://unpkg.com" />
+<link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/config.js"></script>
 <style>
   :root{
@@ -272,6 +272,7 @@
     </div>
   </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
@@ -635,7 +636,7 @@ async function buildItinerary(){
   const c = picker.ctx, loc = picker.loc;
   picker.bar.disabled = true; picker.bar.textContent = 'Building…';
   try{
-    const res = await fetch(`${API}/plan/build`, { method:'POST',
+    const res = await apiFetch(`${API}/plan/build`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ selections:sels, lat:loc.lat, lng:loc.lng, party_size:c.party_size||2,
         budget:c.budget||0, vibe:c.vibe||'romantic', interests:c.interests||'', group_type:c.group_type||null,
@@ -648,7 +649,7 @@ async function buildItinerary(){
 
 async function fetchOptions(){
   try{
-    const r = await fetch(`${API}/plan/options`, {
+    const r = await apiFetch(`${API}/plan/options`, {
       method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng })
     });
@@ -675,7 +676,7 @@ async function send(text, display, o={}){
   messages.push({role:'user', content:text});
   typing(true); $('send').disabled=true;
   try{
-    const r = await fetch(`${API}/plan/chat`, { method:'POST',
+    const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
         exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9),

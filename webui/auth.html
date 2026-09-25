@@ -473,7 +473,7 @@ $('authForm').addEventListener('submit', async (e) => {
     const body = mode === 'register'
       ? { email, password, username, display_name: displayName }
       : { email, password };
-    const r = await fetch(API + path, {
+    const r = await apiFetch(API + path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
     const d = await r.json().catch(() => ({}));
@@ -515,7 +515,7 @@ $('fpSubmit').onclick = async () => {
   setLoading(btn, true);
   $('fpMsg').className = 'msg-box'; $('fpMsg').textContent = '';
   try{
-    const r = await fetch(API + '/auth/forgot-password', {
+    const r = await apiFetch(API + '/auth/forgot-password', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
     });
     const d = await r.json().catch(() => ({}));
