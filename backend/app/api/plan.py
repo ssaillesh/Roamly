@@ -8,6 +8,7 @@ key it degrades to a keyword heuristic so the app still works.
 """
 import random
 import re
+import time
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -19,12 +20,12 @@ from app.models import User, TasteProfile
 from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
 )
-from app.services import foursquare, google_places, llm, yelp, taste_profile
+from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile
 from app.services import events as events_svc
 from app.services.geocoding import geocode, geocode_place
 from app.services.planner import (
     build_plan, build_trip, VIBE_PLANS, gather_options, option_sections, build_from_selection,
-    _WATER_WORDS,
+    _WATER_WORDS, _POOL, _result, PLAN_TIME_BUDGET,
 )
 
 router = APIRouter(prefix="/plan", tags=["planner"])
@@ -271,8 +272,9 @@ def _heuristic_extract(text):
 
 def _llm_extract(req):
     convo = "\n".join(f"{m.role}: {m.content}" for m in req.messages)
+    # Bounded: a slow model must not eat the page's 60s budget before planning starts.
     return llm.chat_json([{"role": "system", "content": SYSTEM},
-                          {"role": "user", "content": convo}])
+                          {"role": "user", "content": convo}], timeout=15.0)
 
 
 def _clean(prefs):
@@ -281,7 +283,7 @@ def _clean(prefs):
     for k in ("budget", "vibe", "party_size", "days", "time_of_day",
               "transport", "group_type", "dietary", "interests", "avoid",
               "requested_venues", "likes", "crowd_pref", "energy", "no_alcohol",
-              "radius_scale"):
+              "radius_scale", "radius"):
         v = prefs.get(k)
         if v not in (None, "", "null") and v != []:
             keep[k] = v
@@ -300,6 +302,14 @@ def _needs(prefs):
     return None
 
 
+def _nothing_found(generic: str, ran_out_of_time: bool = False) -> str:
+    """Don't blame the budget/vibe when the venue search itself is down or slow."""
+    if ran_out_of_time or osm_places.degraded():
+        return ("The venue search I use is overloaded right now, so I couldn't pull places. "
+                "Give it a minute and try again.")
+    return generic
+
+
 def _taste_defaults(db: Session, user: User) -> dict:
     """Planner defaults from the user's taste profile ({} if they have none)."""
     row = db.get(TasteProfile, user.id)
@@ -311,6 +321,26 @@ _PREF_CHOICES = {
     "time_of_day": {"morning", "afternoon", "evening", "night"},
     "transport": {"walk", "transit", "car", "any"},
 }
+
+
+RADIUS_KM_MIN, RADIUS_KM_MAX = 1.0, 20.0
+
+
+def _radius_m(km: float) -> int:
+    """Search radius in metres, clamped to the planner's 1-20 km range."""
+    return int(max(RADIUS_KM_MIN, min(km, RADIUS_KM_MAX)) * 1000)
+
+
+_RADIUS_RE = re.compile(r"\b(\d+(?:\.\d+)?)\s*(km|kms|kilomet(?:er|re)s?|mi|miles?)\b")
+
+
+def _extract_radius(text):
+    """'within 5 km', 'under 3 miles' → metres (None if not stated)."""
+    m = _RADIUS_RE.search(text or "")
+    if not m:
+        return None
+    km = float(m.group(1)) * (1.609 if m.group(2).startswith("mi") else 1.0)
+    return _radius_m(km)
 
 
 def _structured(raw: dict) -> dict:
@@ -328,6 +358,11 @@ def _structured(raw: dict) -> dict:
     try:
         if raw.get("budget") is not None:
             out["budget"] = max(0.0, min(float(raw["budget"]), 10000.0))
+    except (TypeError, ValueError):
+        pass
+    try:
+        if raw.get("radius_km") is not None:
+            out["radius"] = _radius_m(float(raw["radius_km"]))
     except (TypeError, ValueError):
         pass
     for k, n in (("location", 100), ("interests", 200), ("avoid", 200), ("dietary", 100)):
@@ -444,6 +479,10 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
         prefs.setdefault("budget", 100)
         rng = random.Random(req.seed) if req.seed is not None else random
         prefs["vibe"] = prefs.get("vibe") or rng.choice(list(VIBE_PLANS))
+    if not structured and not prefs.get("radius"):
+        r = _extract_radius(text)
+        if r:
+            prefs["radius"] = r
     if not prefs.get("days"):
         prefs["days"] = _extract_days(text)
     if not prefs.get("time_of_day") and any(k in text for k in
@@ -507,17 +546,24 @@ def chat(req: ChatRequest, user: User = Depends(get_current_user),
     if days > 1:
         trip = [Plan(**d) for d in build_trip(days=days, lat=lat, lng=lng, budget=budget, **opts) if d["stops"]]
         if not trip:
-            return ChatResponse(type="message", message="I couldn't source enough for that trip nearby. A larger budget or different vibe?")
+            return ChatResponse(type="message", message=_nothing_found(
+                "I couldn't source enough for that trip nearby. A larger budget or different vibe?"))
         title = f"Your {len(trip)}-day {opts.get('vibe','').replace('_',' ')} trip".strip()
         return ChatResponse(type="itinerary", message=f"{title} — arranged day by day.", days=trip, title=title)
 
     plan_dict = build_plan(lat=lat, lng=lng, budget=budget, **opts)
     if not plan_dict["stops"]:
-        return ChatResponse(type="message", message="I couldn't source enough open spots nearby for that. A larger budget or different vibe?")
+        return ChatResponse(type="message", message=_nothing_found(
+            "I couldn't source enough open spots nearby for that. A larger budget or different vibe?",
+            ran_out_of_time=bool(plan_dict.get("skipped"))))
     plan = Plan(**plan_dict)
     msg = plan.intro or "Your plan:"
     # Be honest about requested places we couldn't confirm exist nearby —
     # better than silently dropping them (or worse, inventing them).
+    skipped = plan_dict.get("skipped") or []
+    if skipped:
+        msg += (f" (Venue search was slow just now, so I left out: {', '.join(s.lower() for s in skipped)}. "
+                "Tap 🔄 Try another — it'll be quicker the second time.)")
     missing = plan_dict.get("unverified_requests") or []
     if missing:
         msg += (f" (I looked for {', '.join(missing)} but couldn't verify "
@@ -544,16 +590,22 @@ def options(req: ChatRequest, user: User = Depends(get_current_user),
     party_size = int(prefs.get("party_size") or 2)
     budget = prefs.get("budget")
 
+    # Every section is searched in parallel and bounded by the plan time budget.
+    specs = option_sections(time_of_day, vibe, group_type)
+    jobs = [_POOL.submit(gather_options, slot_key, lat=lat, lng=lng, vibe=vibe, group_type=group_type,
+                         interests=interests, dietary=dietary, transport=transport,
+                         avoid=prefs.get("avoid", "") or "", limit=6,
+                         likes=prefs.get("likes", "") or "",
+                         crowd_pref=prefs.get("crowd_pref") or 0.0,
+                         energy=prefs.get("energy"),
+                         no_alcohol=bool(prefs.get("no_alcohol")),
+                         radius_scale=prefs.get("radius_scale") or 1.0,
+                         radius=prefs.get("radius"))
+            for slot_key, *_ in specs]
+    deadline = time.monotonic() + PLAN_TIME_BUDGET
     sections = []
-    for slot_key, label, icon, hint in option_sections(time_of_day, vibe, group_type):
-        opts = gather_options(slot_key, lat=lat, lng=lng, vibe=vibe, group_type=group_type,
-                              interests=interests, dietary=dietary, transport=transport,
-                              avoid=prefs.get("avoid", "") or "", limit=6,
-                              likes=prefs.get("likes", "") or "",
-                              crowd_pref=prefs.get("crowd_pref") or 0.0,
-                              energy=prefs.get("energy"),
-                              no_alcohol=bool(prefs.get("no_alcohol")),
-                              radius_scale=prefs.get("radius_scale") or 1.0)
+    for (slot_key, label, icon, hint), job in zip(specs, jobs):
+        opts = _result(job, [], timeout=deadline - time.monotonic())
         if opts:
             sections.append(Section(key=slot_key, label=label, icon=icon, hint=hint,
                                     options=[Option(**o) for o in opts]))

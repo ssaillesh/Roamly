@@ -105,12 +105,6 @@
   .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
   @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
 
-  .stat-row{display:flex; gap:12px; margin-top:26px;}
-  .stat{flex:1; background:rgba(255,255,255,.04); border:1px solid var(--hair); border-radius:16px; padding:14px 16px;
-    animation:cardIn .9s var(--pop) both;}
-  .stat b{display:block; font-size:20px; font-weight:800; letter-spacing:-.01em;
-    background:linear-gradient(100deg,#fff,#c9b8ff); -webkit-background-clip:text; background-clip:text; color:transparent;}
-  .stat span{font-size:11.5px; color:#8f8f98;}
 
   /* ---------- right: auth card ---------- */
   .card{width:100%; max-width:400px; background:var(--card);
@@ -219,7 +213,7 @@
   }
   @media(prefers-reduced-motion:reduce){
     .eyebrow .dot,.dots span{animation:none;}
-    .card,.stage,.stat,.msg{animation:none;}
+    .card,.stage,.msg{animation:none;}
   }
 </style>
 </head>
@@ -245,11 +239,6 @@
         <div id="demo"></div>
       </div>
 
-      <div class="stat-row">
-        <div class="stat"><b>12k+</b><span>Nights planned</span></div>
-        <div class="stat"><b>4.9★</b><span>Average rating</span></div>
-        <div class="stat"><b>&lt;30s</b><span>To a full plan</span></div>
-      </div>
     </div>
   </div>
 
@@ -484,7 +473,7 @@ $('authForm').addEventListener('submit', async (e) => {
     $('successTitle').textContent = d.user.is_new_user ? `Welcome, ${d.user.display_name || d.user.username} 🎉` : `Welcome back, ${d.user.display_name || d.user.username} 👋`;
     // New accounts take the taste survey first; it forwards on to REDIRECT after.
     const next = mode === 'register' ? 'profile.html?redirect=' + encodeURIComponent(REDIRECT) : REDIRECT;
-    $('successSub').textContent = mode === 'register' ? 'First, a quick survey so plans fit you…' : 'Taking you to your plan…';
+    $('successSub').textContent = mode === 'register' ? 'Next: a quick (optional) taste survey…' : 'Taking you to your plan…';
     $('success').classList.add('on');
     setTimeout(() => { location.href = next; }, 950);
   }catch(err){

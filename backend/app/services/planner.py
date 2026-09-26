@@ -6,6 +6,8 @@ when keyed, falls back to OpenStreetMap. An optional LLM writes the narration.
 import math
 import random
 import re
+import time
+from concurrent.futures import ThreadPoolExecutor, wait
 
 from app.services import foursquare
 from app.services import geocoding
@@ -39,6 +41,27 @@ BUZZ_WEIGHT = 0.7
 # live "trendy right now" signal. Weighted so a genuinely buzzing spot can beat
 # a slightly better-rated sleepy one, without drowning out rating/distance.
 POPULARITY_WEIGHT = 1.5
+
+# ---- time budget ----
+# The page gives /plan/* requests 60s, and LLM extraction/narration can use some
+# of that, so venue gathering for one plan gets a fixed wall-clock budget. When it
+# runs out the plan ships with what it has (and says what's missing); slow searches
+# keep running in the background and warm the caches for a retry.
+PLAN_TIME_BUDGET = 25.0
+TRIP_TIME_BUDGET = 36.0          # shared across all days of a multi-day trip
+# IO-bound HTTP fan-out, shared across requests.
+_POOL = ThreadPoolExecutor(max_workers=12, thread_name_prefix="plan-gather")
+
+
+def _result(fut, default, timeout=0.0):
+    """A future's value if it finished in time without error, else `default`."""
+    if fut is None:
+        return default
+    try:
+        return fut.result(timeout=max(0.0, timeout))
+    except Exception:   # timeout, or the search itself failed
+        return default
+
 
 # ---- taste-profile knobs (all neutral by default: no profile → no change) ----
 # crowd_pref in [-1, 1] scales buzz + popularity: "quiet & cozy" (-1) keeps 40% of
@@ -434,7 +457,8 @@ def build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport="
                time_of_day=None, group_type=None, dietary="", interests="", avoid="",
                radius=None, exclude=None, vary=False, target_stops=4,
                requested_venues=None, seed=None, surprise=False,
-               likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
+               likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0,
+               time_budget=None):
     with time_itinerary_generation("single_day"):
         return _build_plan(
             lat=lat, lng=lng, budget=budget, vibe=vibe, party_size=party_size,
@@ -443,7 +467,7 @@ def build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport="
             exclude=exclude, vary=vary, target_stops=target_stops,
             requested_venues=requested_venues, seed=seed, surprise=surprise,
             likes=likes, crowd_pref=crowd_pref, energy=energy, no_alcohol=no_alcohol,
-            radius_scale=radius_scale,
+            radius_scale=radius_scale, time_budget=time_budget,
         )
 
 
@@ -451,11 +475,14 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                 time_of_day=None, group_type=None, dietary="", interests="", avoid="",
                 radius=None, exclude=None, vary=False, target_stops=4,
                 requested_venues=None, seed=None, surprise=False,
-                likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
+                likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0,
+                time_budget=None):
     # A caller-supplied seed makes the draw reproducible; each new seed is a
     # genuinely different roll. Surprise mode implies variety.
     rng = random.Random(seed) if seed is not None else random
     vary = vary or surprise
+    deadline = time.monotonic() + (time_budget or PLAN_TIME_BUDGET)
+    left = lambda: deadline - time.monotonic()
     vibe = vibe if vibe in VIBE_PLANS else DEFAULT_VIBE
     price_pref = VIBE_PLANS[vibe]["price"]
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
@@ -483,11 +510,10 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     center = (lat, lng)
     chain = tconf.get("chain", False)   # only walking chains stops tightly together
     fancy = vibe == "extravagant"       # bias picks toward pricier/upscale venues
-    anchor = center
-    stops = []
-    for i, slot_key in enumerate(slots):
-        slot = SLOT_SPECS[slot_key]
-        # route the search: group-aware fun for activities, cuisine for meals.
+
+    def route(slot_key):
+        """(term_override, cat_override) for a slot: group-aware fun for
+        activities, cuisine for meals, stated interests to the slot they fit."""
         term_override = cat_override = None
         cz = cuisine_term(interests, dietary)
         if slot_key == "activity":
@@ -506,27 +532,44 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             cat_override = NO_ALCOHOL_LEISURE      # shows, games, music — not a bar
             if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
                 term_override = None
-        # Walk mode: chain each stop near the last for a tight walkable route.
-        # City mode: search the whole central-city radius from the centre, so you
-        # get the best spots across town (still bounded to the city by `radius`).
-        if chain:
+        return term_override, cat_override
+
+    def keep(c):
+        return not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))
+
+    # Gather every slot's candidates (and live events) concurrently, from the
+    # centre at the full radius — one parallel wave instead of a slow network
+    # round-trip per stop. Whatever isn't back by the deadline is left out.
+    jobs = {k: _POOL.submit(_gather, center, k, price_pref, radius, dietary, *route(k))
+            for k in dict.fromkeys(slots)}
+    ev_job = (_POOL.submit(events_svc.search_events, lat, lng, radius_km=25, size=8,
+                           classification=events_svc.classification_for(vibe, interests))
+              if events_svc.available() else None)
+    wait(list(jobs.values()), timeout=max(0.0, left()))
+    late = {k for k, f in jobs.items() if not f.done()}
+    found = {k: [c for c in _result(f, []) if keep(c)] for k, f in jobs.items()}
+
+    anchor = center
+    stops, skipped = [], []
+    for i, slot_key in enumerate(slots):
+        slot = SLOT_SPECS[slot_key]
+        cands, search_from = found.get(slot_key, []), center
+        if chain and i > 0:
+            # Walk mode: chain each stop near the last for a tight walkable route.
             search_from = anchor
-            r = tconf["cluster"] if i > 0 else radius
-        else:
-            search_from = center
-            r = radius
+            near = [c for c in cands if c.get("lat") is not None and c.get("lng") is not None
+                    and _haversine_km(anchor[0], anchor[1], c["lat"], c["lng"]) * 1000 <= tconf["cluster"]]
+            if not any((c.get("name") or "").lower() not in used for c in near) and left() > 3:
+                near = [c for c in _gather(anchor, slot_key, price_pref, tconf["cluster"], dietary, *route(slot_key))
+                        if keep(c)]
+            cands = near or cands
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
         apply_fun = slot_key in ("activity", "leisure")
-        cands = [c for c in _gather(search_from, slot_key, price_pref, r, dietary, term_override, cat_override)
-                 if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
         pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
                      interests, rng=rng, explore=surprise, taste=taste)
-        if not pick and r < radius:
-            cands = [c for c in _gather(search_from, slot_key, price_pref, radius, dietary, term_override, cat_override)
-                     if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
-            pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
-                         interests, rng=rng, explore=surprise, taste=taste)
         if not pick:
+            if slot_key in late:
+                skipped.append(slot["label"])      # ran out of time, not out of places
             continue
         used.add(pick["name"].lower())
         if chain:
@@ -550,6 +593,9 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     for req_name in (requested_venues or [])[:3]:
         if any(_name_matches(req_name, s["name"]) for s in stops):
             continue                            # planner already picked it
+        if left() <= 0:
+            unverified.append(req_name)            # out of time to research it
+            continue
         pick = verify_requested_venue(req_name, lat, lng, max(radius, 8000))
         if not pick:
             unverified.append(req_name)
@@ -595,10 +641,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
 
     # Live events happening near here (concerts, games, comedy) — surfaced as
     # options the guest can build around, not forced into the fixed stops.
-    events = []
-    if events_svc.available():
-        cls = events_svc.classification_for(vibe, interests)
-        events = events_svc.search_events(lat, lng, radius_km=25, size=8, classification=cls)[:3]
+    events = (_result(ev_job, [], timeout=left()) or [])[:3]
 
     plan = {
         "vibe": vibe, "budget": budget, "party_size": party_size, "currency": "USD",
@@ -608,6 +651,8 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         "events": events,
         # names the user asked for that no verified source could confirm nearby
         "unverified_requests": unverified,
+        # slots dropped because the time budget ran out (not for lack of places)
+        "skipped": skipped,
     }
     _narrate(plan, interests, group_type, time_of_day, dietary, wx, events, avoid)
     return plan
@@ -619,6 +664,7 @@ def build_trip(*, days, lat, lng, budget, exclude=None, **opts):
         per_day = budget / days
         used, trip = set(exclude or ()), []
         seed = opts.pop("seed", None)
+        opts["time_budget"] = max(8.0, TRIP_TIME_BUDGET / days)
         for d in range(days):
             plan = build_plan(lat=lat, lng=lng, budget=per_day, exclude=used,
                               seed=(seed + d if seed is not None else None), **opts)
@@ -648,7 +694,8 @@ def _to_option(c, slot_key):
 
 def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
                    interests="", dietary="", transport="any", avoid="", limit=6,
-                   likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0):
+                   likes="", crowd_pref=0.0, energy=None, no_alcohol=False, radius_scale=1.0,
+                   radius=None):
     """Ranked, tagged candidate venues for one category — the picker's menu."""
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
     price_pref = VIBE_PLANS.get(vibe, VIBE_PLANS[DEFAULT_VIBE])["price"]
@@ -668,7 +715,7 @@ def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
         cat_override = NO_ALCOHOL_LEISURE
         if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
             term_override = None
-    radius = int(tconf["radius"] * (radius_scale or 1.0))
+    radius = radius or int(tconf["radius"] * (radius_scale or 1.0))   # an explicit radius wins
     cands = [c for c in _gather((lat, lng), slot_key, price_pref, radius, dietary, term_override, cat_override)
              if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
     apply_fun = slot_key in ("activity", "leisure")
@@ -811,7 +858,7 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
              f"Stops span ~{plan['walk_km']}km total, all within the city.\nVENUES:\n{listing}"
              + (f"\n{ev_line}" if ev_line else "")},
         ]
-        data = llm.chat_json(msg)
+        data = llm.chat_json(msg, timeout=12.0)   # template intro if the model is slow
         if data and isinstance(data.get("stops"), list) and data["stops"]:
             plan["intro"] = data.get("intro") or _template_intro(plan)
             plan["tip"] = data.get("tip")

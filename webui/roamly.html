@@ -135,6 +135,8 @@
   .itin .foot{padding:12px 18px 16px; display:flex; gap:10px; flex-wrap:wrap;}
 
   .typing{display:flex; gap:5px; padding:14px 16px;}
+  .wait-note{font-size:12.5px; color:var(--muted2); padding:0 16px 12px; max-width:34ch;}
+  .wait-note:empty{display:none;}
   .typing i{width:7px; height:7px; border-radius:50%; background:var(--muted2); animation:bl 1.2s infinite;}
   .typing i:nth-child(2){animation-delay:.2s;} .typing i:nth-child(3){animation-delay:.4s;}
   @keyframes bl{0%,60%,100%{opacity:.3; transform:translateY(0);} 30%{opacity:1; transform:translateY(-3px);}}
@@ -250,7 +252,18 @@
   .ready .choices{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; padding-top:10px; border-top:1px solid var(--hair);}
   .ready .choices:empty{display:none;}
   .ready .choices .chip.on{border-color:transparent; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2));}
-  .ready .choices input{flex:1 1 180px; border:1px solid var(--brd); border-radius:999px; padding:8px 14px; font:inherit; font-size:14px;}
+  .ready .choices .city{flex:1 1 180px; border:1px solid var(--brd); border-radius:999px; padding:8px 14px; font:inherit; font-size:14px;}
+  .ready .row{display:flex; align-items:center; gap:10px; flex-basis:100%; margin-top:4px; font-size:14px; color:var(--muted);}
+  .ready .row b{min-width:52px; color:var(--text); font-size:15px;}
+  .ready .hint{flex-basis:100%; font-size:12.5px; color:var(--muted2);}
+  .ready .row .hint{flex-basis:auto;}
+  .ready input[type=range]{flex:1; accent-color:var(--accent2); min-height:44px;}
+  .ready .money{display:inline-flex; align-items:center; gap:2px; border:1px solid var(--brd); border-radius:999px;
+    padding:0 14px; background:#fff; font-weight:700; color:var(--text);}
+  .ready .money input{border:0; width:96px; font:inherit; font-size:15px; padding:10px 2px; outline:none; background:transparent;}
+  .ready .stepper button{width:44px; height:44px; border-radius:50%; border:1px solid var(--brd); background:#fff;
+    font-size:20px; font-weight:700; color:var(--text); cursor:pointer;}
+  .ready .stepper b{min-width:28px; text-align:center;}
   .ready .go{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px;}
   .ready .plan-it{border:0; border-radius:999px; padding:12px 22px; font:inherit; font-weight:750; font-size:15px; color:#fff;
     cursor:pointer; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 10px 22px -12px rgba(124,92,255,.8);}
@@ -338,12 +351,38 @@ function addQuick(replies){
     b.onclick = () => { q.remove(); send(r); }; q.appendChild(b); });
   thread.appendChild(q); scrollDown();
 }
+/* Waiting feedback: rotating status lines (honest — no made-up progress counts),
+   then a "taking longer" note. Nothing shows for quick answers. */
+const WAIT_LINES = ["Checking what's open near you…", "Picking the stops…", "Mapping the route…"];
+let waitTimers = [];
 function typing(on){
   let t = $('typing');
   if (on && !t){ const m=document.createElement('div'); m.className='msg bot'; m.id='typing';
-    m.innerHTML=`<div class="av">🧭</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div></div>`;
-    thread.appendChild(m); scrollDown(); }
-  else if (!on && t) t.remove();
+    m.innerHTML=`<div class="av">🧭</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div><div class="wait-note" aria-live="polite"></div></div>`;
+    thread.appendChild(m); scrollDown();
+    const note = m.querySelector('.wait-note'); let k = 0;
+    waitTimers.push(setTimeout(function next(){
+      if (k < WAIT_LINES.length){ note.textContent = WAIT_LINES[k++]; waitTimers.push(setTimeout(next, 3000)); }
+    }, 1200));
+    waitTimers.push(setTimeout(() => {
+      note.textContent = 'Taking longer than usual — venue search can be slow the first time in a new area.';
+      waitTimers.forEach(clearTimeout); waitTimers = [];
+    }, 15000));
+  }
+  else if (!on && t){ waitTimers.forEach(clearTimeout); waitTimers = []; t.remove(); }
+}
+
+/* A failed request gets a Retry that re-runs exactly the same request — no
+   duplicate message bubble, no retyping. */
+function failed(e, retry){
+  typing(false);
+  const slow = /too long/i.test((e && e.message) || '');
+  addMsg('assistant', slow ? 'That took too long — venue search can be slow right now.'
+                           : "I couldn't reach the planner just now.");
+  offerRetry(retry);
+}
+function offerRetry(retry){
+  appendFoot([{ label:'🔄 Retry', onclick: ev => { ev.target.closest('.quick').remove(); typing(true); retry(); } }]);
 }
 /* Sticky autoscroll: follow new messages only while the user is at the bottom,
    so scrolling up to reread never gets yanked back down. */
@@ -546,11 +585,13 @@ $('savedClose').onclick = closeSaved;
 $('savedBg').onclick = closeSaved;
 
 function drawMap(id, plan){
-  // Static preview thumbnail — dragging/zooming is off so a tap anywhere always
-  // opens the real map instead of fighting Leaflet's own gesture handling.
-  const map = L.map(id, { zoomControl:false, attributionControl:false, scrollWheelZoom:false,
+  // Static route thumbnail — no dragging/zooming, so scrolling the chat never gets
+  // captured by the map. OpenStreetMap tiles are free but require the credit.
+  const map = L.map(id, { zoomControl:false, scrollWheelZoom:false,
     dragging:false, touchZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, tap:false });
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {maxZoom:19}).addTo(map);
+  map.attributionControl.setPrefix(false);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
   const pts = plan.stops.map(s=>[s.lat,s.lng]);
   plan.stops.forEach((s,i)=> L.marker([s.lat,s.lng], {icon:L.divIcon({className:'',html:`<div class="num-marker">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map));
   if (pts.length>1) L.polyline(pts,{color:'#7c5cff',weight:2,opacity:.5,dashArray:'4 6'}).addTo(map);
@@ -659,7 +700,7 @@ async function fetchOptions(prefs){
     if (!res.ok){ addMsg('assistant', esc(res.message||'Turn on location or name a city, and I\'ll pull spots near you.')); return; }
     addMsg('assistant', "Here are the best spots near you 👇 tap the ones you're feeling, then build your itinerary. ✨");
     renderPicker(res);
-  }catch(e){ typing(false); addMsg('assistant','Hmm, I hit a snag reaching the planner. Try again?'); }
+  }catch(e){ failed(e, () => fetchOptions(prefs)); }
 }
 
 function requireSignIn(){
@@ -674,25 +715,32 @@ async function send(text, display, o={}){
   if (!token()){ requireSignIn(); return; }
   $('input').value=''; addMsg('user', esc(display || text));
   messages.push({role:'user', content:text});
-  typing(true); $('send').disabled=true;
+  typing(true);
+  requestChat(o);
+}
+
+async function requestChat(o={}){
+  $('send').disabled=true;
+  const again = () => requestChat(o);
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
         exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9),
         surprise: !!o.surprise }) });
-    if (r.status === 401){ typing(false); $('send').disabled=false; requireSignIn(); return; }
-    showChatResponse(await r.json());
-  }catch(e){ typing(false); addMsg('assistant','Hmm, I hit a snag reaching the planner. Try again?'); }
+    if (r.status === 401){ typing(false); requireSignIn(); return; }
+    showChatResponse(await r.json(), again);
+  }catch(e){ failed(e, again); }
   finally{ $('send').disabled=false; $('input').focus(); }
 }
 
-function showChatResponse(res){
+function showChatResponse(res, retry){
   typing(false);
   const bot = res.message || '…';
   addMsgTyped(bot); messages.push({role:'assistant', content:bot});
   if (res.type==='itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
   else if (res.type==='itinerary' && res.plan) renderPlan(res.plan);      // auto-generated, with images
+  else if (retry && /overloaded|too slow|took too long/i.test(bot)) offerRetry(retry);   // venue search struggling
   else addQuick(res.quick_replies);                                        // follow-up question
 }
 
@@ -706,22 +754,33 @@ window.send = send;
 // server's LLM extraction entirely.
 const READY = {
   group_type: { icon:'👫', options:[['solo','🧍 Solo'],['date','💘 Date'],['friends','🎉 Friends'],['family','👨‍👩‍👧 Family']] },
-  vibe:       { icon:'✨', options:[['chill','😌 Chill'],['romantic','💘 Romantic'],['adventurous','🤠 Adventurous'],['extravagant','🥂 Fancy'],['night_out','🎊 Night out']] },
-  budget:     { icon:'💸', options:[[50,'$50'],[100,'$100'],[200,'$200'],[500,'💸 No cap']] },
+  vibe:       { icon:'✨', options:[['chill','😌 Chill'],['romantic','🌹 Romantic'],['adventurous','🤠 Adventurous'],['extravagant','🥂 Fancy'],['night_out','🎊 Night out']] },
+  budget:     { icon:'💸', options:[[50,'$50'],[100,'$100'],[200,'$200'],[500,'$500']] },
   time_of_day:{ icon:'🕖', options:[['morning','☀️ Full day'],['afternoon','🌤️ Afternoon'],['evening','🌆 Evening'],['night','🌙 Late night']] },
   transport:  { icon:'🚶', options:[['walk','🚶 Walk'],['transit','🚇 Transit'],['car','🚗 Car']] },
 };
 const PARTY = { solo:1, date:2, friends:4, family:4 };
-let profile = null, ready = null, readyEl = null, budgetTouched = false;
+// Radius slider: 1-20 km; each mode of transport has a sensible starting reach.
+const RADIUS_MIN = 1, RADIUS_MAX = 20;
+const TRANSPORT_KM = { walk:2, transit:7, car:15 };
+const BUDGET_MAX = 10000, PARTY_MAX = 20;
+let profile = null, ready = null, readyEl = null, budgetTouched = false, radiusTouched = false;
+const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+const fmtKm = km => (Math.round(km * 10) / 10) + ' km';
 
 function labelFor(key, val){
   if (key === 'location') return val ? `📍 ${val}` : (userLoc ? '📍 Near you' : '📍 Where?');
-  if (key === 'budget'){ const o = READY.budget.options.find(([v]) => v === val); return o ? o[1] : `💸 ~$${Math.round(val)}`; }
+  if (key === 'budget') return `💸 $${Math.round(val).toLocaleString()}`;
+  if (key === 'radius_km') return `📏 ${fmtKm(val)}`;
   const o = READY[key].options.find(([v]) => v === val);
-  return o ? o[1] : READY[key].icon + ' Any';
+  const base = o ? o[1] : READY[key].icon + ' Any';
+  // show the head-count once it's a group, or whenever it isn't the crew's usual size
+  if (key === 'group_type' && (ready.party_size > 2 || ready.party_size !== (PARTY[val] || 2)))
+    return `${base} · ${ready.party_size}`;
+  return base;
 }
 function readySummary(){
-  return ['group_type','vibe','budget','time_of_day','transport'].map(k => labelFor(k, ready[k]))
+  return ['group_type','vibe','budget','time_of_day','transport','radius_km'].map(k => labelFor(k, ready[k]))
     .concat(ready.location ? [labelFor('location', ready.location)] : []).join(' · ');
 }
 
@@ -732,16 +791,32 @@ function startReady(p){
             transport: d.transport || 'transit', location: '' };
   ready.party_size = d.party_size || PARTY[ready.group_type] || 2;
   ready.budget = Math.round(d.budget || 100);
+  ready.radius_km = clamp(d.radius_km || TRANSPORT_KM[ready.transport] || 7, RADIUS_MIN, RADIUS_MAX);
   const a = p.archetype;
-  addMsg('assistant', `Hey${a ? ` ${esc(a.emoji)} <b>${esc(a.title)}</b>` : ''} — here's a plan made for you. Tap anything to change it, or just type what you want.`);
+  addMsg('assistant', a
+    ? `Hey ${esc(a.emoji)} <b>${esc(a.title)}</b> — here's a plan made for you. Tap anything to change it, or just type what you want.`
+    : `Hey, I'm <b>Roamly</b> 🧭 — here's a starting plan. Tap anything to change it, or just type what you want.`);
   readyEl = document.createElement('div'); readyEl.className = 'ready';
-  thread.appendChild(readyEl); renderReady(); scrollDown();
+  thread.appendChild(readyEl); renderReady();
+  if (!p.completed){
+    // The taste survey is optional — invite, don't gate.
+    addMsg('assistant', 'Want picks that fit <i>you</i>? The taste survey takes about 2 minutes, and every plan gets better after it.');
+    appendFoot([{ label:'🧠 Personalize my picks', onclick: () => location.href = 'profile.html?redirect=roamly.html' }]);
+  }
+  scrollDown();
+}
+
+/* Budget stays a per-person spend when the crew size changes — unless the
+   user set a budget themselves. */
+function rescaleBudget(){
+  const pp = profile && profile.defaults && profile.defaults.budget_per_person;
+  if (pp && !budgetTouched) ready.budget = Math.round(pp * ready.party_size);
 }
 
 function renderReady(openKey){
-  const keys = ['group_type','vibe','budget','time_of_day','transport','location'];
+  const keys = ['group_type','vibe','budget','time_of_day','transport','radius_km','location'];
   readyEl.innerHTML = `
-    <div class="pills">${keys.map(k => `<button class="pill${k === openKey ? ' open' : ''}" data-k="${k}">${esc(labelFor(k, ready[k]))}</button>`).join('')}</div>
+    <div class="pills">${keys.map(k => `<button class="pill${k === openKey ? ' open' : ''}" data-k="${k}" aria-expanded="${k === openKey}">${esc(labelFor(k, ready[k]))}</button>`).join('')}</div>
     <div class="choices"></div>
     <div class="go">
       <button class="plan-it">✨ Plan it</button>
@@ -754,9 +829,12 @@ function renderReady(openKey){
   readyEl.querySelector('[data-a="pick"]').onclick = () => planIt({ pick:true });
   const box = readyEl.querySelector('.choices');
   if (!openKey) return;
+  const pill = readyEl.querySelector(`.pill[data-k="${openKey}"]`);
+  const livePill = () => { pill.textContent = labelFor(openKey, ready[openKey]); };
+
   if (openKey === 'location'){
     box.innerHTML = `<button class="chip" data-v="me">📍 Use my location</button>
-      <input id="readyCity" placeholder="or type a city / neighbourhood" value="${esc(ready.location)}" />`;
+      <input class="city" id="readyCity" aria-label="City or neighbourhood" placeholder="or type a city / neighbourhood" value="${esc(ready.location)}" />`;
     box.querySelector('[data-v="me"]').onclick = () => { ready.location = ''; if (!userLoc) getLoc(); setTimeout(() => renderReady(), 50); };
     const inp = box.querySelector('#readyCity');
     inp.onkeydown = e => { if (e.key === 'Enter'){ ready.location = inp.value.trim(); renderReady(); } };
@@ -764,28 +842,94 @@ function renderReady(openKey){
     inp.focus();
     return;
   }
+
+  if (openKey === 'radius_km'){
+    // Slider for any value 1-20 km, plus one-tap presets per mode of transport.
+    box.innerHTML = `
+      <div class="row">
+        <input type="range" id="radiusSlider" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="0.5" value="${ready.radius_km}"
+               aria-label="Search radius in kilometres" aria-valuetext="${fmtKm(ready.radius_km)}" />
+        <b id="radiusVal">${fmtKm(ready.radius_km)}</b>
+      </div>
+      <div class="hint" id="radiusHint">We'll look for places within about ${fmtKm(ready.radius_km)} of your starting point.</div>
+      ${Object.entries(TRANSPORT_KM).map(([m, km]) =>
+        `<button class="chip${ready.radius_km === km ? ' on' : ''}" data-km="${km}">${READY.transport.options.find(([v]) => v === m)[1]} ~${km} km</button>`).join('')}`;
+    const sl = box.querySelector('#radiusSlider');
+    const show = () => {
+      ready.radius_km = clamp(parseFloat(sl.value) || RADIUS_MIN, RADIUS_MIN, RADIUS_MAX);
+      sl.setAttribute('aria-valuetext', fmtKm(ready.radius_km));
+      box.querySelector('#radiusVal').textContent = fmtKm(ready.radius_km);
+      box.querySelector('#radiusHint').textContent = `We'll look for places within about ${fmtKm(ready.radius_km)} of your starting point.`;
+      box.querySelectorAll('[data-km]').forEach(c => c.classList.toggle('on', parseFloat(c.dataset.km) === ready.radius_km));
+      livePill();
+    };
+    sl.oninput = show;                                   // live while dragging (no re-render mid-drag)
+    sl.onchange = () => { show(); radiusTouched = true; };
+    box.querySelectorAll('[data-km]').forEach(c => c.onclick = () => {
+      ready.radius_km = parseFloat(c.dataset.km); radiusTouched = true; renderReady('radius_km');
+    });
+    return;
+  }
+
+  // Everything else: preset chips (tap = pick and close)…
   READY[openKey].options.forEach(([v, label]) => {
     const c = document.createElement('button');
     c.className = 'chip' + (ready[openKey] === v ? ' on' : ''); c.textContent = label;
     c.onclick = () => {
       ready[openKey] = v;
       if (openKey === 'budget') budgetTouched = true;
-      if (openKey === 'group_type'){
-        ready.party_size = PARTY[v] || 2;
-        // keep the profile's per-person spend when the crew changes, unless they picked a budget
-        const pp = profile && profile.defaults && profile.defaults.budget_per_person;
-        if (pp && !budgetTouched) ready.budget = Math.round(pp * ready.party_size);
-      }
-      renderReady();
+      if (openKey === 'group_type'){ ready.party_size = PARTY[v] || 2; rescaleBudget(); }
+      if (openKey === 'transport' && !radiusTouched) ready.radius_km = TRANSPORT_KM[v];
+      renderReady(openKey === 'group_type' ? 'group_type' : null);   // crew stays open for the head-count
     };
     box.appendChild(c);
   });
+
+  // …plus an exact value where a number makes sense.
+  if (openKey === 'budget'){
+    const row = document.createElement('div'); row.className = 'row';
+    row.innerHTML = `<label class="money">$<input type="number" id="budgetInput" inputmode="numeric" min="0" max="${BUDGET_MAX}" step="5"
+        value="${Math.round(ready.budget)}" aria-label="Custom total budget in dollars" /></label>
+      <span class="hint" id="budgetHint"></span>`;
+    box.appendChild(row);
+    const inp = row.querySelector('#budgetInput'), hint = row.querySelector('#budgetHint');
+    const each = () => {
+      const n = ready.party_size;
+      hint.textContent = n > 1 ? `total for ${n} · ≈ $${Math.round(ready.budget / n)} each` : 'total for you';
+    };
+    const commit = () => {
+      const v = parseFloat(inp.value);
+      if (!isNaN(v)){
+        ready.budget = clamp(Math.round(v), 0, BUDGET_MAX); budgetTouched = true; livePill(); each();
+        box.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.textContent === `$${ready.budget}`));
+      }
+    };
+    inp.oninput = commit;
+    inp.onkeydown = e => { if (e.key === 'Enter'){ commit(); renderReady(); } };
+    each();
+  }
+  if (openKey === 'group_type'){
+    const row = document.createElement('div'); row.className = 'row stepper';
+    row.innerHTML = `<span>People</span>
+      <button type="button" data-d="-1" aria-label="Fewer people">−</button>
+      <b id="partyVal" aria-live="polite">${ready.party_size}</b>
+      <button type="button" data-d="1" aria-label="More people">+</button>`;
+    box.appendChild(row);
+    row.querySelectorAll('[data-d]').forEach(btn => btn.onclick = () => {
+      ready.party_size = clamp(ready.party_size + parseInt(btn.dataset.d, 10), 1, PARTY_MAX);
+      if (ready.party_size === 1) ready.group_type = 'solo';
+      else if (ready.group_type === 'solo') ready.group_type = ready.party_size === 2 ? 'date' : 'friends';
+      rescaleBudget();
+      renderReady('group_type');
+    });
+  }
 }
 
 async function planIt(o = {}){
   if (!token()){ requireSignIn(); return; }
   const prefs = { group_type: ready.group_type, party_size: ready.party_size, vibe: ready.vibe,
-                  budget: ready.budget, time_of_day: ready.time_of_day, transport: ready.transport };
+                  budget: ready.budget, time_of_day: ready.time_of_day, transport: ready.transport,
+                  radius_km: ready.radius_km };
   if (ready.location) prefs.location = ready.location;
   if (!userLoc && !ready.location){ renderReady('location'); return; }      // need a where first
   const summary = readySummary();
@@ -794,21 +938,26 @@ async function planIt(o = {}){
   messages.push({ role:'user', content:`Plan: ${summary}${o.surprise ? ' (surprise me)' : ''}` });
   typing(true);
   if (o.pick){ fetchOptions(prefs); return; }
+  runPlan(prefs, o);
+}
+
+async function runPlan(prefs, o){
   const btn = readyEl.querySelector('.plan-it'); btn.disabled = true;
+  const again = () => runPlan(prefs, o);
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
       body: JSON.stringify({ messages:[], prefs, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
         exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9), surprise: !!o.surprise }) });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
-    showChatResponse(await r.json());
-  }catch(e){ typing(false); addMsg('assistant','Hmm, I hit a snag reaching the planner. Try again?'); }
+    showChatResponse(await r.json(), again);
+  }catch(e){ failed(e, again); }
   finally{ btn.disabled = false; }
 }
 
 /* ---------- boot ---------- */
-// No session → the sign-in page. No finished taste survey → the survey first
-// (it forwards back here). Otherwise straight to the pre-filled ready card.
+// No session → the sign-in page. Otherwise straight to the ready card, pre-filled
+// from the taste profile when there is one (the survey is optional).
 (async function boot(){
   if (!token()){
     location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search));
@@ -822,7 +971,6 @@ async function planIt(o = {}){
     if (r.status === 401){ requireSignIn(); return; }
     if (r.ok) p = await r.json();
   }catch(e){ /* server asleep/unreachable — fall through to plain defaults */ }
-  if (p && !p.completed){ location.replace('profile.html?redirect=roamly.html'); return; }
   startReady(p || { defaults:{} });
 })();
 </script>

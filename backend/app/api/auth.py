@@ -1,14 +1,16 @@
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import User
 from app.middleware.auth import get_current_user
 from app.schemas.auth import (
-    RegisterRequest, LoginRequest, AppleAuthRequest, RefreshRequest, TokenResponse, AuthUser,
+    RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, AuthUser,
     ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, ChangePasswordRequest,
 )
 from app.services.security import (
@@ -18,6 +20,7 @@ from app.services.security import (
 from app.services.email import email_enabled, send_password_reset
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+log = logging.getLogger(__name__)
 
 
 def _tokens(user: User, is_new: bool) -> TokenResponse:
@@ -29,16 +32,6 @@ def _tokens(user: User, is_new: bool) -> TokenResponse:
             display_name=user.display_name, is_new_user=is_new,
         ),
     )
-
-
-def _unique_username(db: Session, base: str) -> str:
-    base = "".join(c for c in base.lower() if c.isalnum() or c == "_")[:24] or "trekker"
-    candidate = base
-    i = 0
-    while db.scalar(select(User.id).where(User.username == candidate)):
-        i += 1
-        candidate = f"{base}{i}"
-    return candidate
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
@@ -67,37 +60,6 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     return _tokens(user, is_new=False)
 
 
-@router.post("/apple", response_model=TokenResponse)
-def apple_auth(body: AppleAuthRequest, db: Session = Depends(get_db)):
-    """Sign in with Apple.
-
-    MVP note: full Apple identity-token verification (JWKS validation) is a
-    production task. Here we trust the client-provided identity, deriving a
-    stable apple_id from the token, and create the user on first sign-in.
-    """
-    apple_id = f"apple_{abs(hash(body.identity_token)) % (10 ** 12)}"
-    user = db.scalar(select(User).where(User.apple_id == apple_id))
-    is_new = False
-    if not user:
-        email = body.email or f"{apple_id}@privaterelay.appleid.com"
-        existing = db.scalar(select(User).where(User.email == email))
-        if existing:
-            existing.apple_id = apple_id
-            user = existing
-        else:
-            user = User(
-                apple_id=apple_id,
-                email=email,
-                username=_unique_username(db, (body.display_name or "trekker")),
-                display_name=body.display_name or "Trekker",
-            )
-            db.add(user)
-            is_new = True
-        db.commit()
-        db.refresh(user)
-    return _tokens(user, is_new=is_new)
-
-
 @router.post("/refresh", response_model=TokenResponse)
 def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     payload = decode_token(body.refresh_token, expected_type="refresh")
@@ -113,10 +75,10 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     """Begin a password reset.
 
-    Always responds 200 so the endpoint can't be used to probe which emails are
-    registered. In production the reset token would be emailed; with no email
-    service in this local instance, it's returned in the response when the
-    account exists.
+    Always responds 200 with the same body so the endpoint can't be used to
+    probe which emails are registered. The reset token is only ever delivered
+    by email — returning it in the response would let anyone who knows an
+    email address reset that account's password.
     """
     user = db.scalar(select(User).where(User.email == body.email))
     generic = "If an account exists for that email, password reset instructions have been sent."
@@ -126,10 +88,12 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     token = create_reset_token(str(user.id))
     if email_enabled():
         send_password_reset(user.email, token)
-        # Don't leak the token in the response once email delivery is on.
-        return ForgotPasswordResponse(message=generic)
-    # Dev fallback: no email configured, return the token directly.
-    return ForgotPasswordResponse(message=generic, reset_token=token)
+    elif settings.environment != "production":
+        # Local dev without an email service: the link goes to the server log
+        # (never the HTTP response) so the reset flow can still be tested.
+        log.warning("Password reset for %s (email not configured): %s/?reset_token=%s",
+                    user.email, settings.frontend_base_url, token)
+    return ForgotPasswordResponse(message=generic)
 
 
 @router.post("/reset-password", response_model=TokenResponse)

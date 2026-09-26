@@ -34,7 +34,7 @@ def ping() -> tuple[bool, str]:
 
 
 def chat(messages: list[dict], *, temperature: float = 0.7,
-         max_tokens: int = 1200, want_json: bool = False) -> str | None:
+         max_tokens: int = 1200, want_json: bool = False, timeout: float = 45.0) -> str | None:
     """Return the assistant's reply text, or None on any failure."""
     if not available():
         return None
@@ -49,7 +49,7 @@ def chat(messages: list[dict], *, temperature: float = 0.7,
     try:
         resp = httpx.post(
             f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-            json=payload, timeout=45.0,
+            json=payload, timeout=timeout,
             headers={"Authorization": f"Bearer {settings.llm_api_key}"},
         )
         resp.raise_for_status()
@@ -58,12 +58,12 @@ def chat(messages: list[dict], *, temperature: float = 0.7,
         return None
 
 
-def chat_json(messages: list[dict], *, temperature: float = 0.4) -> dict | None:
+def chat_json(messages: list[dict], *, temperature: float = 0.4, timeout: float = 45.0) -> dict | None:
     """Chat expecting a JSON object reply; returns the parsed dict or None.
 
     Tolerates models that wrap JSON in prose or ```json fences.
     """
-    raw = chat(messages, temperature=temperature, want_json=True)
+    raw = chat(messages, temperature=temperature, want_json=True, timeout=timeout)
     if not raw:
         return None
     raw = raw.strip()

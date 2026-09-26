@@ -13,14 +13,6 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AppleAuthRequest(BaseModel):
-    identity_token: str
-    authorization_code: str | None = None
-    # Apple only returns name on first sign-in; client may pass these through.
-    email: EmailStr | None = None
-    display_name: str | None = None
-
-
 class RefreshRequest(BaseModel):
     refresh_token: str
 
@@ -30,10 +22,8 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ForgotPasswordResponse(BaseModel):
+    # Deliberately no token field: reset tokens are only ever delivered by email.
     message: str
-    # In production this token is emailed to the user. There is no email
-    # service in this local instance, so it is returned directly.
-    reset_token: str | None = None
 
 
 class ResetPasswordRequest(BaseModel):

@@ -8,9 +8,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.api import (
-    auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist, plan,
-)
+from app.api import auth, users, waitlist, plan
 
 app = FastAPI(
     title="TrekRank API",
@@ -36,9 +34,12 @@ if settings.storage_backend == "local":
     os.makedirs(settings.local_storage_dir, exist_ok=True)
     app.mount("/media", StaticFiles(directory=settings.local_storage_dir), name="media")
 
+# Only what the web app uses is exposed. The travel-logging features (trips,
+# friends, feed, leaderboards, challenges, share cards) have no screens yet, so
+# their routes are switched off to keep the public API small; their code and
+# tables stay. To bring one back, import it above and add it here.
 P = settings.api_v1_prefix
-for r in (auth, users, trips, friends, leaderboards, feed, badges, challenges, share, waitlist,
-          plan):
+for r in (auth, users, waitlist, plan):
     app.include_router(r.router, prefix=P)
 
 

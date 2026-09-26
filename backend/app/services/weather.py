@@ -25,7 +25,7 @@ def get_weather(lat: float, lng: float) -> dict | None:
             "latitude": lat, "longitude": lng,
             "daily": "weathercode,temperature_2m_max,precipitation_probability_max",
             "timezone": "auto", "forecast_days": 1,
-        }, timeout=10.0)
+        }, timeout=5.0)
         r.raise_for_status()
         d = r.json()["daily"]
         code = (d["weathercode"] or [0])[0]

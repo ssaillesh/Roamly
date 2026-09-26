@@ -155,6 +155,7 @@ _ENERGY_TARGET = {"recharge": 1.8, "balanced": 3.0, "gogogo": 4.3}    # on exper
 _CROWD = {"quiet": -1.0, "depends": 0.0, "buzzing": 1.0}
 _RADIUS_SCALE = {"near": 0.6, "medium": 1.0, "far": 1.4}
 _TARGET_STOPS = {"relaxed": 3, "steady": 4, "packed": 5}
+_TRANSPORT_KM = {"walk": 2.0, "transit": 7.0, "car": 15.0}   # matches the slider's presets
 
 
 def _default_vibe(a: dict) -> str:
@@ -193,6 +194,11 @@ def defaults_for(answers: dict | None) -> dict:
         d["transport"] = a["transport"]
     if a.get("distance") in _RADIUS_SCALE:
         d["radius_scale"] = _RADIUS_SCALE[a["distance"]]
+    if a.get("transport") or a.get("distance"):
+        # A concrete starting value for the planner's radius slider (1-20 km):
+        # how far that mode of transport usually reaches × how far they'll go.
+        base = _TRANSPORT_KM.get(a.get("transport"), 7.0)
+        d["radius_km"] = round(max(1.0, min(20.0, base * _RADIUS_SCALE.get(a.get("distance"), 1.0))), 1)
     if a.get("energy") in _ENERGY_TARGET:
         d["energy"] = _ENERGY_TARGET[a["energy"]]
     if a.get("crowds") in _CROWD:

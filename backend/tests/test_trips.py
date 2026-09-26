@@ -1,3 +1,8 @@
+import pytest
+
+pytest.skip("Trips API is switched off (no web UI yet) — see app/main.py",
+            allow_module_level=True)
+
 from tests.conftest import make_user, auth_headers
 
 
