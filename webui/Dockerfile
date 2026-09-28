@@ -5,6 +5,7 @@ COPY auth.html /srv/auth.html
 COPY roamly.html /srv/roamly.html
 COPY profile.html /srv/profile.html
 COPY config.js /srv/config.js
+COPY roamly.css /srv/roamly.css
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Caddy reads $PORT from the env (Railway injects it); see Caddyfile.

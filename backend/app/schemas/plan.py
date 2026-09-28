@@ -37,6 +37,11 @@ class Event(BaseModel):
     price_min: float | None = None
     price_max: float | None = None
     image: str | None = None
+    start: str | None = None          # ISO; the page turns it into "on now" / "in 40 min"
+    end: str | None = None
+    free: bool | None = None          # None = unknown (not every source says)
+    source: str | None = None         # "ticketmaster" | "city_toronto"
+    distance_km: float | None = None
 
 
 class Plan(BaseModel):
@@ -75,15 +80,29 @@ class ChatRequest(BaseModel):
     # location, interests, avoid, dietary, days. When present, the LLM extraction
     # round trip is skipped entirely — faster and deterministic.
     prefs: dict | None = None
+    # The page's current "Planning around" settings (same shape as `prefs`), sent
+    # with typed messages: whatever the message doesn't say is taken from here, so
+    # the bar, the chat and the planner always work from the same values.
+    defaults: dict | None = None
+    # The browser's IANA time zone (e.g. "America/Toronto") for "tonight" and
+    # "this weekend" windows.
+    tz: str | None = None
 
 
 class ChatResponse(BaseModel):
-    # "question" → need more info; "itinerary" → plan ready; "message" → info/error
+    # "question" → need more info; "itinerary" → plan ready; "events" → what's on;
+    # "message" → info/error
     type: str
     message: str
     quick_replies: list[str] = Field(default_factory=list)
     plan: Plan | None = None          # single-day
     days: list[Plan] = Field(default_factory=list)  # multi-day trip
+    events: list[Event] = Field(default_factory=list)   # "what's happening" results
+    # What the planner took from this request (vibe, group_type, party_size, budget,
+    # time_of_day, transport, radius_km, location) — the page's "Planning around"
+    # bar mirrors it, so a typed "cheap date in Kensington" visibly updates the bar.
+    understood: dict | None = None
+    window: str | None = None                          # now | tonight | weekend
     title: str | None = None
 
 

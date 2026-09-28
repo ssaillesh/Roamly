@@ -7,7 +7,7 @@ from app.services import planner
 
 def _offline(monkeypatch, gather):
     monkeypatch.setattr(planner.weather_svc, "get_weather", lambda lat, lng: None)
-    monkeypatch.setattr(planner.events_svc, "available", lambda: False)
+    monkeypatch.setattr(planner.live_events, "available_for", lambda lat, lng: False)
     monkeypatch.setattr(planner.llm, "available", lambda: False)
     monkeypatch.setattr(planner, "_gather", gather)
 

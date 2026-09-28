@@ -25,12 +25,13 @@ OVERPASS_ENDPOINTS = [
 _TIMEOUTS = {OVERPASS_ENDPOINTS[0]: 15.0, OVERPASS_ENDPOINTS[1]: 6.0}
 
 # Planner slot categories → Overpass tag selectors. We query nodes (and the centre
-# of ways) so we get coordinates for everything.
+# of ways) so we get coordinates for everything. Nightclubs live only under
+# "party": listed under activities they turned up as a chill plan's activity.
 CATEGORIES = {
     "food": ['"amenity"="restaurant"', '"amenity"="cafe"', '"amenity"="fast_food"',
              '"amenity"="ice_cream"', '"shop"="bakery"'],
     "activities": ['"tourism"="attraction"', '"tourism"="theme_park"', '"tourism"="gallery"',
-                   '"amenity"="cinema"', '"amenity"="theatre"', '"amenity"="nightclub"',
+                   '"amenity"="cinema"', '"amenity"="theatre"',
                    '"leisure"="bowling_alley"', '"leisure"="escape_game"', '"leisure"="amusement_arcade"',
                    '"leisure"="trampoline_park"', '"leisure"="miniature_golf"', '"leisure"="water_park"',
                    '"sport"="laser_tag"', '"sport"="paintball"', '"sport"="karting"'],

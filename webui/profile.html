@@ -3,115 +3,166 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Roamly — your taste profile</title>
-<meta name="description" content="A quick survey so Roamly plans outings that actually fit you." />
-<meta name="theme-color" content="#ffffff" />
+<title>Roamly — my taste</title>
+<meta name="description" content="Your Roamly taste profile — what every plan starts from." />
+<meta name="theme-color" content="#fbf8f4" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
+<link rel="stylesheet" href="/roamly.css" />
 <script src="/config.js"></script>
 <style>
-  :root{
-    --accent:#ff5a5f; --accent2:#7c5cff; --hot:#ff3d9a;
-    --bg0:#ffffff; --bg2:#f5f4f7; --card:#ffffff;
-    --brd:rgba(0,0,0,.08); --hair:rgba(0,0,0,.06);
-    --text:#1d1d1f; --muted:#515154; --muted2:#86868b;
-    --shadow:0 20px 45px -16px rgba(60,40,120,.18);
-    --ease:cubic-bezier(.22,1,.36,1);
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; min-height:100%;}
-  /* Static background on purpose — no animated/blurred layers (see the lag fixes). */
-  body{background:
-      radial-gradient(720px 480px at 88% -6%, rgba(124,92,255,.08), transparent 62%),
-      radial-gradient(680px 520px at 6% 8%, rgba(255,90,95,.07), transparent 58%),
-      var(--bg0);
-    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.5;}
-  a{color:inherit; text-decoration:none;}
-  .grad{background:linear-gradient(110deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .view{flex:1; min-height:0; overflow-y:auto;}
+  .page{max-width:720px; margin:0 auto; padding:24px 16px 40px;}
+  .page-head{display:flex; align-items:flex-start; gap:12px; margin:0 0 18px;}
+  .page-head > div{flex:1; min-width:0;}
+  .page-head .t-meta{margin:4px 0 0;}
+  @media (min-width:760px){ .page{padding:32px 28px 48px;} .page-head .avatar{display:none;} }
+  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .loading{color:var(--ink-3); text-align:center; padding:80px 0; font-weight:600;}
 
-  header{display:flex; align-items:center; gap:10px; padding:16px 20px; max-width:720px; margin:0 auto;}
-  .logo{font-size:20px; font-weight:750; letter-spacing:-.02em;}
-  .saved{margin-left:auto; font-size:12.5px; color:var(--muted2); transition:opacity .3s;}
-  .skip{font-size:13.5px; font-weight:650; color:var(--muted); padding:8px 4px;}
-  .skip:hover{color:var(--accent2);}
+  /* ---- summary ---- */
+  .taste-hero{position:relative; overflow:hidden; padding:22px 20px 20px; border-radius:var(--r-lg); color:#fff; background:var(--grad-dusk);
+    box-shadow:var(--sh-2); animation:rise .4s var(--ease) both;}
+  .taste-hero .skyline{position:absolute; left:0; right:0; bottom:0; width:100%; height:40px; opacity:.4; pointer-events:none;}
+  .th-row{display:flex; align-items:center; gap:16px; position:relative;}
+  .th-art{width:68px; height:68px; flex:0 0 auto; border-radius:22px; display:grid; place-items:center; font-size:34px;
+    background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.3);}
+  .th-kicker{font-size:12px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; color:rgba(255,255,255,.85);}
+  .th-title{margin:2px 0 0; font-size:24px; font-weight:800; letter-spacing:-.03em; line-height:1.15;}
+  .th-chips{display:flex; flex-wrap:wrap; gap:6px; margin-top:16px; position:relative; padding-bottom:22px;}
+  .th-chips span{padding:5px 11px; border-radius:var(--r-pill); background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.22);
+    font-size:12.5px; font-weight:650; color:#fff;}
+  .banner{display:flex; align-items:center; gap:14px; padding:14px 16px; margin-bottom:18px; background:var(--grad-soft); border:1px solid rgba(106,76,240,.14);}
+  .banner .b-t{flex:1;} .banner b{display:block; font-size:15px;} .banner p{margin:2px 0 0; font-size:13.5px; color:var(--ink-2);}
+  .group{margin-top:24px; animation:rise .4s var(--ease) both;}
+  .group h2{margin:0 0 10px 4px;}
+  .pref-list{overflow:hidden;}
+  .pref{display:flex; align-items:center; gap:14px; width:100%; min-height:62px; padding:10px 14px 10px 16px; border:0; background:none;
+    border-bottom:1px solid var(--line-2); cursor:pointer; text-align:left; font:inherit; color:var(--ink); transition:background-color .15s;}
+  .pref:last-child{border-bottom:0;}
+  .pref:hover{background:var(--surface-2);}
+  .p-ic{width:38px; height:38px; flex:0 0 auto; border-radius:13px; display:grid; place-items:center; font-size:18px; background:var(--surface-2);}
+  .p-t{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .p-l{font-size:12.5px; font-weight:700; color:var(--ink-3);}
+  .p-v{font-size:15px; font-weight:700; line-height:1.35;}
+  .p-v.unset{color:var(--ink-3); font-weight:600;}
+  .pref .ic{color:var(--ink-3);}
+  .summary-acts{display:flex; flex-wrap:wrap; gap:10px; margin-top:26px;}
+  .summary-acts .btn-primary{flex:1 1 240px;}
+  .fine{margin:18px 4px 0; font-size:12.5px; color:var(--ink-3);}
 
-  main{max-width:640px; margin:0 auto; padding:8px 20px 48px;}
-  .meta{display:flex; justify-content:space-between; font-size:13px; color:var(--muted2); font-weight:600; margin:10px 0 8px;}
-  .bar{height:6px; background:var(--bg2); border-radius:999px; overflow:hidden;}
-  .bar i{display:block; height:100%; width:0; background:linear-gradient(90deg,var(--accent),var(--accent2));
-    border-radius:999px; transition:width .35s var(--ease);}
+  /* ---- survey ("Find your vibe") ---- */
+  body.surveying .bnav{display:none;}
+  .sv-top{display:flex; align-items:center; gap:10px; margin-bottom:18px;}
+  .sv-top .link{margin-left:auto; color:var(--ink-2);}
+  .progress{display:flex; align-items:center; gap:12px; margin-bottom:22px;}
+  .bar{flex:1; height:8px; background:var(--surface-3); border-radius:var(--r-pill); overflow:hidden;}
+  .bar i{display:block; height:100%; width:0; background:var(--grad); border-radius:var(--r-pill); transition:width .4s var(--ease);}
+  .progress span{font-size:13px; font-weight:750; color:var(--ink-3); white-space:nowrap;}
+  .q-card{animation:rise .35s var(--ease) both;}
+  .q-card h1{margin:6px 0 6px; font-size:clamp(24px,5.4vw,30px); font-weight:800; letter-spacing:-.03em; line-height:1.18;}
+  .q-card .hint{margin:0 0 20px; color:var(--ink-3); font-size:14.5px; font-weight:550;}
+  .opts{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px;}
+  .opt{display:flex; align-items:center; gap:10px; min-height:58px; padding:12px 14px; border-radius:18px; border:1.5px solid var(--line);
+    background:var(--surface); color:var(--ink); font:inherit; font-size:15px; font-weight:700; text-align:left; cursor:pointer; box-shadow:var(--sh-1);
+    transition:transform .16s var(--pop), border-color .2s, background-color .2s, box-shadow .2s;}
+  .opt:hover{border-color:rgba(106,76,240,.5);}
+  .opt:active{transform:scale(.97);}
+  .opt.on{border-color:var(--primary); background:var(--primary-soft); box-shadow:0 0 0 1px var(--primary) inset, var(--sh-1);}
+  .opt .tick{margin-left:auto; width:22px; height:22px; flex:0 0 auto; border-radius:50%; border:2px solid var(--line); display:grid; place-items:center; color:transparent;}
+  .opt.on .tick{background:var(--primary); border-color:var(--primary); color:#fff;}
+  @media (max-width:380px){ .opts{grid-template-columns:1fr;} }
+  .sv-nav{display:flex; align-items:center; gap:10px; margin-top:26px;}
+  .sv-nav .btn-dark{margin-left:auto; min-width:120px;}
+  .err{color:var(--danger); font-size:13.5px; font-weight:650; margin-top:14px; min-height:1em;}
+  .saved-note{font-size:12.5px; color:var(--mint-ink); font-weight:700; opacity:0; transition:opacity .3s;}
 
-  .card{margin-top:22px; background:var(--card); border:1px solid var(--brd); border-radius:24px;
-    box-shadow:var(--shadow); padding:28px 24px 22px;}
-  .card h1{font-size:clamp(24px,5vw,30px); letter-spacing:-.025em; line-height:1.15; margin:0 0 6px;}
-  .hint{color:var(--muted2); font-size:14px; margin:0 0 18px;}
-  .opts{display:flex; flex-wrap:wrap; gap:10px;}
-  .opt{border:1.5px solid var(--brd); background:#fff; color:var(--text); border-radius:14px; padding:13px 16px;
-    font:inherit; font-size:15.5px; font-weight:600; cursor:pointer; transition:.15s var(--ease);}
-  .opt:hover{border-color:rgba(124,92,255,.45);}
-  .opt.on{border-color:transparent; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2));
-    box-shadow:0 10px 22px -12px rgba(124,92,255,.7);}
-  .single .opt{flex:1 1 calc(50% - 10px); text-align:left;}
-
-  .nav{display:flex; align-items:center; gap:10px; margin-top:22px;}
-  .btn{border:0; border-radius:999px; padding:12px 22px; font:inherit; font-weight:650; font-size:15px; cursor:pointer;}
-  .btn-primary{background:var(--text); color:#fff; margin-left:auto;}
-  .btn-primary:disabled{opacity:.35; cursor:default;}
-  .btn-ghost{background:transparent; color:var(--muted); padding-left:6px;}
-  .btn-ghost:disabled{visibility:hidden;}
-  .err{color:#c2334b; font-size:13.5px; margin-top:12px; min-height:1em;}
-
-  .result{text-align:center;}
-  .result .emoji{font-size:54px; line-height:1;}
-  .result .kicker{font-size:13px; font-weight:700; color:var(--accent2); letter-spacing:.02em; margin-top:14px;}
-  .result h1{margin:4px 0 16px;}
-  .chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:22px;}
-  .chips span{background:var(--bg2); border-radius:999px; padding:6px 12px; font-size:13.5px; font-weight:600; color:var(--muted);}
-  .result .nav{justify-content:center;}
-  .result .btn-primary{margin-left:0;}
-  .loading{color:var(--muted2); text-align:center; padding:60px 0;}
-  @media (max-width:480px){ .single .opt{flex-basis:100%;} .card{padding:24px 18px 18px;} }
+  /* ---- result ---- */
+  .result{text-align:center; padding:12px 0; animation:rise .45s var(--ease) both;}
+  .result .r-art{width:96px; height:96px; margin:8px auto 14px; border-radius:32px; display:grid; place-items:center; font-size:48px; background:var(--grad-soft); box-shadow:var(--sh-2);}
+  .result h1{margin:4px 0 16px; font-size:30px; font-weight:800; letter-spacing:-.03em;}
+  .result .chips{display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin-bottom:26px;}
+  .result .chips span{background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r-pill); padding:7px 13px; font-size:13.5px; font-weight:650; color:var(--ink-2);}
+  .result .r-acts{display:flex; flex-wrap:wrap; gap:10px; justify-content:center;}
 </style>
 </head>
 <body>
-  <header>
-    <a class="logo" href="/"><span>🧭</span> <span class="grad">Roamly</span></a>
-    <span class="saved" id="saved"></span>
-    <a class="skip" id="skip" href="#">Skip for now</a>
-  </header>
-  <main id="main"><div class="loading">Loading your survey…</div></main>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs>
+  <symbol id="i-logo" viewBox="0 0 32 32"><path fill="url(#rg)" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#rg)" stroke="none" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h4.5v-6h4v6h4.5V9"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 7.5h18v3a2 2 0 0 0 0 3v3H3v-3a2 2 0 0 0 0-3Z"/><path d="M15 8v8" stroke-dasharray="1.6 2.2"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8Z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 3.1 6.9 7.5 7.5-4.4.6-6.9 3.1-7.5 7.5-.6-4.4-3.1-6.9-7.5-7.5 4.4-.6 6.9-3.1 7.5-7.5Z"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v5h5"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="side">
+    <a class="logo" href="/" aria-label="Roamly home"><svg class="logo-mark" aria-hidden="true"><use href="#i-logo"/></svg><span>Roamly</span></a>
+    <nav class="side-nav" aria-label="Main">
+      <a class="nav-item" href="roamly.html"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
+      <a class="nav-item" href="roamly.html#events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></a>
+      <a class="nav-item" href="roamly.html#saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></a>
+      <a class="nav-item" href="profile.html" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
+    </nav>
+    <div class="side-foot">
+      <button class="nav-item" data-menu aria-haspopup="menu" aria-expanded="false"><span class="avatar" data-initial aria-hidden="true" style="width:30px;height:30px;font-size:12.5px;border-width:0;box-shadow:none">R</span><span data-name>Account</span></button>
+    </div>
+  </aside>
+  <div class="main">
+    <main class="view" id="main"><div class="loading">Loading your taste…</div></main>
+    <nav class="bnav" aria-label="Main">
+      <a class="nav-item" href="roamly.html"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></a>
+      <a class="nav-item" href="roamly.html#events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></a>
+      <a class="nav-item" href="roamly.html#saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></a>
+      <a class="nav-item" href="profile.html" aria-current="page"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
+    </nav>
+  </div>
+</div>
+<div class="menu hidden" id="menu" role="menu" aria-label="Account">
+  <div class="who"><b data-name>Your account</b><span data-handle></span></div>
+  <a role="menuitem" href="roamly.html"><svg class="ic" aria-hidden="true"><use href="#i-sparkle"/></svg> Plan my night</a>
+  <button role="menuitem" id="signOutBtn"><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg> Sign out</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ic = (name, cls = '') => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const token = () => localStorage.getItem('trek_token');
 const headers = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token() });
 const params = new URLSearchParams(location.search);
 const REDIRECT = params.get('redirect') || 'roamly.html';
-const EDITING = params.has('edit');
 
-let questions = [], answers = {}, i = 0;
-// The survey is optional: leave any time — answers so far are already saved.
-const skipEl = document.getElementById('skip');
-if (EDITING) skipEl.textContent = 'Cancel';
-skipEl.onclick = e => { e.preventDefault(); location.href = REDIRECT; };
+let questions = [], answers = {}, profile = null, i = 0;
+let mode = 'summary';          // summary | survey (all questions) | one (a single answer, then back)
+let me = null;
 
 async function api(path, opts){
   const r = await apiFetch(API + path, { headers: headers(), ...opts });
-  if (r.status === 401){ location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); throw new Error('signed out'); }
+  if (r.status === 401){ localStorage.removeItem('trek_token'); location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); throw new Error('signed out'); }
   if (!r.ok) throw new Error('Could not reach the server — your answers are kept, try again.');
   return r.json();
 }
+let toastT;
+function toast(msg){ const t = $('toast'); t.innerHTML = `<span>${esc(msg)}</span>`; t.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2200); }
 
 /* Autosave one answer at a time, so leaving mid-way resumes where you stopped. */
 async function save(qid, value){
   answers[qid] = value;
-  const el = $('saved');
   try{
-    await api('/users/me/profile', { method:'PUT', body: JSON.stringify({ answers: { [qid]: value } }) });
-    el.textContent = 'Saved ✓'; el.style.opacity = 1;
-    setTimeout(() => { el.style.opacity = 0; }, 1200);
+    profile = await api('/users/me/profile', { method:'PUT', body: JSON.stringify({ answers: { [qid]: value } }) });
+    const n = $('savedNote'); if (n){ n.style.opacity = 1; setTimeout(() => { n.style.opacity = 0; }, 1100); }
     return true;
   }catch(e){
     const err = $('err'); if (err) err.textContent = e.message;
@@ -119,44 +170,116 @@ async function save(qid, value){
   }
 }
 
+/* ================= My taste (summary) ================= */
+const ROW = {
+  crew:['👥','Usually with'], time:['🕖','Best time'], transport:['🚇','Getting around'], distance:['🗺️','Will travel'],
+  energy:['⚡','Energy'], crowds:['🎉','Places that pull you in'], novelty:['✨','Favourites or new'], pace:['🗓️','Stops per outing'],
+  diet:['🥗','Dietary needs'], cuisines:['🍽️','Cuisines you love'], spend:['💸','Usual meal spend'],
+  loves:['❤️','Things you love'], nopes:['🙅','Never suggest'], drinks:['🍸','Drinks'],
+};
+function valueOf(q){
+  const v = answers[q.id];
+  const label = id => (q.options.find(o => o.id === id) || {}).label;
+  if (q.type === 'multi'){
+    if (!(q.id in answers)) return null;
+    const ls = (v || []).map(label).filter(Boolean);
+    if (!ls.length) return q.id === 'nopes' ? 'Nothing off-limits' : 'None';
+    return ls.slice(0, 3).join(' · ') + (ls.length > 3 ? ` +${ls.length - 3}` : '');
+  }
+  return v ? label(v) : null;
+}
+const initialOf = () => ((me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'R').trim().charAt(0).toUpperCase();
+const AVATAR_BTN = () => `<button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${esc(initialOf())}</button>`;
+function skyline(){
+  const r = n => { const s = Math.sin(n * 12.9898) * 43758.5453; return s - Math.floor(s); };
+  let out = '', x = 0, k = 0;
+  while (x < 800){ const w = 18 + Math.round(r(k + 3) * 18), h = 12 + Math.round(r(k + 5) * 22); out += `<rect x="${x}" y="${60 - h}" width="${w}" height="${h}"/>`; x += w + 3; k++; }
+  return `<svg class="skyline" viewBox="0 0 800 60" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><g fill="#1a1242">${out}</g></svg>`;
+}
+function showSummary(){
+  mode = 'summary'; document.body.classList.remove('surveying');
+  const done = profile && profile.completed, a = (profile && profile.archetype) || null;
+  const answered = questions.filter(q => q.id in answers).length;
+  const groups = [...new Set(questions.map(q => q.section))];
+  $('main').innerHTML = `<div class="page">
+    <header class="page-head"><div><h1 class="t-title">My taste</h1><p class="t-meta">Every plan starts from this — the Planning-around bar can still change anything for one night.</p></div>${AVATAR_BTN()}</header>
+    ${done ? `<section class="taste-hero" aria-label="Your taste profile">${skyline()}
+        <div class="th-row"><span class="th-art" aria-hidden="true">${esc(a ? a.emoji : '🧭')}</span>
+          <div><div class="th-kicker">You're a</div><h2 class="th-title">${esc(a ? a.title : 'Curious Explorer')}</h2></div></div>
+        <div class="th-chips">${(profile.summary || []).slice(0, 8).map(c => `<span>${esc(c)}</span>`).join('')}</div></section>`
+      : `<div class="card banner"><span class="tc-ic" aria-hidden="true" style="font-size:26px">🧠</span><div class="b-t"><b>Finish your taste survey</b>
+          <p>${answered} of ${questions.length} answered — Roamly uses what's here already.</p></div>
+          <button class="btn btn-dark btn-sm" id="continueSurvey">Continue</button></div>`}
+    ${groups.map((g, gi) => `<section class="group" style="animation-delay:${.05 * (gi + 1)}s"><h2 class="t-label">${esc(g)}</h2><div class="card pref-list">
+      ${questions.filter(q => q.section === g).map(q => { const v = valueOf(q), [emo, lab] = ROW[q.id] || ['•', q.q];
+        return `<button class="pref" data-q="${esc(q.id)}" aria-label="${esc(lab)}: ${esc(v || 'not set')}. Change">
+          <span class="p-ic" aria-hidden="true">${emo}</span><span class="p-t"><span class="p-l">${esc(lab)}</span>
+          <span class="p-v${v ? '' : ' unset'}">${esc(v || 'Not set — tap to answer')}</span></span>${ic('chev')}</button>`; }).join('')}
+    </div></section>`).join('')}
+    <div class="summary-acts">
+      <a class="btn btn-primary btn-lg" href="${esc(REDIRECT)}">${ic('sparkle','sm')} Plan with my taste</a>
+      <button class="btn btn-ghost btn-lg" id="retake">${ic('rotate','sm')} Retake the survey</button>
+    </div>
+    <p class="fine">Tap any row to change just that answer — it saves right away.</p>
+  </div>`;
+  $('main').scrollTop = 0;
+  document.querySelectorAll('.pref').forEach(b => b.onclick = () => editOne(b.dataset.q));
+  $('retake').onclick = () => { mode = 'survey'; i = 0; render(); };
+  const cs = $('continueSurvey'); if (cs) cs.onclick = () => { mode = 'survey'; i = firstUnanswered(); render(); };
+}
+function editOne(qid){ mode = 'one'; i = Math.max(0, questions.findIndex(q => q.id === qid)); render(); }
+const firstUnanswered = () => { const f = questions.findIndex(q => !(q.id in answers)); return f < 0 ? 0 : f; };
+
+/* ================= the survey ("Find your vibe") ================= */
 function render(){
-  const q = questions[i];
-  const multi = q.type === 'multi';
+  document.body.classList.add('surveying');
+  const q = questions[i], multi = q.type === 'multi', one = mode === 'one';
   // Hard nopes can't include something you just said you love.
   const loved = new Set(q.id === 'nopes' ? (answers.loves || []) : []);
   const options = q.options.filter(o => !loved.has(o.id));
   const val = answers[q.id];
   const chosen = multi ? new Set(val || []) : new Set(val ? [val] : []);
-  $('main').innerHTML = `
-    <div class="meta"><span>${esc(q.section)}</span><span>${i + 1} of ${questions.length}</span></div>
-    <div class="bar"><i style="width:${(i / questions.length) * 100}%"></i></div>
-    <div class="card">
-      <h1>${esc(q.q)}</h1>
+  const pct = one ? 100 : ((i + 1) / questions.length) * 100;
+  const leave = one || (profile && profile.completed) ? 'Cancel' : 'Skip for now';
+  $('main').innerHTML = `<div class="page">
+    <div class="sv-top">
+      <button class="icon-btn plain" id="back" aria-label="${i === 0 || one ? 'Back to My taste' : 'Previous question'}">${ic('back')}</button>
+      <span class="saved-note" id="savedNote" role="status">${ic('check','sm')} Saved</span>
+      <button class="link" id="leave">${leave}</button>
+    </div>
+    ${one ? '' : `<div class="progress"><div class="bar" role="progressbar" aria-valuemin="1" aria-valuemax="${questions.length}" aria-valuenow="${i + 1}" aria-label="Survey progress"><i style="width:${(i / questions.length) * 100}%"></i></div>
+      <span>${i + 1} / ${questions.length}</span></div>`}
+    <div class="q-card">
+      <span class="t-label">${esc(q.section)}</span>
+      <h1 id="qTitle">${esc(q.q)}</h1>
       <p class="hint">${esc(q.hint || (multi ? 'Pick as many as you like' : 'Tap one'))}</p>
-      <div class="opts ${multi ? 'multi' : 'single'}">
-        ${options.map(o => `<button class="opt${chosen.has(o.id) ? ' on' : ''}" data-id="${esc(o.id)}">${esc(o.label)}</button>`).join('')}
+      <div class="opts" role="${multi ? 'group' : 'radiogroup'}" aria-labelledby="qTitle">
+        ${options.map(o => `<button class="opt${chosen.has(o.id) ? ' on' : ''}" data-id="${esc(o.id)}" role="${multi ? 'checkbox' : 'radio'}" aria-checked="${chosen.has(o.id)}">
+          <span>${esc(o.label)}</span><span class="tick" aria-hidden="true">${ic('check','sm')}</span></button>`).join('')}
       </div>
-      <div class="nav">
-        <button class="btn btn-ghost" id="back" ${i === 0 ? 'disabled' : ''}>← Back</button>
-        ${multi ? `<button class="btn btn-primary" id="next">${chosen.size ? 'Continue' : (q.optional ? 'None — skip' : 'Continue')}</button>` : ''}
+      <div class="sv-nav">
+        ${multi ? `<button class="btn btn-dark" id="next">${chosen.size ? (one ? 'Save' : 'Continue') : (q.optional ? 'None — skip' : 'Continue')}</button>` : ''}
       </div>
-      <div class="err" id="err"></div>
-    </div>`;
-  requestAnimationFrame(() => { const b = document.querySelector('.bar i'); if (b) b.style.width = ((i + 1) / questions.length * 100) + '%'; });
+      <div class="err" id="err" role="alert"></div>
+    </div>
+  </div>`;
+  $('main').scrollTop = 0;
+  requestAnimationFrame(() => { const b = document.querySelector('.bar i'); if (b) b.style.width = pct + '%'; });
 
-  $('back').onclick = () => { if (i > 0){ i--; render(); } };
+  $('back').onclick = () => { if (one || i === 0){ profile && Object.keys(answers).length ? showSummary() : (location.href = REDIRECT); } else { i--; render(); } };
+  $('leave').onclick = () => { if (one || (profile && profile.completed)) showSummary(); else location.href = REDIRECT; };
   document.querySelectorAll('.opt').forEach(btn => {
     btn.onclick = async () => {
       const id = btn.dataset.id;
       if (multi){
         chosen.has(id) ? chosen.delete(id) : chosen.add(id);
-        btn.classList.toggle('on');
+        btn.classList.toggle('on'); btn.setAttribute('aria-checked', chosen.has(id));
         const next = $('next');
-        next.textContent = chosen.size ? 'Continue' : (q.optional ? 'None — skip' : 'Continue');
+        next.textContent = chosen.size ? (one ? 'Save' : 'Continue') : (q.optional ? 'None — skip' : 'Continue');
         next.disabled = !q.optional && !chosen.size;
       } else {
-        document.querySelectorAll('.opt').forEach(b => b.classList.toggle('on', b === btn));
-        if (await save(q.id, id)) setTimeout(advance, 220);   // tap = answer + next
+        document.querySelectorAll('.opt').forEach(b => { b.classList.toggle('on', b === btn); b.setAttribute('aria-checked', b === btn); });
+        if (await save(q.id, id)) setTimeout(advance, 240);   // tap = answer + next
       }
     };
   });
@@ -166,52 +289,77 @@ function render(){
     next.onclick = async () => { if (await save(q.id, [...chosen])) advance(); };
   }
 }
-
 function advance(){
+  if (mode === 'one'){ toast('Saved — your next plan uses it'); showSummary(); return; }
   if (i < questions.length - 1){ i++; render(); }
   else finish();
 }
-
 async function finish(){
-  skipEl.style.display = 'none';           // done — the result screen has its own buttons
+  document.body.classList.remove('surveying');
   $('main').innerHTML = '<div class="loading">Building your profile…</div>';
-  let p;
-  try { p = await api('/users/me/profile'); }
+  try { profile = await api('/users/me/profile'); answers = profile.answers || answers; }
   catch(e){ $('main').innerHTML = `<div class="loading">${esc(e.message)}</div>`; return; }
-  if (!p.completed){            // e.g. an answer failed to save — send them to it
-    i = Math.max(0, questions.findIndex(q => p.missing.includes(q.id)));
-    answers = p.answers || {}; render();
+  if (!profile.completed){            // e.g. an answer failed to save — send them to it
+    mode = 'survey'; i = Math.max(0, questions.findIndex(q => profile.missing.includes(q.id)));
+    render();
     $('err').textContent = 'One answer didn’t save — pick it again.';
     return;
   }
-  const a = p.archetype || { emoji:'🧭', title:'Explorer' };
-  $('main').innerHTML = `
-    <div class="bar"><i style="width:100%"></i></div>
-    <div class="card result">
-      <div class="emoji">${esc(a.emoji)}</div>
-      <div class="kicker">YOU'RE A</div>
+  const a = profile.archetype || { emoji:'🧭', title:'Explorer' };
+  $('main').innerHTML = `<div class="page"><div class="result">
+      <div class="r-art" aria-hidden="true">${esc(a.emoji)}</div>
+      <span class="t-label">You're a</span>
       <h1>${esc(a.title)}</h1>
-      <div class="chips">${(p.summary || []).map(c => `<span>${esc(c)}</span>`).join('')}</div>
-      <div class="nav">
-        <button class="btn btn-ghost" id="edit">Edit answers</button>
-        <button class="btn btn-primary" id="go">Looks right — let's plan →</button>
-      </div>
-    </div>`;
-  $('edit').onclick = () => { i = 0; render(); };
-  $('go').onclick = () => location.href = REDIRECT;
+      <div class="chips">${(profile.summary || []).map(c => `<span>${esc(c)}</span>`).join('')}</div>
+      <div class="r-acts">
+        <a class="btn btn-primary btn-lg" href="${esc(REDIRECT)}">${ic('sparkle','sm')} Looks right — let's plan</a>
+        <button class="btn btn-ghost btn-lg" id="seeTaste">See my taste</button>
+      </div></div></div>`;
+  $('seeTaste').onclick = showSummary;
 }
 
-/* ---------- boot ---------- */
+/* ================= shell: nav badge, account menu ================= */
+function syncShell(){
+  let n = 0; try{ n = (JSON.parse(localStorage.getItem('wander_saved')) || []).length; }catch(e){}
+  document.querySelectorAll('[data-saved-count]').forEach(el => { el.textContent = n || ''; el.dataset.n = n; });
+  document.querySelectorAll('[data-initial]').forEach(el => el.textContent = initialOf());
+  const name = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'Your account';
+  document.querySelectorAll('[data-name]').forEach(el => el.textContent = name);
+  const h = (me && me.username) || localStorage.getItem('trek_user');
+  document.querySelectorAll('[data-handle]').forEach(el => el.textContent = h ? '@' + h : '');
+}
+function closeMenu(){ $('menu').classList.add('hidden'); document.querySelectorAll('[data-menu]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-menu]');
+  if (b){
+    const m = $('menu');
+    if (!m.classList.contains('hidden')){ closeMenu(); return; }
+    m.classList.remove('hidden');
+    const r = b.getBoundingClientRect(), w = m.offsetWidth, hh = m.offsetHeight;
+    let top = r.bottom + 8; if (top + hh > innerHeight - 12) top = Math.max(12, r.top - hh - 8);
+    m.style.left = (r.left < 120 ? Math.max(12, r.left) : Math.min(innerWidth - w - 12, Math.max(12, r.right - w))) + 'px';
+    m.style.top = top + 'px'; b.setAttribute('aria-expanded', 'true');
+    m.querySelector('a,button').focus(); return;
+  }
+  if (!e.target.closest('#menu')) closeMenu();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
+$('signOutBtn').onclick = () => { ['trek_token','trek_user','trek_refresh'].forEach(k => localStorage.removeItem(k)); location.replace('auth.html'); };
+
+/* ================= boot ================= */
+// ?edit=1 (older links) → the whole survey from the top; ?q=<id> → just that answer.
 (async function boot(){
   if (!token()){ location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); return; }
+  syncShell();
+  apiFetch(API + '/users/me', { headers: headers() }).then(r => r.ok ? r.json() : null).then(u => { if (u){ me = u; syncShell(); } }).catch(() => {});
   try{
     const [qs, p] = await Promise.all([api('/users/me/profile/questions'), api('/users/me/profile')]);
-    questions = qs.questions; answers = p.answers || {};
-    if (p.completed && !EDITING){ finish(); return; }          // already done → show result
-    // Resume at the first unanswered question (or the top when editing).
-    const first = questions.findIndex(q => !(q.id in answers));
-    i = EDITING || first < 0 ? 0 : first;
-    render();
+    questions = qs.questions; answers = p.answers || {}; profile = p;
+    const one = params.get('q');
+    if (one && questions.some(q => q.id === one)) editOne(one);
+    else if (params.has('edit')){ mode = 'survey'; i = 0; render(); }
+    else if (p.completed || Object.keys(answers).length) showSummary();
+    else { mode = 'survey'; i = firstUnanswered(); render(); }   // brand new → straight into "Find your vibe"
   }catch(e){
     $('main').innerHTML = `<div class="loading">${esc(e.message)}</div>`;
   }

@@ -43,15 +43,21 @@ leaderboards → feed → badge trigger), badge evaluator, share-card generator
   forgot-password flow. Any page that needs a session (the planner) routes here via
   `?redirect=`; new accounts continue to the taste survey; an already-signed-in visitor is bounced straight
   through before the page even paints.
-- `profile.html` — the taste survey: 14 tap-only questions, autosaved per answer (leave and
-  resume anytime), ending in a profile result ("🌙 Cozy Foodie Explorer"). Required before the
-  first plan; editable later via "✏️ My taste" in the planner.
-- `roamly.html` — the AI planner chat. Opens on a *ready card* pre-filled from the taste profile
-  (crew · mood · budget · time · transport · where) — one tap on **Plan it** builds a plan, and
-  chip-built requests skip the LLM entirely. A short conversational wizard (or free-form chat)
-  builds a budget/vibe itinerary from real, open-right-now venues, with live nearby events
-  woven in on request. Each itinerary card has a mini route map of its stops.
-  Location sharing is a click-to-toggle pill in the header, off by default.
+- `profile.html` — **My taste**: a summary of the taste profile (tap any row to change just that
+  answer) plus the optional 14-question survey, autosaved per answer, ending in a profile result
+  ("🌙 Cozy Foodie Explorer").
+- `roamly.html` — the AI planner chat, built as *chat + quick controls*. A **Planning around**
+  bar (📍 where · 📏 radius · 💸 budget · 🕖 when · 👥 who · ✨ mood · 🚶 transport) shows what
+  Roamly is working with; tapping it opens one settings sheet, and typed requests update it
+  (changed values flash). The home screen offers ✨ Plan my night · 🔴 What's on now · 🎲 Surprise
+  me; tapped settings skip the LLM entirely. Live location is opt-in. Plans come from real nearby
+  venues with a mini route map; "what's on" lists live events (Ticketmaster + the City of
+  Toronto festivals feed) with on-now status, free/price badges and *plan around it*.
+  Views: Home · Chat · What's on · Saved (bottom nav on phones, sidebar on tablet/desktop; on
+  desktop the settings are an always-open side panel). Typed messages send the bar's settings as
+  `defaults`, so what you type wins, the bar fills the gaps, and "Roamly heard" shows what changed.
+- `roamly.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
+  planner, My taste and sign-in pages.
 
 **Tests:** 10 pytest integration tests (trips, badges, leaderboards, feed) — 8 passing.
 `test_five_countries_badge` (expects a `streak_3` badge not in the seeded catalog) and
@@ -149,8 +155,9 @@ Sway/
 ├── webui/
 │   ├── index.html            marketing landing page + waitlist
 │   ├── auth.html             sign-in / create-account page
-│   ├── roamly.html           AI planner chat
-│   ├── profile.html          taste survey
+│   ├── roamly.html           AI planner (home · chat · what's on · saved)
+│   ├── profile.html          My taste + taste survey
+│   ├── roamly.css            shared design system
 │   ├── config.js              API_BASE (single source of truth)
 │   └── Dockerfile, Caddyfile  static-site deploy
 ├── docker-compose.yml            full prod-like stack (PostGIS/MinIO/Prom/Grafana)

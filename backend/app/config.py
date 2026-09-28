@@ -83,6 +83,15 @@ class Settings(BaseSettings):
     # Ticketmaster Discovery (free: concerts, sports, comedy). Use the Consumer Key.
     ticketmaster_api_key: str = ""
 
+    # City of Toronto "Festivals & Events" open-data feed (free/public festivals).
+    # Blank disables it. As of 2026-09 the endpoint answers 403 for everyone; the
+    # client stays quiet until the City restores it (dataset 9201059e-… on
+    # open.toronto.ca lists the current URL if it moves).
+    toronto_events_feed_url: str = (
+        "https://secure.toronto.ca/c3api_data/v2/DataAccess.svc/festivals_events/events"
+        "?$format=application/json;odata.metadata=none&$skip=0&$top=5000"
+    )
+
     # Google Places API (New) — lets the planner search Google Maps for
     # restaurants/activities (ratings, prices, photos). Blank → Yelp/FSQ/OSM only.
     google_places_api_key: str = ""

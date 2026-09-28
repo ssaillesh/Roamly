@@ -4,299 +4,494 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Roamly — your night, planned</title>
-<meta name="description" content="Tell me your budget and your vibe — I'll plan a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
-<meta name="theme-color" content="#ffffff" />
+<meta name="description" content="Tell Roamly what you're after — it plans a real outing of places near you, and you stay in control of every detail." />
+<meta name="theme-color" content="#fbf8f4" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="preconnect" href="https://unpkg.com" />
 <link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="/roamly.css" />
 <script src="/config.js"></script>
 <style>
-  :root{
-    /* Roamly — shared Apple-style system: white base, ink text, coral→violet brand */
-    --accent:#ff5a5f; --accent2:#7c5cff; --lime:#b8f34a; --hot:#ff3d9a;
-    --bg0:#ffffff; --bg1:#ffffff; --bg2:#f5f4f7;
-    --card:#ffffff; --card-2:#ffffff; --brd:rgba(0,0,0,.08); --hair:rgba(0,0,0,.06);
-    --text:#1d1d1f; --muted:#515154; --muted2:#86868b;
-    --shadow:0 20px 45px -16px rgba(60,40,120,.18);
-    --ease:cubic-bezier(.22,1,.36,1);
-    --pop:cubic-bezier(.34,1.56,.64,1);   /* springy overshoot for that bouncy feel */
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{margin:0; height:100%;}
-  body{background:
-      radial-gradient(720px 480px at 88% -6%, rgba(124,92,255,.08), transparent 62%),
-      radial-gradient(680px 520px at 6% 8%, rgba(255,90,95,.07), transparent 58%),
-      radial-gradient(700px 600px at 50% 116%, rgba(255,61,154,.06), transparent 60%),
-      var(--bg0);
-    color:var(--text); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.5; display:flex; flex-direction:column; height:100vh;}
-  a{color:inherit; text-decoration:none;}
-  .grad{background:linear-gradient(110deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  /* ================= planner page: layout on top of roamly.css ================= */
+  .views{flex:1; min-height:0; position:relative; display:flex; flex-direction:column;}
+  .view{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain;}
+  .view[hidden]{display:none;}
+  .page{max-width:760px; margin:0 auto; padding:20px 16px 32px;}
+  .page-head{margin:4px 0 18px;}
+  .page-head .t-meta{margin:4px 0 0;}
+  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
 
-  header{display:flex; align-items:center; gap:10px; padding:16px 20px; border-bottom:1px solid var(--hair);
-    position:sticky; top:0; z-index:10;}
-  .logo{font-weight:850; letter-spacing:-.02em; font-size:20px;}
-  .logo .m{display:inline-block; margin-right:6px;}
-  header .tag{font-size:12.5px; color:var(--muted2); margin-left:2px;}
-  .loc{margin-left:auto; font-size:12px; color:var(--muted); display:flex; align-items:center; gap:7px;
-    background:var(--card); border:1px solid var(--brd); padding:7px 12px; border-radius:999px;
-    cursor:pointer; transition:.15s;}
-  .loc:hover{border-color:var(--accent2); color:var(--text);}
-  .loc .dot{width:8px; height:8px; border-radius:50%; background:var(--muted2); transition:.2s;}
-  .loc.on .dot{background:var(--accent); box-shadow:0 0 8px var(--accent);}
-  .loc.busy .dot{animation:locPulse 1s infinite;}
-  @keyframes locPulse{0%,100%{opacity:.35;} 50%{opacity:1;}}
+  /* ---- top bar (hidden on the home screen: the hero carries its own) ---- */
+  .top{display:flex; align-items:center; gap:10px; min-height:62px; padding:8px 14px 8px 12px; background:var(--bg);
+    border-bottom:1px solid var(--line-2); position:relative; z-index:12;}
+  .tt{min-width:0;}
+  .tt b{display:block; font-size:17px; font-weight:800; letter-spacing:-.02em; line-height:1.2;}
+  .tt small{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-3); font-weight:600;}
+  .tt small::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--mint);}
+  body:not([data-view="chat"]) .tt small::before{display:none;}
+  .top-acts{margin-left:auto; display:flex; gap:8px; align-items:center;}
+  body[data-view="home"] .top,body[data-view="events"] .top,body[data-view="saved"] .top{display:none;}
+  .page-head{display:flex; align-items:flex-start; gap:12px;}
+  .page-head > div{flex:1; min-width:0;}
+  @media (min-width:760px){ .page-head .avatar{display:none;} }
+  body:not([data-view="chat"]) #backBtn, body:not([data-view="chat"]) #newChatBtn{display:none;}
+  body:not([data-view="chat"]) .tt{padding-left:6px;}
+  @media (min-width:760px){ .top .avatar{display:none;} }
+  @media (max-width:420px){ #newChatBtn span{display:none;} #newChatBtn{padding:0 12px;} }
 
-  .chat{flex:1; overflow-y:auto; padding:24px 16px 8px;}
-  .thread{max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:16px;}
+  /* ---- "Planning around" chips (shared: home card, chat bar) ---- */
+  .ctx-chips{display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; min-width:0; padding:2px 0;}
+  .ctx-chips::-webkit-scrollbar{display:none;}
+  .ctx-chips.wrap{flex-wrap:wrap; overflow:visible;}
+  .cx{flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; min-height:38px; padding:0 13px 0 11px;
+    border:1px solid var(--line); background:var(--surface); border-radius:var(--r-pill); font-size:13.5px; font-weight:700;
+    color:var(--ink); cursor:pointer; white-space:nowrap; transition:border-color .2s, transform .15s var(--ease);}
+  .cx .ic{color:var(--primary-ink);}
+  .cx:hover{border-color:rgba(106,76,240,.5);}
+  .cx:active{transform:scale(.96);}
+  .cx.need{border-color:var(--danger); color:var(--danger); background:var(--danger-soft);}
+  .cx.need .ic{color:var(--danger);}
+  .cx.flash{animation:cxflash 1.3s var(--ease) 1;}
+  @keyframes cxflash{0%{background:var(--primary-soft-2); border-color:var(--primary); transform:scale(1.07);} 100%{transform:none;}}
 
-  .msg{display:flex; gap:10px; max-width:88%;}
-  .msg .av{width:30px; height:30px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center; font-size:15px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2)); color:#ffffff; font-weight:800;}
-  .bubble{padding:12px 15px; border-radius:16px; font-size:15px;}
-  .msg.bot .bubble{background:var(--card-2); border:1px solid var(--brd); border-top-left-radius:5px;}
-  .msg.me{align-self:flex-end; flex-direction:row-reverse;}
-  .msg.me .av{background:linear-gradient(135deg,var(--accent2),var(--hot)); color:#fff;}
-  .msg.me .bubble{background:linear-gradient(180deg,var(--accent),#7c5cff); color:#ffffff; font-weight:600; border-top-right-radius:5px;}
+  .ctxbar{display:flex; align-items:center; gap:10px; padding:8px 8px 8px 16px; background:var(--bg); border-bottom:1px solid var(--line-2);}
+  .ctxbar .ctx-chips{flex:1;}
+  .ctxbar .link{flex:0 0 auto; padding:10px 8px;}
+  body:not([data-view="chat"]) .ctxbar{display:none;}
+  @media (max-width:560px){ .ctxbar .t-label{display:none;} .ctxbar{padding-left:12px;} }
 
-  .quick{display:flex; flex-wrap:wrap; gap:8px; margin:2px 0 4px 40px;}
-  .chip{border:1px solid var(--brd); background:var(--card); color:var(--text); font-size:13.5px; font-weight:650;
-    padding:9px 15px; border-radius:999px; cursor:pointer; transition:.18s var(--ease);}
-  .chip:hover{border-color:var(--accent); color:var(--accent); transform:translateY(-1px);}
+  /* ================= HOME ================= */
+  .home-hero{padding:0 20px 104px; border-radius:0 0 32px 32px;}
+  .hero-bar{display:flex; align-items:center; justify-content:space-between; min-height:62px; padding-top:env(safe-area-inset-top);}
+  .hero-copy{padding:10px 2px 0; max-width:36ch;}
+  .hello{margin:0 0 6px; font-size:14.5px; font-weight:700; color:rgba(255,255,255,.92);}
+  .hero-sub{margin:10px 0 0; font-size:14.5px; color:rgba(255,255,255,.9); max-width:34ch;}
+  .hero .skyline{height:118px;}
+  .home-body{padding:0 16px 28px; margin-top:-72px; position:relative; display:flex; flex-direction:column; gap:18px;}
+  .home.anim .home-body > *{animation:rise .45s var(--ease) both;}
+  .home.anim .home-body > *:nth-child(2){animation-delay:.05s;} .home.anim .home-body > *:nth-child(3){animation-delay:.1s;}
+  .home.anim .home-body > *:nth-child(4){animation-delay:.15s;}
 
-  /* itinerary card */
-  .itin{margin-left:40px; background:var(--card-2); border:1px solid var(--brd); border-radius:20px; overflow:hidden;
-    box-shadow:var(--shadow); animation:rise .5s var(--ease) both;}
-  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-  .itin .map{height:200px; background:var(--bg2); position:relative;}
-  .itin .sum{display:flex; gap:14px; padding:14px 18px; border-bottom:1px solid var(--hair); font-size:13px; color:var(--muted); flex-wrap:wrap;}
-  .itin .sum b{color:var(--text);}
-  .stops{padding:6px 10px 12px;}
-  .stop{display:flex; gap:13px; padding:13px 12px; border-radius:14px; position:relative;}
-  .stop:not(:last-child)::after{content:""; position:absolute; left:29px; top:44px; bottom:-2px; width:2px;
-    background:linear-gradient(var(--brd),transparent);}
-  .stop .num{width:34px; height:34px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center; font-size:16px;
-    background:rgba(124,92,255,.14); border:1px solid var(--brd); z-index:1;}
-  .stop .body{flex:1; min-width:0;}
-  .stop .top{display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
-  .stop .time{font-size:11px; font-weight:800; color:#ffffff; background:var(--accent); padding:2px 8px; border-radius:999px;}
-  .stop .lbl{font-size:11px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; color:var(--accent);}
-  .itin .tip{margin:2px 12px 14px; padding:12px 14px; border-radius:14px; font-size:13.5px; color:var(--text);
-    background:linear-gradient(180deg,rgba(138,123,255,.14),rgba(124,92,255,.08)); border:1px solid var(--brd);}
-  .events{margin:0 12px 14px;}
-  .ev-h{font-size:11px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--hot); margin:4px 0 8px;}
-  .ev{display:flex; align-items:center; gap:10px; padding:11px 13px; border-radius:12px; margin-bottom:8px;
-    background:rgba(255,122,156,.08); border:1px solid rgba(255,122,156,.22); transition:.15s;}
-  .ev:hover{background:rgba(255,122,156,.14);}
-  .ev-body{flex:1; min-width:0;} .ev-body b{font-size:14px; display:block;}
-  .ev-meta{font-size:12px; color:var(--muted2);}
-  .ev-price{font-size:12px; font-weight:700; color:var(--text);}
-  .ev-go{font-size:12px; font-weight:800; color:var(--hot); white-space:nowrap;}
+  .plan-around{padding:14px 16px 12px;}
+  .pa-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;}
+  .pa-head .link{padding:6px 2px;}
+  .loc-note{margin:10px 0 0; font-size:13px; color:var(--ink-3); font-weight:550; display:flex; flex-wrap:wrap; align-items:center; gap:2px 6px;}
+  .loc-note .link{padding:4px 0; font-size:13px;}
 
-  /* ---------- picker (build your own) ---------- */
-  .picker{margin-left:40px;}
-  .psec{margin-bottom:16px;}
-  .psec-h{display:flex; align-items:baseline; gap:8px; margin-bottom:9px;}
-  .psec-h b{font-size:15px; font-weight:800;}
-  .psec-h span{font-size:11px; color:var(--muted2); font-weight:600; text-transform:uppercase; letter-spacing:.05em;}
-  .cards{display:flex; gap:10px; overflow-x:auto; padding-bottom:6px; scroll-snap-type:x proximity;}
-  .cards::-webkit-scrollbar{height:6px;} .cards::-webkit-scrollbar-thumb{background:var(--brd); border-radius:6px;}
-  .ocard{flex:0 0 186px; scroll-snap-align:start; background:var(--card-2); border:1px solid var(--brd);
-    border-radius:14px; overflow:hidden; cursor:pointer; transition:.15s var(--ease); position:relative;}
-  .ocard:hover{border-color:var(--accent); transform:translateY(-2px);}
-  .ocard.sel{border-color:var(--accent); box-shadow:inset 0 0 0 2px var(--accent); background:rgba(124,92,255,.08);}
-  .ocard .ph{width:100%; height:92px; object-fit:cover; background:linear-gradient(135deg,#efe7ff,#ffe6dc); display:block;}
-  .ocard .noph{width:100%; height:92px; display:grid; place-items:center; font-size:26px; background:linear-gradient(135deg,#efe7ff,#ffe6dc);}
-  .ocard .bd{padding:9px 11px 11px;}
-  .ocard .nm{font-weight:750; font-size:13px; line-height:1.25; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
-  .ocard .mt{font-size:11.5px; color:var(--muted2); margin-top:4px; display:flex; gap:6px; flex-wrap:wrap; align-items:center;}
-  .ocard .tg{position:absolute; top:8px; left:8px; font-size:11px; font-weight:800; padding:3px 7px; border-radius:999px;
-    background:rgba(255,255,255,.95);}
-  .ocard .chk{position:absolute; top:8px; right:8px; width:22px; height:22px; border-radius:50%; display:grid; place-items:center;
-    background:rgba(255,255,255,.82); color:transparent; font-size:13px; font-weight:900; transition:.15s;}
-  .ocard.sel .chk{background:var(--accent); color:#ffffff;}
-  .buildbar{display:flex; gap:12px; align-items:center; margin:6px 0 4px; position:sticky; bottom:0;}
-  .buildbtn{flex:1; border:0; border-radius:999px; padding:14px; font-size:15px; font-weight:800; cursor:pointer;
-    background:linear-gradient(180deg,var(--accent),#7c5cff); color:#ffffff; box-shadow:0 10px 28px -6px rgba(124,92,255,.5);
-    transition:transform .15s var(--ease);}
-  .buildbtn:hover{transform:translateY(-2px);} .buildbtn:disabled{opacity:.5; cursor:default; transform:none;}
-  .stop h4{margin:2px 0; font-size:16px; font-weight:750; letter-spacing:-.01em;}
-  .stop .meta{font-size:12.5px; color:var(--muted2); display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
-  .stop .why{font-size:13.5px; color:var(--muted); margin-top:5px;}
-  .stop-img{width:100%; height:140px; object-fit:cover; border-radius:16px; margin:9px 0 2px;
-    background:var(--bg2); box-shadow:0 8px 20px -12px rgba(124,92,255,.45); display:block;}
-  .stop .cost{margin-left:auto; font-weight:800; color:var(--text); font-size:14px; white-space:nowrap;}
-  .pill{font-size:11px; font-weight:700; padding:2px 8px; border-radius:999px; background:rgba(0,0,0,.05);}
-  .pill.star{color:#c98a00; background:rgba(255,209,102,.12);}
-  .stop .acts{display:flex; gap:8px; margin-top:9px;}
-  .stop .acts a{font-size:12px; font-weight:700; padding:6px 11px; border-radius:999px; border:1px solid var(--brd);
-    background:var(--card); color:var(--text);}
-  .stop .acts a:hover{border-color:var(--accent); color:var(--accent);}
-  .itin .foot{padding:12px 18px 16px; display:flex; gap:10px; flex-wrap:wrap;}
+  .acts{display:flex; flex-direction:column; gap:12px;}
+  .act{position:relative; display:flex; border:0; cursor:pointer; text-align:left; font:inherit; color:var(--ink);
+    border-radius:var(--r-lg); transition:transform .18s var(--pop), box-shadow .2s var(--ease);}
+  .act:hover{transform:translateY(-2px);}
+  .act:active{transform:scale(.98);}
+  .act:disabled{opacity:.6; cursor:default; transform:none;}
+  .act b{font-size:15.5px; font-weight:800; letter-spacing:-.015em; line-height:1.25;}
+  .act small{font-size:12.5px; font-weight:600; color:var(--ink-2); line-height:1.3;}
+  .act-ic{width:44px; height:44px; flex:0 0 auto; border-radius:15px; display:grid; place-items:center;}
+  .act-primary{align-items:center; gap:14px; padding:18px 18px 18px 16px; background:var(--grad); color:#fff; box-shadow:var(--sh-cta);}
+  .act-primary .act-ic{background:rgba(255,255,255,.2); color:#fff; width:52px; height:52px; border-radius:18px;}
+  .act-primary b{font-size:18px;}
+  .act-primary small{color:rgba(255,255,255,.92);}
+  .act-primary .act-t{display:flex; flex-direction:column; gap:2px; flex:1;}
+  .act-primary .act-go{width:40px; height:40px; border-radius:50%; background:#fff; color:var(--primary-ink); display:grid; place-items:center;}
+  .act-row{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  .act-row .act{flex-direction:column; gap:10px; padding:14px 12px 14px; min-height:132px; box-shadow:var(--sh-1);}
+  .act-pink{background:var(--pink-soft);}  .act-pink .act-ic{background:var(--pink); color:#fff;}
+  .act-sun{background:var(--sun-soft);}    .act-sun .act-ic{background:var(--sun); color:var(--ink);}
+  .act-mint{background:var(--mint-soft);}  .act-mint .act-ic{background:var(--mint-ink); color:#fff;}
+  @media (max-width:440px){ .act-row .act small{display:none;} .act-row .act{min-height:112px; padding:14px 12px;} .act-row .act b{font-size:14.5px;} }
 
-  .typing{display:flex; gap:5px; padding:14px 16px;}
-  .wait-note{font-size:12.5px; color:var(--muted2); padding:0 16px 12px; max-width:34ch;}
-  .wait-note:empty{display:none;}
-  .typing i{width:7px; height:7px; border-radius:50%; background:var(--muted2); animation:bl 1.2s infinite;}
-  .typing i:nth-child(2){animation-delay:.2s;} .typing i:nth-child(3){animation-delay:.4s;}
+  .ask{display:flex; align-items:center; gap:8px; padding:6px 6px 6px 16px; border-radius:var(--r-pill);}
+  .ask .ask-ic{color:var(--primary-ink); display:grid;}
+  .ask-input{flex:1; min-width:0; border:0; outline:none; background:none; font:inherit; font-size:15.5px; font-weight:550;
+    color:var(--ink); min-height:44px;}
+  .ask-input::placeholder{color:#8d8aa6;}
+  .ask:focus-within{box-shadow:0 0 0 4px rgba(106,76,240,.14), var(--sh-2); border-color:rgba(106,76,240,.5);}
+  .send{width:44px; height:44px; flex:0 0 auto; border-radius:50%; border:0; display:grid; place-items:center; cursor:pointer;
+    background:var(--ink); color:#fff; transition:transform .15s var(--pop), opacity .2s;}
+  .send:hover{transform:scale(1.06);} .send:active{transform:scale(.94);} .send:disabled{opacity:.45; transform:none;}
+  .examples{display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:-6px -16px 0; padding:2px 16px 4px;}
+  .examples::-webkit-scrollbar{display:none;}
+  .examples .chip{background:var(--surface-2); border-color:transparent; font-size:13.5px;}
+
+  .sec-h{display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin:6px 2px -6px;}
+  .sec-h .link{padding:4px 0;}
+  .continue{display:flex; align-items:center; gap:14px; padding:14px 14px 14px 16px; cursor:pointer; border:1px solid var(--line-2);
+    font:inherit; color:var(--ink); text-align:left; width:100%; transition:transform .15s var(--ease);}
+  .continue:hover{transform:translateY(-1px);}
+  .continue .c-ic{width:44px; height:44px; flex:0 0 auto; border-radius:15px; display:grid; place-items:center; background:var(--primary-soft); color:var(--primary-ink);}
+  .continue .c-t{flex:1; min-width:0;}
+  .continue b{display:block; font-size:15px;}
+  .continue .t-meta{display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .mini-row{display:flex; gap:12px; overflow-x:auto; scrollbar-width:none; margin:0 -16px; padding:4px 16px 8px; scroll-snap-type:x proximity;}
+  .mini-row::-webkit-scrollbar{display:none;}
+  .mini{flex:0 0 200px; scroll-snap-align:start; border:1px solid var(--line-2); padding:0; overflow:hidden; cursor:pointer;
+    font:inherit; color:var(--ink); text-align:left; transition:transform .18s var(--ease);}
+  .mini:hover{transform:translateY(-2px);}
+  .mini .m-art{height:92px; display:grid; place-items:center; font-size:34px; position:relative; overflow:hidden;}
+  .mini .m-art img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .mini .m-b{padding:10px 12px 12px;}
+  .mini b{display:block; font-size:14px; font-weight:750; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .taste-card{display:flex; align-items:center; gap:14px; padding:16px; background:var(--grad-soft); border:1px solid rgba(106,76,240,.12);}
+  .taste-card .tc-ic{width:48px; height:48px; flex:0 0 auto; border-radius:16px; display:grid; place-items:center; font-size:24px; background:#fff; box-shadow:var(--sh-1);}
+  .taste-card .tc-t{flex:1; min-width:0;}
+  .taste-card b{display:block; font-size:15px;}
+  .taste-card p{margin:2px 0 0; font-size:13.5px; color:var(--ink-2);}
+
+  /* ================= CHAT ================= */
+  .thread{max-width:760px; margin:0 auto; padding:20px 16px 16px; display:flex; flex-direction:column; gap:14px;}
+  .msg{display:flex; gap:10px; max-width:88%; animation:rise .35s var(--ease) both;}
+  .msg .av{width:32px; height:32px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center; background:var(--surface);
+    border:1px solid var(--line-2); box-shadow:var(--sh-1);}
+  .msg .av .logo-mark{width:18px; height:18px;}
+  .bubble{padding:12px 16px; border-radius:22px; font-size:15px; line-height:1.5; overflow-wrap:anywhere;}
+  .msg.bot .bubble{background:var(--surface); border:1px solid var(--line-2); border-top-left-radius:8px; box-shadow:var(--sh-1);}
+  .msg.me{align-self:flex-end;}
+  .msg.me .bubble{background:var(--ink); color:#fff; font-weight:600; border-top-right-radius:8px;}
+  .msg.me .bubble .sub{display:block; margin-top:4px; font-size:12.5px; font-weight:600; color:rgba(255,255,255,.78);}
+  .heard{align-self:flex-end; display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:center; gap:6px; max-width:92%; margin-top:-6px;
+    animation:rise .35s var(--ease) both;}
+  .heard-l{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:750; color:var(--primary-ink);}
+  .hchip{display:inline-flex; align-items:center; min-height:32px; padding:0 11px; border-radius:var(--r-pill); border:1px solid transparent;
+    background:var(--primary-soft); color:var(--primary-ink); font-size:12.5px; font-weight:750; cursor:pointer;}
+  .hchip:hover{border-color:rgba(106,76,240,.45);}
+  .quick{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 2px 42px;}
+  .wait .wait-row{display:flex; align-items:center; gap:10px;}
+  .dots{display:inline-flex; gap:4px;}
+  .dots i{width:7px; height:7px; border-radius:50%; background:var(--primary); opacity:.35; animation:bl 1.2s infinite;}
+  .dots i:nth-child(2){animation-delay:.2s;} .dots i:nth-child(3){animation-delay:.4s;}
   @keyframes bl{0%,60%,100%{opacity:.3; transform:translateY(0);} 30%{opacity:1; transform:translateY(-3px);}}
+  .wait-note{font-size:13.5px; color:var(--ink-2); font-weight:600;}
+  .wait-late{margin:6px 0 0; font-size:12.5px; color:var(--ink-3);}
+  .skel-plan{margin-top:12px; width:min(420px,62vw); display:flex; flex-direction:column; gap:10px;}
+  .skel-row{display:flex; gap:10px; align-items:center;}
+  .chat-notice{margin-left:42px; max-width:560px; animation:rise .35s var(--ease) both;}
 
-  .composer{border-top:1px solid var(--hair); padding:14px 16px calc(14px + env(safe-area-inset-bottom));
-    background:rgba(255,255,255,.95);}
-  .composer .row{max-width:720px; margin:0 auto; display:flex; gap:10px;}
-  .composer input{flex:1; padding:14px 18px; border-radius:999px; border:1px solid var(--brd); background:var(--card);
-    color:var(--text); font-size:15px; outline:none;}
-  .composer input:focus{border-color:var(--accent);}
-  .send{width:50px; flex:0 0 auto; border:0; border-radius:50%; cursor:pointer; font-size:18px;
-    background:linear-gradient(180deg,var(--accent),#7c5cff); color:#ffffff; transition:transform .15s var(--ease);}
-  .send:hover{transform:scale(1.06);} .send:disabled{opacity:.5;}
-  .num-marker{background:var(--accent); color:#ffffff; width:26px; height:26px; border-radius:50%; border:2px solid #fff;
-    display:grid; place-items:center; font-weight:800; font-size:13px; box-shadow:0 2px 8px rgba(0,0,0,.5);}
-  .leaflet-container{background:var(--bg2);}
+  .composer{padding:8px 16px calc(12px + env(safe-area-inset-bottom)); background:var(--bg);}
+  .composer .row{max-width:760px; margin:0 auto; display:flex; align-items:center; gap:8px; padding:6px 6px 6px 18px;
+    background:var(--surface); border:1px solid var(--line); border-radius:var(--r-pill); box-shadow:var(--sh-2);}
+  .composer .row:focus-within{border-color:rgba(106,76,240,.5); box-shadow:0 0 0 4px rgba(106,76,240,.14), var(--sh-2);}
+  .composer input{flex:1; min-width:0; min-height:44px; border:0; outline:none; background:none; font:inherit; font-size:15.5px; font-weight:550; color:var(--ink);}
+  .composer input::placeholder{color:#8d8aa6;}
+  body:not([data-view="chat"]) .composer{display:none;}
+  body[data-view="chat"] .bnav{display:none;}
 
-  .saved-btn{margin-left:auto; margin-right:10px; border:1px solid var(--brd); background:var(--card); color:var(--text);
-    font-size:13px; font-weight:700; padding:7px 13px; border-radius:999px; cursor:pointer;}
-  .saved-btn:hover{border-color:var(--accent); color:var(--accent);}
-  header .loc{margin-left:0;}
+  /* ---- plan card: the centrepiece ---- */
+  .plan{margin-left:42px; overflow:hidden; animation:rise .5s var(--ease) both;}
+  .plan-head{padding:20px 20px 14px;}
+  .plan-eyebrow{display:flex; align-items:center; gap:8px; color:var(--primary-ink);}
+  .plan-eyebrow .t-label{color:var(--primary-ink);}
+  .plan-title{margin:6px 0 12px; font-size:23px; font-weight:800; letter-spacing:-.03em; line-height:1.2;}
+  .plan-stats{display:flex; flex-wrap:wrap; gap:6px;}
+  .stat{display:inline-flex; align-items:center; gap:6px; min-height:32px; padding:0 11px; border-radius:var(--r-pill);
+    background:var(--surface-2); font-size:13px; font-weight:600; color:var(--ink-2);}
+  .stat b{color:var(--ink); font-weight:800;}
+  .stat .ic{color:var(--primary-ink);}
+  .plan-map{height:190px; margin:0 14px; border-radius:20px; overflow:hidden; background:var(--surface-3); position:relative; z-index:0;}
+  .tl{list-style:none; margin:0; padding:10px 14px 2px;}
+  .tl-stop{display:grid; grid-template-columns:48px 1fr; gap:10px; position:relative; padding:8px 0;}
+  .tl-stop:not(:last-child)::before{content:''; position:absolute; left:23px; top:60px; bottom:-8px; width:2px; border-radius:2px;
+    background:linear-gradient(var(--primary-soft-2),rgba(226,217,255,.2));}
+  .tl-rail{display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:4px;}
+  .tl-ico{width:46px; height:46px; border-radius:16px; display:grid; place-items:center; font-size:22px; position:relative; z-index:1;}
+  .tone-pink{background:var(--pink-soft);} .tone-sun{background:var(--sun-soft);} .tone-violet{background:var(--primary-soft);}
+  .tone-mint{background:var(--mint-soft);} .tone-indigo{background:#e6e4ff;} .tone-peach{background:#ffe9d9;}
+  .tl-time{font-size:11.5px; font-weight:800; color:var(--primary-ink); white-space:nowrap; background:var(--surface); position:relative; z-index:1; padding:1px 0;}
+  .tl-card{display:flex; gap:12px; padding:12px 14px; border-radius:18px; background:var(--surface-2); min-width:0;}
+  .tl-info{flex:1; min-width:0;}
+  .tl-top{display:flex; align-items:baseline; gap:8px;}
+  .tl-kicker{font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:var(--ink-3);}
+  .tl-cost{margin-left:auto; font-size:14px; font-weight:800; white-space:nowrap;}
+  .tl-cost small{font-size:11.5px; font-weight:650; color:var(--ink-3);}
+  .tl-name{margin:3px 0 4px; font-size:16.5px; font-weight:750; letter-spacing:-.015em; line-height:1.3;}
+  .tl-meta{display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; font-size:12.5px; color:var(--ink-3); font-weight:600;}
+  .tl-addr{font-size:12.5px; color:var(--ink-3); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .tl-why{margin:8px 0 0; font-size:13.5px; color:var(--ink-2); display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;}
+  .tl-acts{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .tl-img{width:84px; height:84px; flex:0 0 auto; border-radius:14px; object-fit:cover; background:var(--surface-3);}
+  @media (max-width:420px){ .tl-img{width:64px; height:64px;} }
+  .fits{margin:8px 14px 0; padding:14px 16px; border-radius:18px; background:var(--grad-soft);}
+  .fits ul{list-style:none; margin:8px 0 0; padding:0; display:grid; gap:7px;}
+  .fits li{display:flex; gap:9px; align-items:flex-start; font-size:14px; font-weight:600; color:var(--ink);}
+  .fits li .ic{color:var(--mint-ink); margin-top:1px;}
+  .fits li.warn .ic{color:var(--warning);}
+  .plan-tip{display:flex; gap:10px; margin:10px 14px 0; padding:12px 14px; border-radius:16px; border:1px dashed var(--line); font-size:14px; color:var(--ink-2);}
+  .plan-foot{display:flex; flex-wrap:wrap; gap:10px; padding:16px 14px 18px;}
+  .plan-foot .btn{flex:1 1 140px;}
+  .more{margin:-2px 0 4px 42px; animation:rise .45s var(--ease) both;}
+  .more-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:8px;}
+  .num-marker{background:var(--grad); color:#fff; width:26px; height:26px; border-radius:50%; border:2px solid #fff;
+    display:grid; place-items:center; font-weight:800; font-size:12.5px; box-shadow:0 3px 10px rgba(23,21,58,.35); font-family:var(--font);}
+  .leaflet-container{background:var(--surface-3); font-family:var(--font);}
+  .leaflet-control-attribution{font-size:10px;}
 
-  .day-head{margin:6px 0 -6px 40px; font-size:12px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
-    color:var(--accent2);}
-  .save-chip{border:1px solid var(--brd); background:var(--card); color:var(--text); font-size:13px; font-weight:700;
-    padding:9px 15px; border-radius:999px; cursor:pointer;}
-  .save-chip:hover{border-color:var(--accent); color:var(--accent);}
-  .save-chip.done{color:var(--accent); border-color:var(--accent); background:rgba(124,92,255,.1);}
+  /* ---- events (chat list + What's on) ---- */
+  .evc{display:grid; grid-template-columns:92px 1fr; column-gap:14px; padding:12px; border-radius:var(--r-md); background:var(--surface);
+    border:1px solid var(--line-2); box-shadow:var(--sh-1); animation:rise .4s var(--ease) both;}
+  .evc-acts,.evc-src{grid-column:2;}
+  .evc-art{position:relative; width:92px; height:92px; flex:0 0 auto; border-radius:16px; overflow:hidden; display:grid; place-items:center; font-size:34px;}
+  .evc-art img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .evc-body{flex:1; min-width:0;}
+  .evc-when{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:800; color:var(--primary-ink);}
+  .evc-when.live{color:var(--danger);}
+  .evc-name{margin:3px 0 3px; font-size:16px; font-weight:750; letter-spacing:-.01em; line-height:1.3;}
+  .evc-meta{font-size:13px; color:var(--ink-3); font-weight:600;}
+  .evc-tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .evc-tags:empty{display:none;}
+  .evc-acts{display:flex; flex-wrap:wrap; gap:6px; margin-top:10px;}
+  .evc-src{margin-top:8px; font-size:11.5px; color:var(--ink-3);}
+  .evc-src:empty{display:none;}
+  @media (max-width:560px){
+    .evc{grid-template-columns:72px 1fr;} .evc-art{width:72px; height:72px; font-size:28px;}
+    .evc-acts,.evc-src{grid-column:1 / -1;}
+    .evc-acts .btn{flex:1 1 auto;} .evc-acts [data-plan]{flex-basis:100%;}
+  }
+  .evlist{display:flex; flex-direction:column; gap:10px; margin-left:42px; max-width:600px;}
 
-  .drawer-bg{position:fixed; inset:0; background:rgba(0,0,0,.4); backdrop-filter:blur(4px); z-index:40;}
-  .drawer{position:fixed; top:0; right:0; bottom:0; width:min(380px,90vw); z-index:41; background:var(--bg1);
-    border-left:1px solid var(--brd); box-shadow:var(--shadow); display:flex; flex-direction:column;
-    transform:translateX(100%); transition:transform .35s var(--ease);}
-  .drawer:not(.hidden){transform:translateX(0);}
-  .drawer-head{display:flex; align-items:center; padding:18px 20px; border-bottom:1px solid var(--hair); font-size:16px;}
-  .drawer-head .x{margin-left:auto; cursor:pointer; font-size:22px; color:var(--muted2);}
-  .drawer-body{flex:1; overflow-y:auto; padding:14px;}
-  .saved-item{background:var(--card); border:1px solid var(--brd); border-radius:14px; padding:14px; margin-bottom:10px; cursor:pointer;}
-  .saved-item:hover{border-color:var(--accent);}
-  .saved-item b{font-size:14.5px;} .saved-item .sub{font-size:12px; color:var(--muted2); margin-top:3px;}
-  .saved-item .del{float:right; color:var(--muted2); font-size:15px;}
-  .saved-item .del:hover{color:var(--hot);}
-  .saved-empty{text-align:center; color:var(--muted2); padding:40px 10px; font-size:14px;}
-  .hidden{display:none !important;}
-  @media(max-width:560px){ .msg{max-width:96%;} .itin,.quick,.day-head{margin-left:0;} }
+  .seg{display:flex; padding:4px; gap:4px; border-radius:var(--r-pill); background:var(--surface-3);}
+  .seg button{flex:1; min-height:40px; border:0; border-radius:var(--r-pill); background:none; cursor:pointer; font-size:14px;
+    font-weight:700; color:var(--ink-2); transition:background-color .2s, color .2s, box-shadow .2s;}
+  .seg button[aria-selected="true"]{background:var(--surface); color:var(--ink); box-shadow:var(--sh-1);}
+  .ev-where{display:flex; flex-wrap:wrap; align-items:center; gap:4px 8px; margin:12px 2px 0; font-size:13.5px; color:var(--ink-2); font-weight:600;}
+  .ev-where .ic{color:var(--primary-ink);}
+  .ev-where .link{padding:6px 0; font-size:13.5px;}
+  .ev-filters{display:flex; gap:8px; overflow-x:auto; scrollbar-width:none; margin:14px -16px 0; padding:2px 16px 4px;}
+  .ev-filters::-webkit-scrollbar{display:none;}
+  .ev-filters:empty{display:none;}
+  .ev-summary{margin:16px 2px 10px;}
+  .ev-items{display:flex; flex-direction:column; gap:10px;}
+  .ev-note{margin:18px 2px 0; font-size:12.5px; color:var(--ink-3);}
+  .skel-ev{display:flex; gap:14px; padding:12px; border-radius:var(--r-md); background:var(--surface); border:1px solid var(--line-2);}
 
-  /* ---------- Gen-Z polish: chunky · rounded · bouncy ---------- */
-  .logo{font-size:20px; font-weight:750; letter-spacing:-.02em;}
-  .logo .m{filter:drop-shadow(0 2px 6px rgba(124,92,255,.4));}
-  header{background:rgba(255,255,255,.95);}
-  header .tag{font-weight:600;}
-  .bubble{border-radius:22px; font-size:15.5px;}
-  .msg.bot .bubble{border-top-left-radius:7px; box-shadow:0 8px 20px -12px rgba(124,92,255,.45);}
-  .msg.me .bubble{border-top-right-radius:7px; box-shadow:0 10px 22px -10px rgba(255,90,95,.5);}
-  .chip{font-weight:750; box-shadow:0 5px 13px -7px rgba(124,92,255,.4);}
-  .chip:hover{transform:translateY(-2px) scale(1.03); border-color:var(--accent2); color:var(--accent2);}
-  .chip:active{transform:scale(.95);}
-  .itin{border-radius:26px; box-shadow:0 24px 52px -18px rgba(124,92,255,.4);}
-  .stop .num{background:linear-gradient(135deg,rgba(255,90,95,.18),rgba(124,92,255,.18)); border-color:transparent;}
-  .ocard{border-radius:20px; box-shadow:0 10px 26px -14px rgba(124,92,255,.38); transition:.18s var(--pop);}
-  .ocard:hover{transform:translateY(-4px) scale(1.02); border-color:var(--accent2);}
+  /* ---- picker (build your own) ---- */
+  .picker{margin-left:42px; animation:rise .45s var(--ease) both;}
+  .psec{margin-bottom:18px;}
+  .psec-h{display:flex; flex-wrap:wrap; align-items:baseline; gap:2px 10px; margin-bottom:10px;}
+  .psec-h b{font-size:16px; font-weight:800; letter-spacing:-.01em;}
+  .cards{display:flex; gap:12px; overflow-x:auto; padding:2px 2px 8px; scroll-snap-type:x proximity;}
+  .cards::-webkit-scrollbar{height:6px;} .cards::-webkit-scrollbar-thumb{background:var(--line); border-radius:6px;}
+  .ocard{flex:0 0 184px; scroll-snap-align:start; background:var(--surface); border:1px solid var(--line-2); border-radius:20px;
+    overflow:hidden; cursor:pointer; position:relative; box-shadow:var(--sh-1); transition:transform .18s var(--pop), box-shadow .2s, border-color .2s;}
+  .ocard:hover{transform:translateY(-3px); box-shadow:var(--sh-2);}
   .ocard:active{transform:scale(.98);}
-  .ocard.sel{border-color:var(--accent); box-shadow:inset 0 0 0 3px var(--accent), 0 14px 30px -12px rgba(255,90,95,.5);}
-  .ocard .chk{border:2px solid rgba(0,0,0,.12);}
-  .ocard.sel .chk{border-color:transparent; background:var(--accent);}
-  .ocard .tg{color:var(--text); box-shadow:0 4px 10px -4px rgba(0,0,0,.18);}
-  .buildbtn{background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 14px 32px -8px rgba(255,90,95,.55);}
-  .buildbtn:hover{transform:translateY(-3px) scale(1.01);}
-  .send{background:linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow:0 8px 20px -6px rgba(255,90,95,.5);}
-  .send:hover{transform:scale(1.1) rotate(6deg);}
-  .composer input{font-size:15.5px; box-shadow:0 6px 16px -10px rgba(124,92,255,.4);}
-  .composer input:focus{border-color:var(--accent2); box-shadow:0 0 0 4px rgba(124,92,255,.14);}
-  .psec-h b{font-size:16px; font-weight:900; letter-spacing:-.01em;}
+  .ocard.sel{border-color:transparent; box-shadow:0 0 0 3px var(--primary), var(--sh-2);}
+  .ocard .ph{width:100%; height:96px; object-fit:cover; background:var(--grad-soft); display:block;}
+  .ocard .noph{width:100%; height:96px; display:grid; place-items:center; font-size:30px; background:var(--grad-soft);}
+  .ocard .bd{padding:10px 12px 12px;}
+  .ocard .nm{font-weight:750; font-size:13.5px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+  .ocard .mt{font-size:12px; color:var(--ink-3); margin-top:5px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; font-weight:600;}
+  .ocard .tg{position:absolute; top:8px; left:8px; font-size:11px; font-weight:800; padding:3px 8px; border-radius:var(--r-pill);
+    background:rgba(255,255,255,.95); color:var(--ink); box-shadow:var(--sh-1);}
+  .ocard .chk{position:absolute; top:8px; right:8px; width:26px; height:26px; border-radius:50%; display:grid; place-items:center;
+    background:rgba(255,255,255,.9); border:2px solid rgba(23,21,58,.12); color:transparent; transition:.15s;}
+  .ocard.sel .chk{background:var(--primary); border-color:transparent; color:#fff;}
+  .buildbar{position:sticky; bottom:0; padding:10px 0 4px; background:linear-gradient(to top,var(--bg) 70%,rgba(251,248,244,0));}
 
-  /* ---------- questionnaire ---------- */
-  .quiz{position:fixed; inset:0; z-index:60; overflow-y:auto; display:flex; align-items:center; justify-content:center;
-    padding:30px 18px; background:
-      radial-gradient(700px 460px at 85% -6%, rgba(124,92,255,.12), transparent 60%),
-      radial-gradient(640px 520px at 8% 6%, rgba(255,90,95,.1), transparent 58%),
-      radial-gradient(760px 620px at 50% 118%, rgba(255,61,154,.08), transparent 60%),
-      var(--bg0);}
-  .quiz-card{width:100%; max-width:560px;}
-  .quiz .hi{font-size:13px; font-weight:800; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin-bottom:8px;}
-  .quiz h1{font-size:clamp(30px,7.5vw,48px); font-weight:900; letter-spacing:-.035em; line-height:1.0; margin:0 0 8px;}
-  .quiz h1 .g{background:linear-gradient(110deg,var(--accent),var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent;}
-  .quiz .sub{color:var(--muted); font-size:15.5px; margin-bottom:24px;}
-  .q{margin-bottom:20px; animation:qin .55s var(--pop) both;}
-  .q:nth-child(1){animation-delay:.04s;} .q:nth-child(2){animation-delay:.10s;}
-  .q:nth-child(3){animation-delay:.16s;} .q:nth-child(4){animation-delay:.22s;} .q:nth-child(5){animation-delay:.28s;}
-  .q .ql{font-size:14.5px; font-weight:800; margin-bottom:10px;}
-  .opts{display:flex; flex-wrap:wrap; gap:9px;}
-  .opt{border:1.5px solid var(--brd); background:var(--card); color:var(--text); font-size:14.5px; font-weight:750;
-    padding:11px 16px; border-radius:15px; cursor:pointer; transition:.16s var(--pop); display:inline-flex; gap:7px; align-items:center;
-    box-shadow:0 6px 14px -9px rgba(124,92,255,.35);}
-  .opt:hover{transform:translateY(-2px) scale(1.03);}
-  .opt:active{transform:scale(.95);}
-  .opt.on{background:linear-gradient(120deg,var(--accent),var(--accent2)); color:#fff; border-color:transparent;
-    box-shadow:0 10px 22px -8px rgba(255,90,95,.5);}
-  .quiz .go{width:100%; margin-top:10px; border:0; border-radius:999px; padding:16px; font-size:16px; font-weight:900; cursor:pointer;
-    color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 16px 34px -10px rgba(255,90,95,.55);
-    transition:transform .15s var(--pop);}
-  .quiz .go:hover{transform:translateY(-3px) scale(1.01);} .quiz .go:disabled{opacity:.45; transform:none; cursor:default;}
-  .quiz .skip{display:block; text-align:center; margin-top:14px; color:var(--muted2); font-size:13px; cursor:pointer;}
-  .quiz .skip:hover{color:var(--accent);}
-  @keyframes qin{from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:none;}}
-  /* ---- ready card: a plan pre-filled from the taste profile, one tap to go ---- */
-  .ready{margin:2px 0 6px 40px; background:var(--card); border:1px solid var(--brd); border-radius:20px;
-    box-shadow:var(--shadow); padding:16px 16px 14px; max-width:620px;}
-  .ready .pills{display:flex; flex-wrap:wrap; gap:8px;}
-  .ready .pill{border:1px solid var(--brd); background:var(--bg2); color:var(--text); border-radius:999px;
-    padding:8px 13px; font:inherit; font-size:14px; font-weight:700; cursor:pointer;}
-  .ready .pill.open{border-color:var(--accent2); color:var(--accent2); background:#fff;}
-  .ready .choices{display:flex; flex-wrap:wrap; gap:7px; margin-top:10px; padding-top:10px; border-top:1px solid var(--hair);}
-  .ready .choices:empty{display:none;}
-  .ready .choices .chip.on{border-color:transparent; color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2));}
-  .ready .choices .city{flex:1 1 180px; border:1px solid var(--brd); border-radius:999px; padding:8px 14px; font:inherit; font-size:14px;}
-  .ready .row{display:flex; align-items:center; gap:10px; flex-basis:100%; margin-top:4px; font-size:14px; color:var(--muted);}
-  .ready .row b{min-width:52px; color:var(--text); font-size:15px;}
-  .ready .hint{flex-basis:100%; font-size:12.5px; color:var(--muted2);}
-  .ready .row .hint{flex-basis:auto;}
-  .ready input[type=range]{flex:1; accent-color:var(--accent2); min-height:44px;}
-  .ready .money{display:inline-flex; align-items:center; gap:2px; border:1px solid var(--brd); border-radius:999px;
-    padding:0 14px; background:#fff; font-weight:700; color:var(--text);}
-  .ready .money input{border:0; width:96px; font:inherit; font-size:15px; padding:10px 2px; outline:none; background:transparent;}
-  .ready .stepper button{width:44px; height:44px; border-radius:50%; border:1px solid var(--brd); background:#fff;
-    font-size:20px; font-weight:700; color:var(--text); cursor:pointer;}
-  .ready .stepper b{min-width:28px; text-align:center;}
-  .ready .go{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:14px;}
-  .ready .plan-it{border:0; border-radius:999px; padding:12px 22px; font:inherit; font-weight:750; font-size:15px; color:#fff;
-    cursor:pointer; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 10px 22px -12px rgba(124,92,255,.8);}
-  .ready .plan-it:disabled{opacity:.5; cursor:default;}
-  .ready .alt{border:0; background:none; font:inherit; font-size:13.5px; font-weight:650; color:var(--muted); cursor:pointer; padding:6px 8px;}
-  .ready .alt:hover{color:var(--accent2);}
-  @media (max-width:560px){ .ready{margin-left:0;} }
+  /* ---- saved ---- */
+  .saved-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:12px;}
+  .scard{position:relative; display:flex; align-items:stretch; background:var(--surface); border:1px solid var(--line-2);
+    border-radius:var(--r-md); box-shadow:var(--sh-1); overflow:hidden; transition:transform .18s var(--ease), box-shadow .2s; animation:rise .35s var(--ease) both;}
+  .scard:hover{transform:translateY(-2px); box-shadow:var(--sh-2);}
+  .scard-open{flex:1; min-width:0; display:flex; align-items:center; gap:14px; padding:12px 52px 12px 12px; border:0; background:none;
+    cursor:pointer; text-align:left; font:inherit; color:var(--ink);}
+  .scard-art{position:relative; width:84px; height:84px; flex:0 0 auto; border-radius:16px; overflow:hidden; display:grid; place-items:center; font-size:32px;}
+  .scard-art img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .scard-body{flex:1; min-width:0; display:flex; flex-direction:column; gap:3px;}
+  .scard-body b{font-size:15.5px; font-weight:750; letter-spacing:-.01em; line-height:1.3;}
+  .scard-tags{display:flex; gap:6px; margin-top:4px;}
+  .scard-date{position:absolute; top:12px; right:12px; width:40px; padding:4px 0; border-radius:12px; background:var(--surface-2);
+    text-align:center; line-height:1.1;}
+  .scard-date small{display:block; font-size:10px; font-weight:800; letter-spacing:.06em; color:var(--ink-3); text-transform:uppercase;}
+  .scard-date b{font-size:16px; font-weight:800;}
+  .scard-del{position:absolute; right:10px; bottom:8px; width:38px; height:38px; color:var(--ink-3);}
+  .scard-del:hover{color:var(--danger); background:var(--danger-soft);}
+
+  /* ---- settings: bottom sheet on phones, persistent panel on desktop ---- */
+  .rail{flex:0 0 0; width:0;}
+  .sheet-sub{margin:0; padding:0 20px 4px; font-size:13.5px; color:var(--ink-3); font-weight:550;}
+  .sec{padding:16px 0; border-bottom:1px solid var(--line-2); border-radius:14px;}
+  .sec:last-child{border-bottom:0;}
+  .sec h3{display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:14.5px; font-weight:800;}
+  .sec h3 .ic{color:var(--primary-ink);}
+  .sec.hl{animation:sechl 1.4s var(--ease) 1;}
+  @keyframes sechl{0%{background:var(--primary-soft);} 100%{background:transparent;}}
+  .sec-body{display:flex; flex-wrap:wrap; gap:8px; align-items:center;}
+  .sec .row{display:flex; align-items:center; gap:12px; flex-basis:100%; font-size:14px; color:var(--ink-2);}
+  .sec .row b{min-width:56px; color:var(--ink); font-size:15px; font-weight:800;}
+  .sec .hint{flex-basis:100%; font-size:12.5px; color:var(--ink-3); font-weight:550;}
+  .sec .row .hint{flex-basis:auto;}
+  .sec .need{flex-basis:100%; padding:10px 12px; border-radius:12px; background:var(--danger-soft); font-size:13.5px; font-weight:700; color:var(--danger);}
+  .sec input[type=range]{flex:1; accent-color:var(--primary); min-height:44px;}
+  .money{display:inline-flex; align-items:center; gap:2px; min-height:44px; border:1.5px solid var(--line); border-radius:var(--r-pill);
+    padding:0 16px; background:var(--surface); font-weight:800; color:var(--ink);}
+  .money:focus-within{border-color:var(--primary); box-shadow:0 0 0 4px rgba(106,76,240,.14);}
+  .money input{border:0; width:92px; font:inherit; font-size:15px; padding:8px 2px; outline:none; background:transparent; color:var(--ink);}
+  .stepper button{width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:var(--surface);
+    font-size:20px; font-weight:700; color:var(--ink); cursor:pointer;}
+  .stepper button:hover{border-color:rgba(106,76,240,.5);}
+  .stepper b{min-width:28px !important; text-align:center;}
+  .switch-row{display:flex; align-items:center; gap:12px; flex-basis:100%; padding:12px 14px; border-radius:16px; background:var(--surface-2);}
+  .switch-row > div{flex:1;}
+  .switch-row b{font-size:14.5px; font-weight:750;} .switch-row small{display:block; font-size:12.5px; color:var(--ink-3); margin-top:2px; font-weight:550;}
+  .sec .field{flex-basis:100%; margin-top:6px;}
+  #railPlan{display:none;}
+  @media (max-width:560px){
+    .plan,.more,.quick,.evlist,.picker,.chat-notice{margin-left:0;}
+    .msg{max-width:94%;}
+    .plan-head{padding:18px 16px 12px;} .plan-map{margin:0 10px;} .tl{padding:8px 10px 2px;}
+    .fits,.plan-tip{margin-left:10px; margin-right:10px;} .plan-foot{padding:14px 10px 16px;}
+    .tl-stop{grid-template-columns:44px 1fr; gap:8px;} .tl-stop:not(:last-child)::before{left:21px;}
+    .tl-ico{width:42px; height:42px; font-size:20px; border-radius:14px;} .tl-card{padding:12px;}
+  }
+
+  @media (min-width:760px){
+    .page{padding:28px 28px 40px;}
+    .thread{padding:24px 28px 16px;}
+    .home{max-width:800px; margin:0 auto; padding:24px 28px 8px;}
+    .home-hero{border-radius:32px; padding:0 32px 108px;}
+    .hero-bar{display:none;}
+    .hero-copy{padding-top:36px;}
+    .home-body{padding:0 20px 32px;}
+    .act-row .act{min-height:120px;}
+    .examples,.mini-row,.ev-filters{margin-left:0; margin-right:0; padding-left:0; padding-right:0;}
+    .composer{padding:10px 28px 18px;}
+  }
+  @media (min-width:1120px){
+    .rail{display:flex; flex-direction:column; width:380px; flex:0 0 380px; border-left:1px solid var(--line-2); background:var(--surface);}
+    .rail .sheet{position:static; transform:none; animation:none; width:auto; left:auto; top:auto; max-height:none; height:100%;
+      border-radius:0; box-shadow:none;}
+    .rail .sheet-grab,.rail #sheetClose,.rail #sheetDone{display:none;}
+    .rail .sheet-head{padding:22px 22px 4px;}
+    .rail .sheet-sub{padding:0 22px 4px;}
+    .rail .sheet-body{flex:1; padding:2px 22px 10px;}
+    .rail .sheet-foot{padding:14px 22px 18px;}
+    #railPlan{display:inline-flex;}
+    .ctxbar{display:none !important;}
+    .home .plan-around{display:none;}
+    .home-body{margin-top:-64px;}
+  }
 </style>
 </head>
-<body>
-  <header>
-    <a class="logo" href="/"><span class="m">🧭</span><span class="grad">Roamly</span></a>
-    <span class="tag">your day, your call ✨</span>
-    <a class="saved-btn" href="profile.html?edit=1&amp;redirect=roamly.html" title="Edit your taste profile" style="margin-left:auto;">✏️ My taste</a>
-    <button class="saved-btn" id="savedBtn" title="Saved plans" style="margin-left:0;">💾 <span id="savedCount">0</span></button>
-    <div class="loc" id="locBadge" title="Click to turn your location on or off"><span class="dot"></span><span id="locText">location off</span></div>
-  </header>
+<body data-view="home">
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs>
+  <symbol id="i-logo" viewBox="0 0 32 32"><path fill="url(#rg)" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#rg)" stroke="none" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-logo-w" viewBox="0 0 32 32"><path fill="#fff" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="#fff" stroke="none" opacity=".8" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9v11h4.5v-6h4v6h4.5V9"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M3 7.5h18v3a2 2 0 0 0 0 3v3H3v-3a2 2 0 0 0 0-3Z"/><path d="M15 8v8" stroke-dasharray="1.6 2.2"/></symbol>
+  <symbol id="i-bookmark" viewBox="0 0 24 24"><path d="M6.5 3.5h11v17l-5.5-3.8-5.5 3.8Z"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17" r="2"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.3"/></symbol>
+  <symbol id="i-radius" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" stroke-dasharray="2.6 2.6"/><circle cx="12" cy="12" r="1.6"/><path d="M12 12h8.5"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><rect x="3" y="6.5" width="18" height="13" rx="3"/><path d="M16 13h2M5.5 6.5 15 3.5l1.2 3"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
+  <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19c.6-3 2.8-4.8 5.5-4.8s4.9 1.8 5.5 4.8"/><path d="M15.5 5.6a3.2 3.2 0 0 1 0 5.8M17.5 14.6c1.6.6 2.7 2.1 3 4.4"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 3.1 6.9 7.5 7.5-4.4.6-6.9 3.1-7.5 7.5-.6-4.4-3.1-6.9-7.5-7.5 4.4-.6 6.9-3.1 7.5-7.5Z"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.2"/><circle cx="18" cy="6" r="2.2"/><path d="M8.2 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.4-5.7"/><path d="M20 4.5v5h-5"/></symbol>
+  <symbol id="i-rotate" viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5v5h5"/></symbol>
+  <symbol id="i-nav" viewBox="0 0 24 24"><path d="M12 3.5 19.5 20 12 16.2 4.5 20Z"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9"/><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5v5.5M12 16.5v.01"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.2 4.2 0 0 1 12 7.2a4.2 4.2 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z"/></symbol>
+  <symbol id="i-dice" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 12h.01" stroke-width="3"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><path d="M16.5 13.5v6M13.5 16.5h6"/></symbol>
+  <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
+  <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 19.5V6.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8.5Z"/></symbol>
+</svg>
 
-  <!-- saved plans drawer -->
-  <div class="drawer-bg hidden" id="savedBg"></div>
-  <aside class="drawer hidden" id="savedDrawer">
-    <div class="drawer-head"><b>Saved plans</b><span class="x" id="savedClose">×</span></div>
-    <div class="drawer-body" id="savedList"></div>
+<div class="app">
+  <!-- tablet/desktop navigation -->
+  <aside class="side">
+    <a class="logo" href="/" aria-label="Roamly home"><svg class="logo-mark" aria-hidden="true"><use href="#i-logo"/></svg><span>Roamly</span></a>
+    <nav class="side-nav" aria-label="Main">
+      <button class="nav-item" data-nav="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
+      <button class="nav-item" data-nav="events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></button>
+      <button class="nav-item" data-nav="saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></button>
+      <a class="nav-item" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
+    </nav>
+    <div class="side-foot">
+      <button class="nav-item" data-menu aria-haspopup="menu" aria-expanded="false"><span class="avatar" data-initial aria-hidden="true" style="width:30px;height:30px;font-size:12.5px;border-width:0;box-shadow:none">R</span><span data-name>Account</span></button>
+    </div>
   </aside>
 
-  <div class="chat" id="chat"><div class="thread" id="thread"></div></div>
+  <div class="main">
+    <header class="top">
+      <button class="icon-btn plain" id="backBtn" aria-label="Back to home"><svg class="ic" aria-hidden="true"><use href="#i-back"/></svg></button>
+      <div class="tt" id="topTitle"><b>Roamly</b><small>AI outing planner</small></div>
+      <div class="top-acts">
+        <button class="btn btn-ghost btn-sm" id="newChatBtn" title="Start over"><svg class="ic sm" aria-hidden="true"><use href="#i-rotate"/></svg><span>Start over</span></button>
+        <button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">R</button>
+      </div>
+    </header>
 
-  <div class="composer">
-    <div class="row">
-      <input id="input" placeholder="e.g. I've got $100 for a chill date night" autocomplete="off" />
-      <button class="send" id="send" title="Send">➤</button>
+    <!-- what Roamly is working with — tap any chip to change it -->
+    <div class="ctxbar" id="ctxbar">
+      <span class="t-label" id="ctxLabel">Planning around</span>
+      <div class="ctx-chips" data-ctx role="group" aria-labelledby="ctxLabel"></div>
+      <button class="link" id="ctxEdit">Adjust</button>
     </div>
+
+    <main class="views">
+      <section class="view" id="v-home" aria-label="Home"></section>
+      <section class="view chat" id="chat" aria-label="Conversation" hidden><div class="thread" id="thread"></div></section>
+      <section class="view" id="v-events" aria-labelledby="evTitle" hidden></section>
+      <section class="view" id="v-saved" aria-labelledby="savedTitle" hidden></section>
+    </main>
+
+    <form class="composer" id="composer" autocomplete="off">
+      <div class="row">
+        <input id="input" aria-label="Tell Roamly what you want" placeholder="e.g. cheap sushi date in Kensington" />
+        <button class="send" id="send" type="submit" aria-label="Send"><svg class="ic" aria-hidden="true"><use href="#i-up"/></svg></button>
+      </div>
+    </form>
+
+    <!-- phone navigation -->
+    <nav class="bnav" aria-label="Main">
+      <button class="nav-item" data-nav="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
+      <button class="nav-item" data-nav="events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></button>
+      <button class="nav-item" data-nav="saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></button>
+      <a class="nav-item" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
+    </nav>
   </div>
+
+  <!-- plan settings: a bottom sheet on phones, a modal on tablets, always-on panel on desktop -->
+  <aside class="rail" aria-label="Plan settings">
+    <div class="sheet-bg hidden" id="sheetBg"></div>
+    <section class="sheet hidden" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <div class="sheet-grab"></div>
+      <div class="sheet-head"><h2 class="t-h" id="sheetTitle">Your plan settings</h2>
+        <button class="icon-btn plain" id="sheetClose" aria-label="Close settings"><svg class="ic" aria-hidden="true"><use href="#i-x"/></svg></button></div>
+      <p class="sheet-sub">Every plan starts from these. Change anything — it applies right away.</p>
+      <div class="sheet-body" id="sheetBody"></div>
+      <div class="sheet-foot">
+        <button class="link" id="sheetReset">Reset to my defaults</button>
+        <button class="btn btn-primary" id="sheetDone">Done</button>
+        <button class="btn btn-primary" id="railPlan"><svg class="ic sm" aria-hidden="true"><use href="#i-sparkle"/></svg> Plan my night</button>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<div class="menu hidden" id="menu" role="menu" aria-label="Account">
+  <div class="who"><b data-name>Your account</b><span data-handle></span></div>
+  <a role="menuitem" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg> My taste</a>
+  <button role="menuitem" id="resetBtn"><svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg> Start over</button>
+  <button role="menuitem" id="signOutBtn"><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg> Sign out</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="sr-only" id="sr" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
@@ -306,83 +501,173 @@ const $ = id => document.getElementById(id);
 const token = () => localStorage.getItem('trek_token');
 const authHeaders = () => token() ? { 'Authorization': 'Bearer ' + token() } : {};
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ic = (name, cls = '') => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 const thread = $('thread'), chat = $('chat');
 let messages = [];           // {role, content}
 let userLoc = null;
 let mapSeq = 0;
+let maps = [];               // drawn route maps — re-fitted when the chat is shown again
+let me = null;               // {display_name, username}
+let lastUserEl = null;
+let lastAskText = '';         // what the user last asked (for Home's "pick up where you left off")
+let convoStart = 0;          // typed turns send only the messages since the last plan/events result
 const seenVenues = new Set();   // venues already suggested — sent as `exclude` so re-rolls never repeat
+const wideMq = matchMedia('(min-width:1120px)');
+const wide = () => wideMq.matches;
 
-/* ---------- location (user can flip this on/off any time) ---------- */
+/* ================= views: Home · Chat · What's on · Saved ================= */
+const VIEWS = { home:'v-home', chat:'chat', events:'v-events', saved:'v-saved' };
+const TITLES = { chat:['Roamly','AI outing planner'], events:["What's on",'Live events near you'], saved:['Saved plans','Kept on this device'] };
+let view = null, chatScroll = 0;
+function showView(v, o = {}){
+  if (!VIEWS[v]) v = 'home';
+  if (view === 'chat') chatScroll = chat.scrollTop;
+  const prev = view; view = v;
+  document.body.dataset.view = v;
+  Object.entries(VIEWS).forEach(([k, id]) => { $(id).hidden = k !== v; });
+  document.querySelectorAll('[data-nav]').forEach(b => {
+    (b.dataset.nav === v || (v === 'chat' && b.dataset.nav === 'home')) ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current');
+  });
+  const t = TITLES[v];
+  if (t){ $('topTitle').querySelector('b').textContent = t[0]; $('topTitle').querySelector('small').textContent = t[1]; }
+  closeMenu(); $('toast').classList.remove('on');
+  if (v === 'home') renderHome(prev === null);
+  if (v === 'saved') renderSavedView();
+  if (v === 'events') openEvents(o.window);
+  if (v === 'chat') requestAnimationFrame(() => { chat.scrollTop = o.bottom ? chat.scrollHeight : chatScroll; refitMaps(); });
+  else $(VIEWS[v]).scrollTop = 0;
+  // Phone back button: Home ↔ everything else.
+  if (!o.fromPop && prev !== null && prev !== v){
+    if (v === 'home') history.replaceState({ v }, '');
+    else if (prev === 'home') history.pushState({ v }, '');
+    else history.replaceState({ v }, '');
+  }
+}
+window.addEventListener('popstate', e => showView((e.state && e.state.v) || 'home', { fromPop:true }));
+function goHome(){ (history.state && history.state.v && history.state.v !== 'home') ? history.back() : showView('home'); }
+
+/* ---------- location: explicit on/off, shown in the Planning-around bar ---------- */
+let locState = 'off';                     // off | busy | on | unsupported
 function getLoc(){
-  if (!navigator.geolocation){ $('locText').textContent = 'not supported'; return; }
-  $('locBadge').classList.add('busy');
+  if (!navigator.geolocation){ locState = 'unsupported'; syncLoc(); return; }
+  locState = 'busy'; syncLoc();
   navigator.geolocation.getCurrentPosition(
-    p => { userLoc = {lat:p.coords.latitude, lng:p.coords.longitude};
-           $('locBadge').classList.remove('busy'); $('locBadge').classList.add('on');
-           $('locText').textContent = 'near you';
-           if (readyEl) renderReady(); },   // ready card's 📍 pill → "Near you"
-    () => { $('locBadge').classList.remove('busy','on'); $('locText').textContent = 'location off'; userLoc = null; },
+    p => { userLoc = {lat:p.coords.latitude, lng:p.coords.longitude}; locState = 'on'; needWhere = false; syncLoc();
+           if (!sheetOpen || wide()) resumePending(); },
+    () => { userLoc = null; locState = 'off'; syncLoc(); if (!sheetOpen) pending = null; },
     { enableHighAccuracy:true, timeout:10000, maximumAge:300000 }
   );
 }
 function toggleLoc(){
-  if (userLoc){
-    // Off — stop sending it with planning requests until turned back on.
-    userLoc = null;
-    $('locBadge').classList.remove('on','busy');
-    $('locText').textContent = 'location off';
-  } else {
-    getLoc();
-  }
+  if (userLoc || locState === 'busy'){ userLoc = null; locState = 'off'; syncLoc(); }   // off: stop sending it
+  else getLoc();
 }
-$('locBadge').onclick = toggleLoc;
+function syncLoc(){
+  if (!ready) return;
+  renderCtx();
+  if (sheetOpen) renderSection('location');
+}
+function locNote(){
+  if (locState === 'on' && !ready.location) return `${ic('pin','sm')} Using your approximate current location`;
+  if (locState === 'busy') return 'Finding your location…';
+  if (ready.location) return `Planning around “${esc(ready.location)}” — your live location isn't being used`;
+  if (locState === 'unsupported') return "This browser can't share location — set a place instead.";
+  return `Your live location isn't being used. <button class="link" data-loc-on>Use my location</button> or <button class="link" data-set-place>set a place</button>`;
+}
 
-/* ---------- rendering ---------- */
+/* ---------- messages ---------- */
+const AV_BOT = `<div class="av" aria-hidden="true"><svg class="logo-mark"><use href="#i-logo"/></svg></div>`;
 function addMsg(role, html){
   const m = document.createElement('div');
-  m.className = 'msg ' + (role==='user'?'me':'bot');
-  m.innerHTML = `<div class="av">${role==='user'?'you':'🧭'}</div><div class="bubble">${html}</div>`;
-  thread.appendChild(m); scrollDown(role==='user'); return m;
+  m.className = 'msg ' + (role === 'user' ? 'me' : 'bot');
+  m.innerHTML = role === 'user' ? `<div class="bubble">${html}</div>` : `${AV_BOT}<div class="bubble">${html}</div>`;
+  thread.appendChild(m); scrollDown(role === 'user');
+  if (role === 'user'){
+    lastUserEl = m;
+    const sub = m.querySelector('.sub');                // "✨ Plan my night — Date · Chill · $100…"
+    lastAskText = sub ? `${m.querySelector('.bubble').firstChild.textContent.trim()} — ${sub.textContent}` : m.textContent.trim();
+  }
+  return m;
 }
 function addQuick(replies){
   if (!replies || !replies.length) return;
   const q = document.createElement('div'); q.className = 'quick';
-  replies.forEach(r => { const b=document.createElement('button'); b.className='chip'; b.textContent=r;
+  replies.forEach(r => { const b = document.createElement('button'); b.className = 'chip'; b.textContent = r;
     b.onclick = () => { q.remove(); send(r); }; q.appendChild(b); });
   thread.appendChild(q); scrollDown();
 }
-/* Waiting feedback: rotating status lines (honest — no made-up progress counts),
-   then a "taking longer" note. Nothing shows for quick answers. */
-const WAIT_LINES = ["Checking what's open near you…", "Picking the stops…", "Mapping the route…"];
+function appendFoot(buttons){
+  const q = document.createElement('div'); q.className = 'quick';
+  buttons.forEach(b => { const el = document.createElement('button'); el.className = b.cls || 'chip';
+    el.innerHTML = b.html || esc(b.label); el.onclick = b.onclick; q.appendChild(el); });
+  thread.appendChild(q); scrollDown();
+  return q;
+}
+function announce(text){ const sr = $('sr'); sr.textContent = ''; setTimeout(() => { sr.textContent = 'Roamly: ' + text; }, 60); }
+
+/* Waiting feedback: status lines that describe what the planner is doing (no
+   made-up progress counts), then an honest "taking longer" note. */
+const WAIT = {
+  chat:   ['Reading your request…', "Checking what's nearby…", 'Finding places that fit…', 'Putting everything together…'],
+  plan:   ["Checking what's nearby…", 'Finding places that fit…', 'Putting everything together…'],
+  pick:   ["Checking what's nearby…", 'Gathering the best spots…'],
+  events: ["Checking what's on near you…"],
+};
 let waitTimers = [];
-function typing(on){
+function typing(on, kind = 'chat'){
   let t = $('typing');
-  if (on && !t){ const m=document.createElement('div'); m.className='msg bot'; m.id='typing';
-    m.innerHTML=`<div class="av">🧭</div><div class="bubble"><div class="typing"><i></i><i></i><i></i></div><div class="wait-note" aria-live="polite"></div></div>`;
+  if (on && !t){
+    const lines = WAIT[kind] || WAIT.chat;
+    const skel = kind === 'plan' ? `<div class="skel-plan skel-wrap" aria-hidden="true">
+        ${[0,1,2].map(() => `<div class="skel-row"><div class="skel" style="width:36px;height:36px;border-radius:12px"></div>
+          <div style="flex:1;display:grid;gap:6px"><div class="skel" style="height:11px;width:72%"></div><div class="skel" style="height:9px;width:45%"></div></div></div>`).join('')}
+      </div>` : '';
+    const m = document.createElement('div'); m.className = 'msg bot'; m.id = 'typing';
+    m.innerHTML = `${AV_BOT}<div class="bubble wait"><div class="wait-row"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>
+      <span class="wait-note" role="status">${esc(lines[0])}</span></div>${skel}</div>`;
     thread.appendChild(m); scrollDown();
-    const note = m.querySelector('.wait-note'); let k = 0;
+    const note = m.querySelector('.wait-note'); let k = 1;
     waitTimers.push(setTimeout(function next(){
-      if (k < WAIT_LINES.length){ note.textContent = WAIT_LINES[k++]; waitTimers.push(setTimeout(next, 3000)); }
-    }, 1200));
+      if (k < lines.length){ note.textContent = lines[k++]; waitTimers.push(setTimeout(next, 2800)); }
+    }, 2400));
     waitTimers.push(setTimeout(() => {
-      note.textContent = 'Taking longer than usual — venue search can be slow the first time in a new area.';
-      waitTimers.forEach(clearTimeout); waitTimers = [];
+      const late = document.createElement('p'); late.className = 'wait-late';
+      late.textContent = 'Taking longer than usual — venue search can be slow the first time in a new area.';
+      m.querySelector('.bubble').appendChild(late); scrollDown();
     }, 15000));
   }
   else if (!on && t){ waitTimers.forEach(clearTimeout); waitTimers = []; t.remove(); }
 }
 
-/* A failed request gets a Retry that re-runs exactly the same request — no
-   duplicate message bubble, no retyping. */
-function failed(e, retry){
-  typing(false);
+/* Native error card. Your settings live in the bar, so nothing needs retyping —
+   Retry re-runs exactly the same request (no duplicate message bubble). */
+function addNotice({ kind = 'err', title, text, actions = [] }){
+  const el = document.createElement('div'); el.className = 'chat-notice';
+  el.innerHTML = `<div class="notice ${kind}"><span class="n-ic">${ic('alert')}</span><div><b>${esc(title)}</b><p>${esc(text)}</p>
+    <div class="n-acts"></div></div></div>`;
+  const acts = el.querySelector('.n-acts');
+  actions.forEach(a => { const b = document.createElement('button');
+    b.className = 'btn btn-sm ' + (a.primary ? 'btn-dark' : 'btn-ghost');
+    b.innerHTML = (a.icon ? ic(a.icon, 'sm') + ' ' : '') + esc(a.label); b.onclick = () => a.onclick(el); acts.appendChild(b); });
+  thread.appendChild(el); scrollDown();
+  return el;
+}
+function retryAction(retry, kind){
+  return { label:'Try again', icon:'refresh', primary:true, onclick: el => { el.remove(); typing(true, kind); retry(); } };
+}
+function failed(e, retry, kind = 'plan'){
+  typing(false); busy = false;
   const slow = /too long/i.test((e && e.message) || '');
-  addMsg('assistant', slow ? 'That took too long — venue search can be slow right now.'
-                           : "I couldn't reach the planner just now.");
-  offerRetry(retry);
+  addNotice({ title: slow ? 'Hmm — that took longer than usual' : "Couldn't reach Roamly",
+    text: slow ? 'Venue search can be slow right now. Your settings are kept, so nothing needs retyping.'
+               : 'Check your connection and try again. Your settings are kept.',
+    actions: [retryAction(retry, kind), { label:'Adjust settings', icon:'sliders', onclick: () => openSheet() }] });
 }
 function offerRetry(retry){
-  appendFoot([{ label:'🔄 Retry', onclick: ev => { ev.target.closest('.quick').remove(); typing(true); retry(); } }]);
+  const q = appendFoot([
+    { html:`${ic('refresh','sm')} Try again`, cls:'btn btn-dark btn-sm', onclick: () => { q.remove(); typing(true, 'plan'); retry(); } },
+    { html:`${ic('sliders','sm')} Adjust settings`, cls:'btn btn-ghost btn-sm', onclick: () => openSheet() },
+  ]);
 }
 /* Sticky autoscroll: follow new messages only while the user is at the bottom,
    so scrolling up to reread never gets yanked back down. */
@@ -392,9 +677,8 @@ chat.addEventListener('scroll', () => {
 });
 function scrollDown(force){
   if (force) stickBottom = true;
-  if (stickBottom) requestAnimationFrame(()=> chat.scrollTop = chat.scrollHeight);
+  if (stickBottom) requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight);
 }
-
 /* Streaming feel: type the assistant's reply in instead of dumping it at once. */
 function addMsgTyped(text){
   const m = addMsg('assistant', '');
@@ -411,266 +695,400 @@ function addMsgTyped(text){
   return m;
 }
 
-function stopHtml(s,i){
-  const rating = s.rating ? `<span class="pill star">★ ${s.rating}</span>` : '';
-  const price = s.price ? `<span class="pill">${esc(s.price)}</span>` : '';
-  const cats = (s.categories&&s.categories[0]) ? `<span>${esc(String(s.categories[0]).replace(/_/g,' '))}</span>` : '';
-  const addr = s.address ? `<span>${esc(s.address)}</span>` : '';
-  const gmaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name+' '+(s.address||''))}`;
-  const review = s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${s.source==='yelp'?'Yelp':'Website'}</a>` : '';
-  const time = s.time ? `<span class="time">${esc(s.time)}</span>` : '';
-  const img = s.image ? `<img class="stop-img" src="${esc(s.image)}" alt="" loading="lazy" onerror="this.remove()">` : '';
-  return `<div class="stop">
-    <div class="num">${s.icon||i+1}</div>
-    <div class="body">
-      <div class="top">${time}<span class="lbl">${esc(s.label)}</span><span class="cost">~$${s.est_cost}</span></div>
-      <h4>${esc(s.name)}</h4>
-      <div class="meta">${rating}${price}${cats}${addr}</div>
-      ${img}
-      ${s.why?`<div class="why">${esc(s.why)}</div>`:''}
-      <div class="acts"><a href="${gmaps}" target="_blank" rel="noopener">📍 Directions</a>${review}</div>
-    </div></div>`;
+let toastT;
+function toast(msg, action){
+  const t = $('toast');
+  t.innerHTML = `<span>${esc(msg)}</span>${action ? `<button>${esc(action.label)}</button>` : ''}`;
+  if (action) t.querySelector('button').onclick = () => { t.classList.remove('on'); action.onclick(); };
+  t.classList.add('on'); clearTimeout(toastT);
+  toastT = setTimeout(() => t.classList.remove('on'), action ? 5500 : 2600);
 }
 
-function evWhen(ev){
-  const parts = [];
-  if (ev.date){ const d=new Date(ev.date+'T00:00'); parts.push(d.toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'})); }
-  if (ev.time) parts.push(ev.time.slice(0,5));
-  return parts.join(' · ');
+/* ================= plan card ================= */
+// Links from third parties (OSM website tags, organizer-submitted listings) only
+// get http(s) — a javascript: URL in an href would run code on tap.
+const safeUrl = u => (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) ? u.trim() : null;
+const USER_TZ = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch(e){ return null; } })();
+const SLOT_TONE = { dinner:'pink', lunch:'pink', cafe:'sun', activity:'violet', scenic:'mint', leisure:'indigo', drinks:'indigo', dessert:'peach', event:'pink' };
+const WHEN_TITLE = { morning:'Your day out', afternoon:'This afternoon', evening:"Tonight's plan", night:'Late-night plan' };
+const VIBE_NAME = { chill:'Chill', romantic:'Romantic', adventurous:'Adventurous', extravagant:'Fancy', night_out:'Night-out' };
+const VIBE_ART = {
+  chill:       { emoji:'😌', bg:'linear-gradient(135deg,#d9f5e8,#dfe9ff)' },
+  romantic:    { emoji:'🌹', bg:'linear-gradient(135deg,#ffe0ea,#ffe8d6)' },
+  adventurous: { emoji:'🧗', bg:'linear-gradient(135deg,#fff0c7,#ffdcd0)' },
+  extravagant: { emoji:'🥂', bg:'linear-gradient(135deg,#ece4ff,#ffdcec)' },
+  night_out:   { emoji:'🎉', bg:'linear-gradient(135deg,#e2ddff,#f5d9ff)' },
+};
+const GROUP_TITLE = { date:'date', friends:'outing with friends', family:'family outing', solo:'solo outing' };
+const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+function planTitle(plan){
+  const m = plan._meta || {};
+  return `${(VIBE_ART[plan.vibe] || {}).emoji || '✨'} ${VIBE_NAME[plan.vibe] || 'Your'} ${GROUP_TITLE[m.group] || 'outing'}`;
 }
-function eventsHtml(events){
-  if (!events || !events.length) return '';
-  const rows = events.map(ev => {
-    const meta = [ev.category, ev.venue, evWhen(ev)].filter(Boolean).map(esc).join(' · ');
-    const price = ev.price_min ? `<span class="ev-price">$${Math.round(ev.price_min)}+</span>` : '';
-    return `<a class="ev" href="${esc(ev.url||'#')}" target="_blank" rel="noopener">
-      <div class="ev-body"><b>${esc(ev.name)}</b><span class="ev-meta">${meta}</span></div>
-      ${price}<span class="ev-go">Tickets ›</span></a>`;
-  }).join('');
-  return `<div class="events"><div class="ev-h">🎟️ Happening nearby</div>${rows}</div>`;
+/* What Roamly can honestly say about why this plan fits — every line is checked
+   against the plan's own numbers, nothing is invented. */
+function fitsFor(plan){
+  const m = plan._meta || {}, out = [], pp = Math.max(1, plan.party_size || 1);
+  const who = pp === 1 ? 'you' : `${pp}`;
+  if (plan.budget){
+    const over = plan.estimated_cost - plan.budget;
+    out.push(over <= 0
+      ? { ok:true, t:`~$${plan.estimated_cost} for ${who} — within your $${Math.round(plan.budget)} budget` }
+      : { ok:false, t:`~$${plan.estimated_cost} for ${who} — about $${Math.round(over)} over your $${Math.round(plan.budget)} (estimates are rough)` });
+  }
+  if (plan.walk_km != null && plan.stops.length > 1)
+    out.push({ ok:true, t: plan.walk_km < 0.4 ? 'Every stop is steps from the next' : `All stops within ~${plan.walk_km} km of each other` });
+  if (m.interests){
+    const hay = plan.stops.map(s => [s.name, ...(s.categories || [])].join(' ').toLowerCase()).join(' | ');
+    const hit = m.interests.split(/[,;]/).map(w => w.trim()).filter(w => w && hay.includes(w.toLowerCase().replace(/s$/, '')));
+    if (hit.length) out.push({ ok:true, t:`Includes what you asked for: ${hit.join(', ')}` });
+  }
+  if (plan.weather) out.push({ ok:true, t:`Weather checked — ${plan.weather}` });
+  if (m.taste) out.push({ ok:true, t:'Tuned to your taste profile' });
+  return out.slice(0, 4);
 }
 
-function appendPlanCard(plan, dayLabel){
+function stopHtml(s, i, pp){
+  const tone = SLOT_TONE[s.slot] || 'violet';
+  const cat = s.categories && s.categories[0] ? cap(String(s.categories[0]).replace(/_/g, ' ')) : '';
+  const meta = [cat ? `<span>${esc(cat)}</span>` : '', s.price ? `<span>${esc(s.price)}</span>` : '',
+                s.rating ? `<span class="tag star">★ ${esc(s.rating)}</span>` : ''].filter(Boolean).join('');
+  const gmaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ' ' + (s.address || ''))}`;
+  const site = safeUrl(s.url);
+  return `<li class="tl-stop">
+    <div class="tl-rail"><span class="tl-ico tone-${tone}" aria-hidden="true">${esc(s.icon || '📍')}</span>${s.time ? `<span class="tl-time">${esc(s.time)}</span>` : ''}</div>
+    <div class="tl-card">
+      <div class="tl-info">
+        <div class="tl-top"><span class="tl-kicker">${esc(s.label)}</span><span class="tl-cost">~$${esc(s.est_cost)}${pp > 1 ? '<small> each</small>' : ''}</span></div>
+        <h4 class="tl-name">${esc(s.name)}</h4>
+        ${meta ? `<div class="tl-meta">${meta}</div>` : ''}
+        ${s.address ? `<div class="tl-addr">${esc(s.address)}</div>` : ''}
+        ${s.why ? `<p class="tl-why">${esc(s.why)}</p>` : ''}
+        <div class="tl-acts"><a class="btn btn-ghost btn-sm" href="${gmaps}" target="_blank" rel="noopener">${ic('nav','sm')} Directions</a>${
+          site ? `<a class="btn btn-ghost btn-sm" href="${esc(site)}" target="_blank" rel="noopener">${s.source === 'yelp' ? 'Yelp' : 'Website'} ${ic('external','sm')}</a>` : ''}</div>
+      </div>
+      ${s.image && safeUrl(s.image) ? `<img class="tl-img" src="${esc(s.image)}" alt="" loading="lazy" onerror="this.remove()">` : ''}
+    </div></li>`;
+}
+
+function appendPlanCard(plan, dayLabel, o = {}){
   plan.stops.forEach(s => seenVenues.add(s.name));   // never suggest these again
-  const id = 'map'+(++mapSeq);
-  const head = dayLabel ? `<div class="day-head">${esc(dayLabel)}</div>` : '';
-  const html = `${head}<div class="itin">
-      <div class="map" id="${id}"></div>
-      <div class="sum"><span>💸 <b>~$${plan.estimated_cost}</b> / ${plan.party_size}</span>
-        <span>✨ <b>${esc(plan.vibe.replace('_',' '))}</b></span>
-        <span>📍 <b>${plan.stops.length}</b> stops</span>
-        ${plan.weather?`<span>🌤️ <b>${esc(plan.weather)}</b></span>`:''}</div>
-      <div class="stops">${plan.stops.map(stopHtml).join('')}</div>
-      ${plan.tip?`<div class="tip">💡 ${esc(plan.tip)}</div>`:''}
-      ${eventsHtml(plan.events)}</div>`;
-  const wrap = document.createElement('div'); wrap.innerHTML = html;
-  while (wrap.firstElementChild) thread.appendChild(wrap.firstElementChild);
-  scrollDown(); setTimeout(()=>drawMap(id, plan), 60);
+  const id = 'map' + (++mapSeq), pp = Math.max(1, plan.party_size || 1), m = plan._meta || {};
+  const fits = fitsFor(plan);
+  const el = document.createElement('article'); el.className = 'plan card';
+  el.innerHTML = `
+    <header class="plan-head">
+      <div class="plan-eyebrow">${ic('sparkle','sm')}<span class="t-label">${esc(dayLabel || WHEN_TITLE[m.when] || 'Your plan')}</span></div>
+      <h3 class="plan-title">${esc(planTitle(plan))}</h3>
+      <div class="plan-stats">
+        <span class="stat">${ic('wallet','sm')}<b>~$${esc(plan.estimated_cost)}</b>${pp > 1 ? ` for ${pp}` : ''}</span>
+        <span class="stat">${ic('pin','sm')}<b>${plan.stops.length}</b> stop${plan.stops.length === 1 ? '' : 's'}</span>
+        ${plan.walk_km ? `<span class="stat">${ic('route','sm')}<b>${esc(plan.walk_km)} km</b> route</span>` : ''}
+      </div>
+    </header>
+    <div class="plan-map" id="${id}"></div>
+    <ol class="tl">${plan.stops.map((s, i) => stopHtml(s, i, pp)).join('')}</ol>
+    ${fits.length ? `<div class="fits"><span class="t-label">Why this fits</span><ul>${fits.map(f =>
+      `<li class="${f.ok ? '' : 'warn'}">${ic(f.ok ? 'check' : 'alert','sm')}<span>${esc(f.t)}</span></li>`).join('')}</ul></div>` : ''}
+    ${plan.tip ? `<div class="plan-tip"><span aria-hidden="true">💡</span><span>${esc(plan.tip)}</span></div>` : ''}
+    ${o.foot === false ? '<div style="height:16px"></div>' : `<footer class="plan-foot">
+      <button class="btn btn-dark" data-save>${ic('heart','sm')} Save plan</button>
+      <button class="btn btn-ghost" data-again>${ic('refresh','sm')} Try another</button></footer>`}`;
+  thread.appendChild(el);
+  const save = el.querySelector('[data-save]');
+  if (save) save.onclick = () => saveItin({ title: planTitle(plan), plan }, save);
+  const again = el.querySelector('[data-again]');
+  if (again) again.onclick = () => reroll();
+  scrollDown(); setTimeout(() => drawMap(id, plan), 60);
+  return el;
 }
 
-function appendFoot(buttons){
-  const q = document.createElement('div'); q.className = 'quick';
-  buttons.forEach(b => { const el=document.createElement('button'); el.className=b.cls||'chip';
-    el.textContent=b.label; el.onclick=b.onclick; q.appendChild(el); });
-  thread.appendChild(q); scrollDown();
+/* "Make it more…": each chip changes the shared planning state (the bar
+   flashes) and re-plans from it — the same state a tap or a typed message sets. */
+const round5 = n => Math.max(5, Math.round(n / 5) * 5);
+const TWEAKS = [
+  { label:'💵 Cheaper', show: () => ready.budget > 20,
+    apply: () => { ready.budget = Math.max(20, round5(ready.budget * 0.65)); budgetTouched = true; }, say: () => `Cheaper — $${ready.budget} budget` },
+  { label:'📍 Closer', show: () => ready.radius_km > RADIUS_MIN,
+    apply: () => { ready.radius_km = clamp(Math.round(ready.radius_km) / 2 || RADIUS_MIN, RADIUS_MIN, RADIUS_MAX); radiusTouched = true; },
+    say: () => `Closer — within ${fmtKm(ready.radius_km)}` },
+  { label:'🥂 Fancier', show: () => ready.vibe !== 'extravagant',
+    apply: () => { ready.vibe = 'extravagant'; ready.budget = Math.min(BUDGET_MAX, round5(Math.max(ready.budget * 1.5, ready.budget + 50))); budgetTouched = true; },
+    say: () => `Fancier — $${ready.budget} budget` },
+  { label:'😌 More relaxed', vibe:'chill' },
+  { label:'🤠 More adventurous', vibe:'adventurous' },
+  { label:'🌹 More romantic', vibe:'romantic' },
+  { label:'🎉 More social', vibe:'night_out' },
+];
+let lastMore = null;
+function appendMore(){
+  if (lastMore) lastMore.remove();
+  const el = document.createElement('div'); el.className = 'more';
+  el.innerHTML = `<span class="t-label">Make it more…</span><div class="more-row"></div>`;
+  const row = el.querySelector('.more-row');
+  TWEAKS.filter(t => t.vibe ? ready.vibe !== t.vibe : t.show()).forEach(t => {
+    const b = document.createElement('button'); b.className = 'chip'; b.textContent = t.label;
+    b.onclick = () => tweak(t); row.appendChild(b);
+  });
+  const s = document.createElement('button'); s.className = 'chip'; s.textContent = '🎲 Surprise me';
+  s.onclick = () => planIt({ surprise:true }); row.appendChild(s);
+  thread.appendChild(el); lastMore = el; scrollDown();
+}
+function tweak(t){
+  if (!token()){ requireSignIn(); return; }
+  if (busy){ toast('One sec — still working on the last plan.'); return; }
+  if (t.vibe) ready.vibe = t.vibe; else t.apply();
+  edited = true; if (wide()) renderSheet(); renderCtx();
+  const said = t.vibe ? `${t.label.slice(t.label.indexOf(' ') + 1)}` : t.say();
+  addMsg('user', `${esc(t.label.split(' ')[0])} ${esc(said)}<span class="sub">${esc(readySummary())}</span>`);
+  typing(true, 'plan');
+  const prev = lastItin && lastItin.plan ? lastItin.plan.stops.map(x => x.name).sort().join('|') : null;
+  runPlan(readyPrefs(), { keepVenues:true, prev });   // new constraints → new picks; no need to ban the old ones
+}
+function reroll(){
+  if (!token()){ requireSignIn(); return; }
+  if (busy){ toast('One sec — still working on the last plan.'); return; }
+  if (!userLoc && !ready.location){ needLocation(reroll); return; }
+  addMsg('user', `🔄 Try another<span class="sub">${esc(readySummary())}</span>`);
+  typing(true, 'plan');
+  runPlan(readyPrefs(), {});
 }
 
-function renderPlan(plan){
+function renderPlan(plan, o = {}){
   appendPlanCard({ ...plan, events: [] });   // events come as a question, not a strip
-  lastItin = { title: plan.intro || 'Your plan', plan };
-  appendFoot([
-    { label:'💾 Save', cls:'save-chip', onclick:e=>saveCurrent(e.target) },
-    { label:'🔄 Try another', onclick:()=>send('plan something different') },
-    { label:'🎲 Surprise me', onclick:()=>send('surprise me with something off the beaten path', null, {surprise:true}) },
-    { label:'💵 Cheaper', onclick:()=>send('make it cheaper') },
-    { label:'🥂 Fancier', onclick:()=>send('make it fancier') },
-  ]);
+  lastItin = { title: planTitle(plan), plan };
+  if (o.saved){ if (lastMore){ lastMore.remove(); lastMore = null; } return; }
+  appendMore();
   suggestEvents(plan);
 }
 
 /* ---------- event opt-in: suggest what's on nearby, add only on a "yes" ---------- */
-function suggestEvents(plan, idx=0){
+function evWhen(ev){
+  const parts = [];
+  if (ev.date){ const d = new Date(ev.date + 'T00:00'); parts.push(d.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'})); }
+  if (ev.time) parts.push(ev.time.slice(0, 5));
+  return parts.join(' · ');
+}
+function suggestEvents(plan, idx = 0){
   const evs = plan.events || [];
   if (idx >= evs.length || idx >= 2) return;         // suggest at most two
   const ev = evs[idx];
   const when = evWhen(ev);
-  const price = ev.price_min
+  const price = ev.free ? ' It\'s free.' : ev.price_min
     ? ` Tickets run $${Math.round(ev.price_min)}${ev.price_max && ev.price_max !== ev.price_min ? `–$${Math.round(ev.price_max)}` : '+'}.`
     : ` The organizer hasn't published pricing — the tickets page has current prices.`;
-  addMsg('assistant', esc(`One more thing — ${ev.name}${ev.venue?` at ${ev.venue}`:''}${when?`, ${when}`:''} is on nearby.${price} Want me to add it to your plan?`));
+  addMsg('assistant', esc(`One more thing — ${ev.name}${ev.venue ? ` at ${ev.venue}` : ''}${when ? `, ${when}` : ''} is on nearby.${price} Want me to add it to your plan?`));
   const q = document.createElement('div'); q.className = 'quick';
-  const yes = document.createElement('button'); yes.className='chip'; yes.textContent='🎟️ Yes, add it';
-  const no  = document.createElement('button'); no.className='chip'; no.textContent='🙅 No thanks';
-  if (ev.url){
-    const tix = document.createElement('button'); tix.className='chip'; tix.textContent='🎫 Check price & tickets';
-    tix.onclick = ()=> window.open(ev.url, '_blank', 'noopener');
+  const yes = document.createElement('button'); yes.className = 'chip'; yes.textContent = '🎟️ Yes, add it';
+  const no  = document.createElement('button'); no.className = 'chip'; no.textContent = '🙅 No thanks';
+  const link = safeUrl(ev.url);
+  if (link){
+    const tix = document.createElement('button'); tix.className = 'chip'; tix.textContent = '🎫 Check price & tickets';
+    tix.onclick = () => window.open(link, '_blank', 'noopener');
     q.appendChild(tix);
   }
-  const done = (took) => {
+  const done = took => {
     q.remove();
     if (took){
       addEventToPlan(plan, ev);
       addMsg('assistant', esc(`Done — ${ev.name} is in. Here's the updated plan:`));
       appendPlanCard({ ...plan, events: [] });
-      lastItin = { title: plan.intro || 'Your plan', plan };
+      lastItin = { title: planTitle(plan), plan };
+      appendMore();
     } else {
-      addMsg('assistant', idx+1 < Math.min(evs.length,2) ? 'No problem.' : "No problem — the plan stays as is.");
-      suggestEvents(plan, idx+1);                    // offer the next one
+      addMsg('assistant', idx + 1 < Math.min(evs.length, 2) ? 'No problem.' : 'No problem — the plan stays as is.');
+      suggestEvents(plan, idx + 1);                  // offer the next one
     }
   };
-  yes.onclick = ()=>done(true); no.onclick = ()=>done(false);
+  yes.onclick = () => done(true); no.onclick = () => done(false);
   q.appendChild(yes); q.appendChild(no); thread.appendChild(q); scrollDown();
 }
 
 function addEventToPlan(plan, ev){
-  const cost = Math.round(ev.price_min || 40);
+  const cost = ev.free ? 0 : Math.round(ev.price_min || 40);
   plan.stops.push({
     slot:'event', label:'Live event', icon:'🎟️',
     name: ev.name, lat: ev.lat, lng: ev.lng,
     rating: null, price: null,
     address: ev.venue || null, image: ev.image || null,
-    url: ev.url || null, source: 'ticketmaster',
+    url: safeUrl(ev.url), source: ev.source || 'ticketmaster',
     est_cost: cost, categories: [ev.category].filter(Boolean),
-    time: ev.time ? ev.time.slice(0,5) : null,
-    why: `Live ${ev.category ? ev.category.toLowerCase() : 'event'}${evWhen(ev) ? ' · ' + evWhen(ev) : ''} — you said yes, so it's locked in.`,
+    time: ev.time ? ev.time.slice(0, 5) : null,
+    why: `${ev.free ? 'Free ' : 'Live '}${ev.category ? ev.category.split(',')[0].toLowerCase() : 'event'}${evWhen(ev) ? ' · ' + evWhen(ev) : ''} — locked in.`,
   });
   plan.estimated_cost = (plan.estimated_cost || 0) + cost * Math.max(1, plan.party_size || 1);
-  plan.events = plan.events.filter(e => e !== ev);   // no longer just "nearby" — it's in the plan
+  plan.events = (plan.events || []).filter(e => e !== ev);   // no longer just "nearby" — it's in the plan
 }
 
-function renderTrip(days, title){
-  days.forEach(d => appendPlanCard(d, `Day ${d.day} — ~$${d.estimated_cost}`));
+function renderTrip(days, title, o = {}){
+  days.forEach(d => appendPlanCard(d, `Day ${d.day} — ~$${d.estimated_cost}`, { foot:false }));
   lastItin = { title: title || 'Your trip', days };
-  appendFoot([
-    { label:'💾 Save trip', cls:'save-chip', onclick:e=>saveCurrent(e.target) },
-    { label:'🔄 Try another', onclick:()=>send('plan a different trip') },
+  if (lastMore){ lastMore.remove(); lastMore = null; }
+  const it = lastItin;
+  const q = appendFoot([
+    { html:`${ic('heart','sm')} Save trip`, cls:'btn btn-dark btn-sm', onclick: e => saveItin(it, e.currentTarget) },
+    ...(o.saved ? [] : [{ html:`${ic('refresh','sm')} Try another`, cls:'btn btn-ghost btn-sm', onclick: () => send('plan a different trip') }]),
   ]);
+  return q;
 }
 
 /* ---------- saving (localStorage, no account needed) ---------- */
 const SAVED_KEY = 'wander_saved';
 let lastItin = null;
 function getSaved(){ try{ return JSON.parse(localStorage.getItem(SAVED_KEY)) || []; }catch(e){ return []; } }
-function setSaved(a){ localStorage.setItem(SAVED_KEY, JSON.stringify(a)); $('savedCount').textContent = a.length; }
-function saveCurrent(btn){
-  if (!lastItin) return;
-  const a = getSaved();
-  a.unshift({ id:Date.now(), title:lastItin.title, ts:new Date().toISOString(),
-              plan:lastItin.plan||null, days:lastItin.days||null });
-  setSaved(a);
-  if (btn){ btn.classList.add('done'); btn.textContent='✓ Saved'; }
+function setSaved(a){ localStorage.setItem(SAVED_KEY, JSON.stringify(a)); syncSavedCount(); }
+function syncSavedCount(){
+  const n = getSaved().length;
+  document.querySelectorAll('[data-saved-count]').forEach(el => { el.textContent = n || ''; el.dataset.n = n; });
 }
-function openSaved(){ renderSavedList(); $('savedBg').classList.remove('hidden'); $('savedDrawer').classList.remove('hidden'); }
-function closeSaved(){ $('savedBg').classList.add('hidden'); $('savedDrawer').classList.add('hidden'); }
-function renderSavedList(){
-  const a = getSaved(), el = $('savedList');
-  if (!a.length){ el.innerHTML = `<div class="saved-empty">No saved plans yet.<br>Make one, then tap 💾 Save.</div>`; return; }
-  el.innerHTML = a.map(it => {
-    const when = new Date(it.ts).toLocaleDateString(undefined,{month:'short',day:'numeric'});
-    const n = it.days ? it.days.reduce((s,d)=>s+d.stops.length,0) : (it.plan?it.plan.stops.length:0);
-    const sub = it.days ? `${it.days.length}-day trip · ${n} stops · ${when}` : `${n} stops · ${when}`;
-    return `<div class="saved-item" data-id="${it.id}"><span class="del" data-del="${it.id}">🗑</span><b>${esc(it.title)}</b><div class="sub">${sub}</div></div>`;
-  }).join('');
-  el.querySelectorAll('.saved-item').forEach(it => it.onclick = e => { if(e.target.dataset.del) return; loadSaved(+it.dataset.id); });
-  el.querySelectorAll('.del').forEach(d => d.onclick = e => { e.stopPropagation(); setSaved(getSaved().filter(x=>x.id!==+d.dataset.del)); renderSavedList(); });
+function saveItin(itin, btn){
+  if (!itin || (btn && btn.classList.contains('done'))) return;
+  const a = getSaved();
+  a.unshift({ id:Date.now(), title:itin.title, ts:new Date().toISOString(), plan:itin.plan || null, days:itin.days || null });
+  setSaved(a);
+  if (btn){ btn.classList.add('done'); btn.innerHTML = `${ic('check','sm')} Saved`; }
+  toast('Saved to your plans', { label:'View', onclick: () => showView('saved') });
+}
+function savedArt(it){
+  const plan = it.plan || (it.days && it.days[0]) || { stops: [] };
+  const img = ((plan.stops || []).find(s => s.image && safeUrl(s.image)) || {}).image;
+  const art = it.days ? { emoji:'🧳', bg:'linear-gradient(135deg,#dff1ff,#e9e2ff)' } : (VIBE_ART[plan.vibe] || VIBE_ART.chill);
+  return `<span class="scard-art" style="background:${art.bg}">${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}<span aria-hidden="true">${art.emoji}</span></span>`;
+}
+function savedSub(it){
+  const plan = it.plan || (it.days && it.days[0]) || {};
+  const n = it.days ? it.days.reduce((s, d) => s + d.stops.length, 0) : (it.plan ? it.plan.stops.length : 0);
+  const cost = it.days ? it.days.reduce((s, d) => s + (d.estimated_cost || 0), 0) : (it.plan ? it.plan.estimated_cost : 0);
+  const where = plan._meta && plan._meta.where;
+  return [it.days ? `${it.days.length}-day trip` : null, `${n} stop${n === 1 ? '' : 's'}`, cost ? `~$${cost}` : null, where].filter(Boolean).join(' · ');
+}
+function renderSavedView(){
+  const a = getSaved(), el = $('v-saved');
+  el.innerHTML = `<div class="page">
+    <header class="page-head"><div><h1 class="t-title" id="savedTitle">Saved plans</h1>
+      <p class="t-meta">${a.length ? `${a.length} plan${a.length === 1 ? '' : 's'} · kept on this device` : 'Kept on this device'}</p></div>${AVATAR_BTN()}</header>
+    ${a.length ? `<div class="saved-grid">${a.map(it => {
+      const d = new Date(it.ts);
+      return `<article class="scard">
+        <button class="scard-open" data-open="${it.id}">${savedArt(it)}
+          <span class="scard-body"><b>${esc(it.title)}</b><span class="t-meta">${esc(savedSub(it))}</span>
+            ${(it.plan && VIBE_NAME[it.plan.vibe]) ? `<span class="scard-tags"><span class="tag violet">${esc(VIBE_NAME[it.plan.vibe])}</span></span>` : ''}</span></button>
+        <span class="scard-date" aria-hidden="true"><small>${esc(d.toLocaleDateString(undefined, { month:'short' }))}</small><b>${d.getDate()}</b></span>
+        <button class="icon-btn plain scard-del" data-del="${it.id}" aria-label="Delete ${esc(it.title)}">${ic('trash')}</button>
+      </article>`; }).join('')}</div>`
+    : `<div class="empty"><div class="e-art" aria-hidden="true">🔖</div><h3>No saved plans yet</h3>
+        <p>Make a plan you like, then tap “Save plan” — it'll wait for you here.</p>
+        <button class="btn btn-primary" data-empty-plan>${ic('sparkle','sm')} Plan my night</button></div>`}
+  </div>`;
+  el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => loadSaved(+b.dataset.open));
+  el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => deleteSaved(+b.dataset.del));
+  const ep = el.querySelector('[data-empty-plan]'); if (ep) ep.onclick = () => planIt();
+}
+function deleteSaved(id){
+  const a = getSaved(), idx = a.findIndex(x => x.id === id);
+  if (idx < 0) return;
+  const [gone] = a.splice(idx, 1); setSaved(a);
+  if (view === 'saved') renderSavedView();
+  toast('Plan deleted', { label:'Undo', onclick: () => { const b = getSaved(); b.splice(Math.min(idx, b.length), 0, gone); setSaved(b);
+    if (view === 'saved') renderSavedView(); } });
 }
 function loadSaved(id){
-  const it = getSaved().find(x=>x.id===id); if (!it) return;
-  closeSaved();
-  addMsg('assistant', `📌 <b>${esc(it.title)}</b>`);
-  if (it.days) renderTrip(it.days, it.title); else if (it.plan) renderPlan(it.plan);
+  const it = getSaved().find(x => x.id === id); if (!it) return;
+  showView('chat', { bottom:true });
+  const d = new Date(it.ts).toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  addMsg('assistant', `📌 <b>${esc(it.title)}</b> — saved ${esc(d)}`);
+  if (it.days) renderTrip(it.days, it.title, { saved:true }); else if (it.plan) renderPlan(it.plan, { saved:true });
 }
-$('savedBtn').onclick = openSaved;
-$('savedClose').onclick = closeSaved;
-$('savedBg').onclick = closeSaved;
 
 function drawMap(id, plan){
   // Static route thumbnail — no dragging/zooming, so scrolling the chat never gets
   // captured by the map. OpenStreetMap tiles are free but require the credit.
+  const box = $(id); if (!box || !window.L) return;
   const map = L.map(id, { zoomControl:false, scrollWheelZoom:false,
     dragging:false, touchZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, tap:false });
   map.attributionControl.setPrefix(false);
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom:19, attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
-  const pts = plan.stops.map(s=>[s.lat,s.lng]);
-  plan.stops.forEach((s,i)=> L.marker([s.lat,s.lng], {icon:L.divIcon({className:'',html:`<div class="num-marker">${i+1}</div>`,iconSize:[26,26],iconAnchor:[13,13]})}).addTo(map));
-  if (pts.length>1) L.polyline(pts,{color:'#7c5cff',weight:2,opacity:.5,dashArray:'4 6'}).addTo(map);
+  const pts = plan.stops.map(s => [s.lat, s.lng]);
+  plan.stops.forEach((s, i) => L.marker([s.lat, s.lng], { icon:L.divIcon({ className:'', html:`<div class="num-marker">${i + 1}</div>`, iconSize:[26,26], iconAnchor:[13,13] }) }).addTo(map));
+  if (pts.length > 1) L.polyline(pts, { color:'#6a4cf0', weight:3, opacity:.6, dashArray:'2 7', lineCap:'round' }).addTo(map);
   map.fitBounds(L.latLngBounds(pts).pad(0.35));
+  maps.push({ map, pts });
+}
+function refitMaps(){        // maps drawn while the chat was hidden have no size yet
+  maps = maps.filter(m => m.map.getContainer().isConnected);
+  maps.forEach(m => { m.map.invalidateSize(); m.map.fitBounds(L.latLngBounds(m.pts).pad(0.35)); });
 }
 
-/* ---------- send ---------- */
-/* ---------- picker (build your own itinerary) ---------- */
+/* ================= picker (build your own itinerary) ================= */
 let picker = null;
 const SECTION_LIMIT = { activity:2, cafe:1, lunch:1, dinner:1, leisure:1, dessert:1, events:1 };
 const SEC_EMOJI = { activity:'🎡', cafe:'☕', lunch:'🥗', dinner:'🍽️', leisure:'🎶', dessert:'🍰', events:'🎟️' };
 const oid = (sec, name) => sec + '::' + name;
 
 function eventToOption(ev){
-  const when = [ev.date, (ev.time||'').slice(0,5)].filter(Boolean).join(' ');
+  const when = [ev.date, (ev.time || '').slice(0, 5)].filter(Boolean).join(' ');
   return { slot:'event', name:ev.name, lat:ev.lat, lng:ev.lng, categories:[ev.category].filter(Boolean),
-    address:ev.venue, image:ev.image, url:ev.url, source:'ticketmaster',
-    est_cost: ev.price_min ? Math.round(ev.price_min) : 40, arousal:3.5, tag:'🎟️', tag_label:when };
+    address:ev.venue, image:ev.image, url:safeUrl(ev.url), source:ev.source || 'ticketmaster',
+    est_cost: ev.free ? 0 : ev.price_min ? Math.round(ev.price_min) : 40, arousal:3.5, tag:'🎟️', tag_label:when };
 }
-
 function optionCard(secKey, o){
   const id = oid(secKey, o.name), emoji = SEC_EMOJI[secKey] || '📍';
   const el = document.createElement('div'); el.className = 'ocard';
-  el.innerHTML = `${o.image?'<img class="ph" alt="">':`<div class="noph">${emoji}</div>`}
-    ${o.tag?`<span class="tg">${o.tag} ${esc(o.tag_label||'')}</span>`:''}
-    <span class="chk">✓</span>
+  el.setAttribute('role', 'button'); el.tabIndex = 0; el.setAttribute('aria-pressed', 'false');
+  el.innerHTML = `${o.image && safeUrl(o.image) ? '<img class="ph" alt="">' : `<div class="noph" aria-hidden="true">${emoji}</div>`}
+    ${o.tag ? `<span class="tg">${esc(o.tag)} ${esc(o.tag_label || '')}</span>` : ''}
+    <span class="chk" aria-hidden="true">${ic('check','sm')}</span>
     <div class="bd"><div class="nm">${esc(o.name)}</div>
-      <div class="mt">${o.rating?`<span>★ ${o.rating}</span>`:''}${o.price?`<span>${esc(o.price)}</span>`:''}<span>~$${o.est_cost}</span></div></div>`;
-  if (o.image){ const img=el.querySelector('img'); img.src=o.image; img.onerror=()=>{ img.outerHTML=`<div class="noph">${emoji}</div>`; }; }
+      <div class="mt">${o.rating ? `<span>★ ${esc(o.rating)}</span>` : ''}${o.price ? `<span>${esc(o.price)}</span>` : ''}<span>~$${esc(o.est_cost)}</span></div></div>`;
+  if (o.image && safeUrl(o.image)){ const img = el.querySelector('img'); img.src = o.image; img.onerror = () => { img.outerHTML = `<div class="noph" aria-hidden="true">${emoji}</div>`; }; }
   picker.els.set(id, el);
   el.onclick = () => toggleSelect(secKey, id, o, el);
+  el.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); el.click(); } };
   return el;
 }
-
 function toggleSelect(secKey, id, o, el){
-  if (picker.sel.has(id)){ picker.sel.delete(id); el.classList.remove('sel'); }
+  if (picker.sel.has(id)){ picker.sel.delete(id); el.classList.remove('sel'); el.setAttribute('aria-pressed', 'false'); }
   else {
-    const inSec = [...picker.sel.keys()].filter(k => k.startsWith(secKey+'::'));
-    if (inSec.length >= (SECTION_LIMIT[secKey]||1)){
+    const inSec = [...picker.sel.keys()].filter(k => k.startsWith(secKey + '::'));
+    if (inSec.length >= (SECTION_LIMIT[secKey] || 1)){
       const drop = inSec[0]; picker.sel.delete(drop);
-      const de = picker.els.get(drop); if (de) de.classList.remove('sel');
+      const de = picker.els.get(drop); if (de){ de.classList.remove('sel'); de.setAttribute('aria-pressed', 'false'); }
     }
-    picker.sel.set(id, { ...o, slot: secKey==='events' ? 'event' : (o.slot||secKey) });
-    el.classList.add('sel');
+    picker.sel.set(id, { ...o, slot: secKey === 'events' ? 'event' : (o.slot || secKey) });
+    el.classList.add('sel'); el.setAttribute('aria-pressed', 'true');
   }
   updateBuildBar();
 }
-
 function updateBuildBar(){
   const sels = [...picker.sel.values()], ppl = picker.ctx.party_size || 2;
-  const total = sels.reduce((s,o)=>s+(o.est_cost||0),0) * ppl;
+  const total = sels.reduce((s, o) => s + (o.est_cost || 0), 0) * ppl;
   picker.bar.disabled = !sels.length;
   picker.bar.textContent = sels.length
-    ? `Build my itinerary · ~$${total} · ${sels.length} spot${sels.length>1?'s':''}`
+    ? `Build my itinerary · ~$${total} · ${sels.length} spot${sels.length > 1 ? 's' : ''}`
     : 'Pick a few spots to build';
 }
-
 function renderPicker(data){
-  picker = { ctx:data.context||{}, loc:data.location||{}, sel:new Map(), els:new Map(), bar:null };
+  picker = { ctx:data.context || {}, loc:data.location || {}, sel:new Map(), els:new Map(), bar:null };
   const wrap = document.createElement('div'); wrap.className = 'picker';
-  const sections = (data.sections||[]).slice();
+  const sections = (data.sections || []).slice();
   if (data.events && data.events.length)
-    sections.push({ key:'events', label:'Live events', icon:'🎟️', hint:'optional',
-                    options: data.events.map(eventToOption) });
+    sections.push({ key:'events', label:'Live events', icon:'🎟️', hint:'optional', options: data.events.map(eventToOption) });
   sections.forEach(sec => {
     const secEl = document.createElement('div'); secEl.className = 'psec';
-    secEl.innerHTML = `<div class="psec-h"><b>${sec.icon} ${esc(sec.label)}</b><span>${esc(sec.hint)}</span></div>`;
+    secEl.innerHTML = `<div class="psec-h"><b>${esc(sec.icon)} ${esc(sec.label)}</b><span class="t-meta">${esc(sec.hint)}</span></div>`;
     const row = document.createElement('div'); row.className = 'cards';
     sec.options.forEach(o => row.appendChild(optionCard(sec.key, o)));
     secEl.appendChild(row); wrap.appendChild(secEl);
   });
   const barWrap = document.createElement('div'); barWrap.className = 'buildbar';
-  barWrap.innerHTML = `<button class="buildbtn" disabled>Pick a few spots to build</button>`;
-  picker.bar = barWrap.querySelector('.buildbtn');
+  barWrap.innerHTML = `<button class="btn btn-primary btn-lg btn-block" disabled>Pick a few spots to build</button>`;
+  picker.bar = barWrap.querySelector('button');
   picker.bar.onclick = buildItinerary;
   wrap.appendChild(barWrap);
   thread.appendChild(wrap); scrollDown();
 }
-
 async function buildItinerary(){
   const sels = [...picker.sel.values()]; if (!sels.length) return;
   const c = picker.ctx, loc = picker.loc;
@@ -678,215 +1096,317 @@ async function buildItinerary(){
   try{
     const res = await apiFetch(`${API}/plan/build`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ selections:sels, lat:loc.lat, lng:loc.lng, party_size:c.party_size||2,
-        budget:c.budget||0, vibe:c.vibe||'romantic', interests:c.interests||'', group_type:c.group_type||null,
-        time_of_day:c.time_of_day||null, dietary:c.dietary||'' }) }).then(r=>r.json());
-    if (res.type==='itinerary' && res.plan){ addMsg('assistant', esc(res.message||'Here\'s your itinerary:')); renderPlan(res.plan); }
-    else addMsg('assistant', esc(res.message||'Could not build that.'));
-  }catch(e){ addMsg('assistant','Snag building that — try again?'); }
+      body: JSON.stringify({ selections:sels, lat:loc.lat, lng:loc.lng, party_size:c.party_size || 2,
+        budget:c.budget || 0, vibe:c.vibe || 'romantic', interests:c.interests || '', group_type:c.group_type || null,
+        time_of_day:c.time_of_day || null, dietary:c.dietary || '' }) }).then(r => r.json());
+    if (res.type === 'itinerary' && res.plan){
+      addMsg('assistant', esc(res.message || "Here's your itinerary:"));
+      res.plan._meta = metaNow(); renderPlan(res.plan);
+    }
+    else addMsg('assistant', esc(res.message || 'Could not build that.'));
+  }catch(e){ addNotice({ title:"Couldn't build that just now", text:'Your picks are still selected — try again.', actions:[] }); }
   finally{ updateBuildBar(); }
 }
-
 async function fetchOptions(prefs){
+  busy = true;
   try{
     const r = await apiFetch(`${API}/plan/options`, {
       method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify(prefs ? { messages:[], prefs, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng }
-                                 : { messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng })
+      body: JSON.stringify({ messages:[], prefs, lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng })
     });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
     const res = await r.json();
     typing(false);
-    if (!res.ok){ addMsg('assistant', esc(res.message||'Turn on location or name a city, and I\'ll pull spots near you.')); return; }
-    addMsg('assistant', "Here are the best spots near you 👇 tap the ones you're feeling, then build your itinerary. ✨");
+    if (!res.ok){ addMsg('assistant', esc(res.message || "Turn on location or name a city, and I'll pull spots near you.")); return; }
+    addMsg('assistant', "Here are the best spots near you — tap the ones you're feeling, then build your itinerary. ✨");
     renderPicker(res);
-  }catch(e){ failed(e, () => fetchOptions(prefs)); }
+  }catch(e){ failed(e, () => fetchOptions(prefs), 'pick'); }
+  finally{ busy = false; }
 }
 
 function requireSignIn(){
   // Session expired mid-chat — a soft inline nudge (not a hard redirect) so the
   // conversation already on screen isn't lost.
-  addMsg('assistant', "Looks like you got signed out — sign back in and I'll pick up right where we left off. 🧭");
-  appendFoot([{ label:'🔑 Sign in / create account', onclick:()=>location.href='auth.html?redirect=roamly.html' }]);
+  typing(false);
+  if (view !== 'chat') showView('chat', { bottom:true });
+  addMsg('assistant', "Looks like you got signed out — sign back in and I'll pick up right where we left off.");
+  appendFoot([{ html:`Sign in again`, cls:'btn btn-dark btn-sm', onclick:() => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=roamly.html'; } }]);
 }
 
-async function send(text, display, o={}){
-  text = (text||'').trim(); if (!text) return;
+/* ================= chat: typed requests ================= */
+function send(text, display, o = {}){
+  text = (text || '').trim(); if (!text) return;
   if (!token()){ requireSignIn(); return; }
-  $('input').value=''; addMsg('user', esc(display || text));
-  messages.push({role:'user', content:text});
-  typing(true);
+  if (busy){ toast('One sec — still working on the last one.'); return; }
+  if (view !== 'chat') showView('chat', { bottom:true });
+  $('input').value = ''; const ask = $('askInput'); if (ask) ask.value = '';
+  addMsg('user', esc(display || text));
+  messages.push({ role:'user', content:text });
+  typing(true, 'chat');
   requestChat(o);
 }
-
-async function requestChat(o={}){
-  $('send').disabled=true;
+async function requestChat(o = {}){
+  busy = true; $('send').disabled = true;
   const again = () => requestChat(o);
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
-        exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9),
-        surprise: !!o.surprise }) });
+      body: JSON.stringify({ messages: messages.slice(convoStart), lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng, tz: USER_TZ,
+        defaults: readyPrefs(),                        // the bar fills whatever the message doesn't say
+        exclude:[...seenVenues], seed: Math.floor(Math.random() * 1e9), surprise: !!o.surprise }) });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
-    showChatResponse(await r.json(), again);
-  }catch(e){ failed(e, again); }
-  finally{ $('send').disabled=false; $('input').focus(); }
+    const res = await r.json();
+    busy = false;
+    showChatResponse(res, again, { typed:true });
+  }catch(e){ failed(e, again, 'chat'); }
+  finally{ busy = false; $('send').disabled = false; if (view === 'chat' && matchMedia('(hover:hover)').matches) $('input').focus(); }
 }
 
-function showChatResponse(res, retry){
+function metaNow(){
+  return { when: ready.time_of_day, group: ready.group_type, where: ready.location || (userLoc ? 'Near you' : ''),
+           interests: ready.interests || '', taste: !!(profile && profile.completed) };
+}
+function showChatResponse(res, retry, o = {}){
   typing(false);
+  applyUnderstood(res.understood, o.typed);           // the bar mirrors what Roamly took from this
   const bot = res.message || '…';
-  addMsgTyped(bot); messages.push({role:'assistant', content:bot});
-  if (res.type==='itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
-  else if (res.type==='itinerary' && res.plan) renderPlan(res.plan);      // auto-generated, with images
+  addMsgTyped(bot); messages.push({ role:'assistant', content:bot }); announce(bot);
+  if (res.type === 'itinerary' || res.type === 'events') convoStart = messages.length;   // a result closes the turn
+  if (res.type === 'itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
+  else if (res.type === 'itinerary' && res.plan){
+    res.plan._meta = metaNow(); renderPlan(res.plan);
+    if (o.prev && res.plan.stops.map(x => x.name).sort().join('|') === o.prev)
+      addMsg('assistant', esc('Same spots came out on top — they\'re already the best fit nearby. Prices are typical estimates, so try a different mood or a wider radius for new picks.'));
+  }
+  else if (res.type === 'events') renderEventsInline(res);                  // what's happening
   else if (retry && /overloaded|too slow|took too long/i.test(bot)) offerRetry(retry);   // venue search struggling
+  else if (/^Tell me where/i.test(bot) && retry){                          // no place yet — ask, then carry on
+    const q = appendFoot([{ html:`${ic('pin','sm')} Set a place`, cls:'btn btn-dark btn-sm',
+      onclick: () => needLocation(() => { q.remove(); if (view !== 'chat') showView('chat'); typing(true, 'chat'); retry(); }) }]);
+  }
   else addQuick(res.quick_replies);                                        // follow-up question
 }
 
-$('send').onclick = ()=>send($('input').value);
-$('input').addEventListener('keydown', e=>{ if(e.key==='Enter') send($('input').value); });
-window.send = send;
-
-/* ---------- ready card: the taste profile pre-fills the plan; one tap to go ---------- */
-// Stable traits come from the survey (profile.html); each pill is only for what's
-// different *this time*. Tapping "Plan it" sends structured prefs, which skips the
-// server's LLM extraction entirely.
+/* ================= planning state: the single source of truth ================= */
+// Stable traits come from the taste profile (profile.html); the bar/sheet hold what
+// is different *this time*. Every tap, every typed message (via the server's
+// `understood`) and every "make it more" writes here, and every plan reads from here.
 const READY = {
-  group_type: { icon:'👫', options:[['solo','🧍 Solo'],['date','💘 Date'],['friends','🎉 Friends'],['family','👨‍👩‍👧 Family']] },
-  vibe:       { icon:'✨', options:[['chill','😌 Chill'],['romantic','🌹 Romantic'],['adventurous','🤠 Adventurous'],['extravagant','🥂 Fancy'],['night_out','🎊 Night out']] },
-  budget:     { icon:'💸', options:[[50,'$50'],[100,'$100'],[200,'$200'],[500,'$500']] },
-  time_of_day:{ icon:'🕖', options:[['morning','☀️ Full day'],['afternoon','🌤️ Afternoon'],['evening','🌆 Evening'],['night','🌙 Late night']] },
-  transport:  { icon:'🚶', options:[['walk','🚶 Walk'],['transit','🚇 Transit'],['car','🚗 Car']] },
+  group_type: { options:[['solo','🧍 Solo'],['date','💘 Date'],['friends','🎉 Friends'],['family','👨‍👩‍👧 Family']] },
+  vibe:       { options:[['chill','😌 Chill'],['romantic','🌹 Romantic'],['adventurous','🤠 Adventurous'],['extravagant','🥂 Fancy'],['night_out','🎊 Night out']] },
+  budget:     { options:[[50,'$50'],[100,'$100'],[200,'$200'],[500,'$500']] },
+  time_of_day:{ options:[['morning','☀️ Full day'],['afternoon','🌤️ Afternoon'],['evening','🌆 Tonight'],['night','🌙 Late night']] },
+  transport:  { options:[['walk','🚶 Walk'],['transit','🚇 Transit'],['car','🚗 Car']] },
 };
 const PARTY = { solo:1, date:2, friends:4, family:4 };
 // Radius slider: 1-20 km; each mode of transport has a sensible starting reach.
 const RADIUS_MIN = 1, RADIUS_MAX = 20;
 const TRANSPORT_KM = { walk:2, transit:7, car:15 };
 const BUDGET_MAX = 10000, PARTY_MAX = 20;
-let profile = null, ready = null, readyEl = null, budgetTouched = false, radiusTouched = false;
+const SECTION = { location:['pin','Where'], radius_km:['radius','How far'], budget:['wallet','Budget'], time_of_day:['clock','When'],
+                  group_type:['users','Who'], vibe:['sparkle','Mood'], transport:['route','Getting there'], interests:['search','Looking for'] };
+const CTX_ORDER = ['location','radius_km','budget','time_of_day','group_type','vibe','transport','interests'];
+const PLAIN = {
+  time_of_day:{ morning:'Full day', afternoon:'Afternoon', evening:'Tonight', night:'Late night' },
+  group_type:{ solo:'Solo', date:'Date', friends:'Friends', family:'Family' },
+  vibe:{ chill:'Chill', romantic:'Romantic', adventurous:'Adventurous', extravagant:'Fancy', night_out:'Night out' },
+  transport:{ walk:'Walking', transit:'Transit', car:'Driving' },
+};
+let profile = null, ready = null, budgetTouched = false, radiusTouched = false, sheetOpen = false, busy = false,
+    needWhere = false, edited = false, pending = null;
+let shownLabels = {};
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 const fmtKm = km => (Math.round(km * 10) / 10) + ' km';
 
-function labelFor(key, val){
-  if (key === 'location') return val ? `📍 ${val}` : (userLoc ? '📍 Near you' : '📍 Where?');
-  if (key === 'budget') return `💸 $${Math.round(val).toLocaleString()}`;
-  if (key === 'radius_km') return `📏 ${fmtKm(val)}`;
-  const o = READY[key].options.find(([v]) => v === val);
-  const base = o ? o[1] : READY[key].icon + ' Any';
+function ctxText(key){
+  const v = ready[key];
+  if (key === 'location'){
+    if (v) return v;
+    return { on:'Near you', busy:'Finding you…', unsupported:'Set a place' }[locState] || 'Set location';
+  }
+  if (key === 'budget') return `$${Math.round(v).toLocaleString()}`;
+  if (key === 'radius_km') return fmtKm(v);
+  if (key === 'interests') return v || '';
+  const base = (PLAIN[key] || {})[v] || 'Any';
   // show the head-count once it's a group, or whenever it isn't the crew's usual size
-  if (key === 'group_type' && (ready.party_size > 2 || ready.party_size !== (PARTY[val] || 2)))
-    return `${base} · ${ready.party_size}`;
+  if (key === 'group_type' && (ready.party_size > 2 || ready.party_size !== (PARTY[v] || 2))) return `${base} · ${ready.party_size}`;
   return base;
 }
 function readySummary(){
-  return ['group_type','vibe','budget','time_of_day','transport','radius_km'].map(k => labelFor(k, ready[k]))
-    .concat(ready.location ? [labelFor('location', ready.location)] : []).join(' · ');
+  return ['group_type','vibe','budget','time_of_day','radius_km','interests','location']
+    .filter(k => k !== 'interests' || ready.interests).filter(k => k !== 'location' || ready.location)
+    .map(ctxText).join(' · ');
 }
 
-function startReady(p){
+/* Settings start from the taste profile when there is one. */
+function defaultsFrom(p){
+  const d = (p && p.defaults) || {};
+  const st = { group_type: d.group_type || 'date', vibe: d.vibe || 'chill', time_of_day: d.time_of_day || 'evening',
+               transport: d.transport || 'transit', location: '', interests: '' };
+  st.party_size = d.party_size || PARTY[st.group_type] || 2;
+  st.budget = Math.round(d.budget || 100);
+  st.radius_km = clamp(d.radius_km || TRANSPORT_KM[st.transport] || 7, RADIUS_MIN, RADIUS_MAX);
+  return st;
+}
+function startHome(p){
   profile = p;
-  const d = p.defaults || {};
-  ready = { group_type: d.group_type || 'date', vibe: d.vibe || 'chill', time_of_day: d.time_of_day || 'evening',
-            transport: d.transport || 'transit', location: '' };
-  ready.party_size = d.party_size || PARTY[ready.group_type] || 2;
-  ready.budget = Math.round(d.budget || 100);
-  ready.radius_km = clamp(d.radius_km || TRANSPORT_KM[ready.transport] || 7, RADIUS_MIN, RADIUS_MAX);
-  const a = p.archetype;
-  addMsg('assistant', a
-    ? `Hey ${esc(a.emoji)} <b>${esc(a.title)}</b> — here's a plan made for you. Tap anything to change it, or just type what you want.`
-    : `Hey, I'm <b>Roamly</b> 🧭 — here's a starting plan. Tap anything to change it, or just type what you want.`);
-  readyEl = document.createElement('div'); readyEl.className = 'ready';
-  thread.appendChild(readyEl); renderReady();
-  if (!p.completed){
-    // The taste survey is optional — invite, don't gate.
-    addMsg('assistant', 'Want picks that fit <i>you</i>? The taste survey takes about 2 minutes, and every plan gets better after it.');
-    appendFoot([{ label:'🧠 Personalize my picks', onclick: () => location.href = 'profile.html?redirect=roamly.html' }]);
-  }
-  scrollDown();
+  ready = defaultsFrom(p);
+  applyWide();
+  renderCtx();
 }
 
+/* The "Planning around" chips: what Roamly is working with, rendered into every
+   [data-ctx] box (home card, chat bar) from the same state. A chip whose value
+   changed flashes once so the change is visible. */
+function renderCtx(){
+  if (!ready) return;
+  const keys = CTX_ORDER.filter(k => k !== 'interests' || ready.interests);
+  const labels = {}; keys.forEach(k => labels[k] = ctxText(k));
+  const changed = new Set(keys.filter(k => shownLabels[k] !== undefined && shownLabels[k] !== labels[k]));
+  const need = needWhere && !ready.location && !userLoc;
+  document.querySelectorAll('[data-ctx]').forEach(box => {
+    box.innerHTML = keys.map(k => `<button class="cx${changed.has(k) ? ' flash' : ''}${k === 'location' && need ? ' need' : ''}" data-k="${k}"
+      aria-label="${esc(SECTION[k][1])}: ${esc(labels[k])}. Change">${ic(SECTION[k][0], 'sm')}<span>${esc(labels[k])}</span></button>`).join('');
+    box.querySelectorAll('.cx').forEach(b => b.onclick = () => openSheet(b.dataset.k));
+  });
+  shownLabels = labels;
+  document.querySelectorAll('[data-locnote]').forEach(el => {
+    el.innerHTML = locNote();
+    const on = el.querySelector('[data-loc-on]'); if (on) on.onclick = () => getLoc();
+    const sp = el.querySelector('[data-set-place]'); if (sp) sp.onclick = () => openSheet('location');
+  });
+  if (wide() && changed.size && sheetOpen) changed.forEach(k => flashSec($('sec-' + k)));
+  if (view === 'events') queueEventsRefresh();
+}
+function updateCtxChip(k){      // live text while dragging/typing — no flash, no re-render
+  document.querySelectorAll(`[data-ctx] .cx[data-k="${k}"] span`).forEach(s => { s.textContent = ctxText(k); });
+  shownLabels[k] = ctxText(k);
+}
+function flashSec(sec){ if (!sec) return; sec.classList.remove('hl'); void sec.offsetWidth; sec.classList.add('hl'); }
+
+/* ---- the settings sheet (phones/tablets) = the always-on panel (desktop) ---- */
+let lastFocus = null;
+function applyWide(){
+  const s = $('sheet');
+  if (wide()){
+    sheetOpen = true; s.classList.remove('hidden'); $('sheetBg').classList.add('hidden');
+    s.setAttribute('role', 'region'); s.removeAttribute('aria-modal'); $('sheetTitle').textContent = 'Planning around';
+    renderSheet();
+  } else {
+    sheetOpen = false; s.classList.add('hidden'); $('sheetBg').classList.add('hidden');
+    s.setAttribute('role', 'dialog'); s.setAttribute('aria-modal', 'true'); $('sheetTitle').textContent = 'Your plan settings';
+  }
+}
+wideMq.addEventListener('change', () => { if (ready) applyWide(); });
+function openSheet(focusKey){
+  if (!ready) return;
+  if (!wide()){
+    if (!sheetOpen) lastFocus = document.activeElement;
+    sheetOpen = true;
+    $('sheetBg').classList.remove('hidden'); $('sheet').classList.remove('hidden');
+    renderSheet();
+    $('sheetDone').textContent = pending ? 'Continue' : 'Done';
+  }
+  const sec = focusKey && $('sec-' + focusKey);
+  if (sec){ sec.scrollIntoView({ block: wide() ? 'nearest' : 'center' }); flashSec(sec); }
+  if (wide()){ if (focusKey === 'location'){ const i = $('cityInput'); if (i) i.focus(); } }
+  else $('sheetClose').focus();
+}
+function closeSheet(){
+  if (wide() || !sheetOpen) return;
+  sheetOpen = false;
+  $('sheetBg').classList.add('hidden'); $('sheet').classList.add('hidden');
+  renderCtx();
+  if (lastFocus && lastFocus.isConnected) lastFocus.focus();
+  resumePending();
+}
+/* An action that was waiting for a place (Plan my night with no location) carries
+   on by itself once there is one. */
+function resumePending(){
+  if (!pending) return;
+  if (ready.location || userLoc){ const a = pending; pending = null; a(); }
+  else if (locState !== 'busy') pending = null;
+}
+function renderSheet(){
+  if (!ready) return;
+  $('sheetBody').innerHTML = CTX_ORDER.map(k =>
+    `<section class="sec" id="sec-${k}" aria-labelledby="h-${k}"><h3 id="h-${k}">${ic(SECTION[k][0], 'sm')} ${esc(SECTION[k][1])}</h3><div class="sec-body"></div></section>`).join('');
+  CTX_ORDER.forEach(renderSection);
+}
 /* Budget stays a per-person spend when the crew size changes — unless the
    user set a budget themselves. */
 function rescaleBudget(){
   const pp = profile && profile.defaults && profile.defaults.budget_per_person;
   if (pp && !budgetTouched) ready.budget = Math.round(pp * ready.party_size);
 }
+function chipsFor(key, box, after){
+  READY[key].options.forEach(([v, label]) => {
+    const c = document.createElement('button');
+    c.className = 'chip' + (ready[key] === v ? ' on' : ''); c.textContent = label;
+    c.setAttribute('aria-pressed', ready[key] === v);
+    c.onclick = () => { ready[key] = v; edited = true; after && after(v); renderSection(key); renderCtx(); };
+    box.appendChild(c);
+  });
+}
+function renderSection(k){
+  const box = document.querySelector(`#sec-${k} .sec-body`);
+  if (!box) return;
+  box.innerHTML = '';
 
-function renderReady(openKey){
-  const keys = ['group_type','vibe','budget','time_of_day','transport','radius_km','location'];
-  readyEl.innerHTML = `
-    <div class="pills">${keys.map(k => `<button class="pill${k === openKey ? ' open' : ''}" data-k="${k}" aria-expanded="${k === openKey}">${esc(labelFor(k, ready[k]))}</button>`).join('')}</div>
-    <div class="choices"></div>
-    <div class="go">
-      <button class="plan-it">✨ Plan it</button>
-      <button class="alt" data-a="surprise">🎲 Surprise me</button>
-      <button class="alt" data-a="pick">🧩 Pick spots myself</button>
-    </div>`;
-  readyEl.querySelectorAll('.pill').forEach(b => b.onclick = () => renderReady(b.dataset.k === openKey ? null : b.dataset.k));
-  readyEl.querySelector('.plan-it').onclick = () => planIt();
-  readyEl.querySelector('[data-a="surprise"]').onclick = () => planIt({ surprise:true });
-  readyEl.querySelector('[data-a="pick"]').onclick = () => planIt({ pick:true });
-  const box = readyEl.querySelector('.choices');
-  if (!openKey) return;
-  const pill = readyEl.querySelector(`.pill[data-k="${openKey}"]`);
-  const livePill = () => { pill.textContent = labelFor(openKey, ready[openKey]); };
-
-  if (openKey === 'location'){
-    box.innerHTML = `<button class="chip" data-v="me">📍 Use my location</button>
-      <input class="city" id="readyCity" aria-label="City or neighbourhood" placeholder="or type a city / neighbourhood" value="${esc(ready.location)}" />`;
-    box.querySelector('[data-v="me"]').onclick = () => { ready.location = ''; if (!userLoc) getLoc(); setTimeout(() => renderReady(), 50); };
-    const inp = box.querySelector('#readyCity');
-    inp.onkeydown = e => { if (e.key === 'Enter'){ ready.location = inp.value.trim(); renderReady(); } };
-    inp.onblur = () => { ready.location = inp.value.trim(); };
-    inp.focus();
+  if (k === 'location'){
+    const status = { on:'Using your approximate current location', busy:'Finding you…',
+                     unsupported:"This browser can't share location — type a place instead",
+                     off:"Your live location isn't being used" }[locState];
+    box.innerHTML = `
+      ${needWhere && !ready.location && !userLoc ? '<div class="need">Tell me where first — turn on live location or type a place.</div>' : ''}
+      <div class="switch-row">
+        <div><b>Use my live location</b><small>${esc(status)}</small></div>
+        <button class="switch" id="locSwitch" role="switch" aria-checked="${locState === 'on' || locState === 'busy'}"
+                aria-label="Use my live location" ${locState === 'unsupported' ? 'disabled' : ''}></button>
+      </div>
+      <label class="field">Or plan around a place
+        <input class="input" id="cityInput" placeholder="City or neighbourhood, e.g. Kensington Market" value="${esc(ready.location)}" maxlength="100" />
+      </label>
+      ${ready.location ? `<div class="hint">“${esc(ready.location)}” is used instead of your live location. <button class="link" id="clearCity">Use live location</button></div>` : ''}`;
+    box.querySelector('#locSwitch').onclick = () => toggleLoc();
+    const inp = box.querySelector('#cityInput');
+    inp.oninput = () => { ready.location = inp.value.trim(); edited = true; updateCtxChip('location'); };
+    inp.onchange = () => { if (ready.location) needWhere = false; renderSection('location'); renderCtx(); if (wide()) resumePending(); };
+    inp.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); inp.blur(); if (!wide() && ready.location) closeSheet(); } };
+    const clr = box.querySelector('#clearCity');
+    if (clr) clr.onclick = () => { ready.location = ''; if (!userLoc) getLoc(); renderSection('location'); renderCtx(); };
     return;
   }
 
-  if (openKey === 'radius_km'){
-    // Slider for any value 1-20 km, plus one-tap presets per mode of transport.
+  if (k === 'radius_km'){
     box.innerHTML = `
       <div class="row">
         <input type="range" id="radiusSlider" min="${RADIUS_MIN}" max="${RADIUS_MAX}" step="0.5" value="${ready.radius_km}"
                aria-label="Search radius in kilometres" aria-valuetext="${fmtKm(ready.radius_km)}" />
         <b id="radiusVal">${fmtKm(ready.radius_km)}</b>
       </div>
-      <div class="hint" id="radiusHint">We'll look for places within about ${fmtKm(ready.radius_km)} of your starting point.</div>
+      <div class="hint" id="radiusHint">Roamly looks within about ${fmtKm(ready.radius_km)} of your starting point.</div>
       ${Object.entries(TRANSPORT_KM).map(([m, km]) =>
-        `<button class="chip${ready.radius_km === km ? ' on' : ''}" data-km="${km}">${READY.transport.options.find(([v]) => v === m)[1]} ~${km} km</button>`).join('')}`;
+        `<button class="chip sm${ready.radius_km === km ? ' on' : ''}" data-km="${km}" aria-pressed="${ready.radius_km === km}">${READY.transport.options.find(([v]) => v === m)[1]} ~${km} km</button>`).join('')}`;
     const sl = box.querySelector('#radiusSlider');
     const show = () => {
       ready.radius_km = clamp(parseFloat(sl.value) || RADIUS_MIN, RADIUS_MIN, RADIUS_MAX);
       sl.setAttribute('aria-valuetext', fmtKm(ready.radius_km));
       box.querySelector('#radiusVal').textContent = fmtKm(ready.radius_km);
-      box.querySelector('#radiusHint').textContent = `We'll look for places within about ${fmtKm(ready.radius_km)} of your starting point.`;
-      box.querySelectorAll('[data-km]').forEach(c => c.classList.toggle('on', parseFloat(c.dataset.km) === ready.radius_km));
-      livePill();
+      box.querySelector('#radiusHint').textContent = `Roamly looks within about ${fmtKm(ready.radius_km)} of your starting point.`;
+      box.querySelectorAll('[data-km]').forEach(c => { const on = parseFloat(c.dataset.km) === ready.radius_km; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
+      updateCtxChip('radius_km');
     };
     sl.oninput = show;                                   // live while dragging (no re-render mid-drag)
-    sl.onchange = () => { show(); radiusTouched = true; };
+    sl.onchange = () => { show(); radiusTouched = edited = true; renderCtx(); };
     box.querySelectorAll('[data-km]').forEach(c => c.onclick = () => {
-      ready.radius_km = parseFloat(c.dataset.km); radiusTouched = true; renderReady('radius_km');
+      ready.radius_km = parseFloat(c.dataset.km); radiusTouched = edited = true; renderSection('radius_km'); renderCtx();
     });
     return;
   }
 
-  // Everything else: preset chips (tap = pick and close)…
-  READY[openKey].options.forEach(([v, label]) => {
-    const c = document.createElement('button');
-    c.className = 'chip' + (ready[openKey] === v ? ' on' : ''); c.textContent = label;
-    c.onclick = () => {
-      ready[openKey] = v;
-      if (openKey === 'budget') budgetTouched = true;
-      if (openKey === 'group_type'){ ready.party_size = PARTY[v] || 2; rescaleBudget(); }
-      if (openKey === 'transport' && !radiusTouched) ready.radius_km = TRANSPORT_KM[v];
-      renderReady(openKey === 'group_type' ? 'group_type' : null);   // crew stays open for the head-count
-    };
-    box.appendChild(c);
-  });
-
-  // …plus an exact value where a number makes sense.
-  if (openKey === 'budget'){
+  if (k === 'budget'){
+    chipsFor('budget', box, () => { budgetTouched = true; });
     const row = document.createElement('div'); row.className = 'row';
     row.innerHTML = `<label class="money">$<input type="number" id="budgetInput" inputmode="numeric" min="0" max="${BUDGET_MAX}" step="5"
         value="${Math.round(ready.budget)}" aria-label="Custom total budget in dollars" /></label>
@@ -897,18 +1417,19 @@ function renderReady(openKey){
       const n = ready.party_size;
       hint.textContent = n > 1 ? `total for ${n} · ≈ $${Math.round(ready.budget / n)} each` : 'total for you';
     };
-    const commit = () => {
+    inp.oninput = () => {
       const v = parseFloat(inp.value);
-      if (!isNaN(v)){
-        ready.budget = clamp(Math.round(v), 0, BUDGET_MAX); budgetTouched = true; livePill(); each();
-        box.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c.textContent === `$${ready.budget}`));
-      }
+      if (isNaN(v)) return;
+      ready.budget = clamp(Math.round(v), 0, BUDGET_MAX); budgetTouched = edited = true; updateCtxChip('budget'); each();
+      box.querySelectorAll('.chip').forEach(c => { const on = c.textContent === `$${ready.budget}`; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
     };
-    inp.oninput = commit;
-    inp.onkeydown = e => { if (e.key === 'Enter'){ commit(); renderReady(); } };
+    inp.onchange = () => renderCtx();
     each();
+    return;
   }
-  if (openKey === 'group_type'){
+
+  if (k === 'group_type'){
+    chipsFor('group_type', box, v => { ready.party_size = PARTY[v] || 2; rescaleBudget(); renderSection('budget'); });
     const row = document.createElement('div'); row.className = 'row stepper';
     row.innerHTML = `<span>People</span>
       <button type="button" data-d="-1" aria-label="Fewer people">−</button>
@@ -919,59 +1440,520 @@ function renderReady(openKey){
       ready.party_size = clamp(ready.party_size + parseInt(btn.dataset.d, 10), 1, PARTY_MAX);
       if (ready.party_size === 1) ready.group_type = 'solo';
       else if (ready.group_type === 'solo') ready.group_type = ready.party_size === 2 ? 'date' : 'friends';
-      rescaleBudget();
-      renderReady('group_type');
+      edited = true; rescaleBudget();
+      renderSection('group_type'); renderSection('budget'); renderCtx();
     });
+    return;
   }
+
+  if (k === 'transport'){
+    chipsFor('transport', box, v => { if (!radiusTouched){ ready.radius_km = TRANSPORT_KM[v]; renderSection('radius_km'); } });
+    return;
+  }
+
+  if (k === 'interests'){
+    box.innerHTML = `<label class="field">Anything specific?
+        <input class="input" id="interestsInput" placeholder="e.g. sushi, karaoke, rooftop patio" value="${esc(ready.interests || '')}" maxlength="120" />
+      </label><div class="hint">Roamly looks for these first. Leave empty for a good mix.</div>`;
+    const inp = box.querySelector('#interestsInput');
+    inp.oninput = () => { ready.interests = inp.value.trim(); edited = true; if (document.querySelector('[data-ctx] .cx[data-k="interests"]')) updateCtxChip('interests'); };
+    inp.onchange = () => renderCtx();
+    inp.onkeydown = e => { if (e.key === 'Enter'){ e.preventDefault(); inp.blur(); } };
+    return;
+  }
+  chipsFor(k, box);                                      // time_of_day, vibe
 }
 
-async function planIt(o = {}){
-  if (!token()){ requireSignIn(); return; }
+/* Settings Roamly understood from a typed message ("cheap sushi date in Kensington")
+   become the bar's values — the changed chips flash, and a "Roamly heard" strip
+   under the message shows exactly what was picked up (tap one to correct it). */
+function applyUnderstood(u, showHeard){
+  if (!u || !ready) return;
+  const before = {}; CTX_ORDER.forEach(k => before[k] = ctxText(k));
+  ['group_type','vibe','time_of_day','transport'].forEach(k => { if (u[k]) ready[k] = u[k]; });
+  if (u.party_size) ready.party_size = clamp(u.party_size, 1, PARTY_MAX);
+  if (u.budget){ ready.budget = Math.round(u.budget); budgetTouched = true; }
+  if (u.radius_km){ ready.radius_km = clamp(u.radius_km, RADIUS_MIN, RADIUS_MAX); radiusTouched = true; }
+  if (u.location){ ready.location = u.location; needWhere = false; }
+  if (typeof u.interests === 'string') ready.interests = u.interests;
+  if (wide()) renderSheet();
+  renderCtx();
+  if (showHeard){
+    const changed = CTX_ORDER.filter(k => ctxText(k) && ctxText(k) !== before[k]);
+    if (changed.length) addHeard(changed);
+  }
+}
+function addHeard(keys){
+  const el = document.createElement('div'); el.className = 'heard';
+  el.innerHTML = `<span class="heard-l">${ic('sparkle','sm')} Roamly heard</span>` + keys.map(k =>
+    `<button class="hchip" data-k="${k}" aria-label="${esc(SECTION[k][1])}: ${esc(ctxText(k))}. Change">${esc(ctxText(k))}</button>`).join('');
+  el.querySelectorAll('.hchip').forEach(b => b.onclick = () => openSheet(b.dataset.k));
+  if (lastUserEl && lastUserEl.isConnected) lastUserEl.after(el); else thread.appendChild(el);
+}
+
+function startOver(){
+  thread.innerHTML = ''; messages = []; convoStart = 0; seenVenues.clear(); lastItin = null; lastMore = null; maps = [];
+  lastUserEl = null; lastAskText = '';
+  ready = defaultsFrom(profile); budgetTouched = radiusTouched = needWhere = edited = false; pending = null;
+  renderCtx(); if (wide()) renderSheet();
+  showView('home');
+}
+/* Ask for a place instead of failing: open the Where section and mark the chip;
+   the waiting action carries on once there is one. */
+function needLocation(action){
+  needWhere = true; pending = action || null; renderCtx(); openSheet('location');
+  if (wide()) renderSection('location');
+}
+
+/* ================= wiring: nav, menu, sheet, keyboard ================= */
+document.querySelectorAll('[data-nav]').forEach(b => b.onclick = () => showView(b.dataset.nav));
+$('backBtn').onclick = goHome;
+$('newChatBtn').onclick = () => startOver();
+let menuFrom = null;
+function closeMenu(){
+  if ($('menu').classList.contains('hidden')) return;
+  $('menu').classList.add('hidden');
+  document.querySelectorAll('[data-menu]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+function openMenu(btn){
+  const m = $('menu'); m.classList.remove('hidden'); menuFrom = btn;
+  const r = btn.getBoundingClientRect(), w = m.offsetWidth, h = m.offsetHeight;
+  let top = r.bottom + 8; if (top + h > innerHeight - 12) top = Math.max(12, r.top - h - 8);
+  m.style.left = Math.min(innerWidth - w - 12, Math.max(12, r.right - w)) + 'px';
+  if (r.left < 120) m.style.left = Math.max(12, r.left) + 'px';
+  m.style.top = top + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  const first = m.querySelector('a,button'); if (first) first.focus();
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-menu]');
+  if (b){ e.stopPropagation(); $('menu').classList.contains('hidden') ? openMenu(b) : closeMenu(); return; }
+  if (!e.target.closest('#menu')) closeMenu();
+});
+$('resetBtn').onclick = () => { closeMenu(); startOver(); };
+$('signOutBtn').onclick = () => {
+  ['trek_token','trek_user','trek_refresh'].forEach(k => localStorage.removeItem(k));
+  location.replace('auth.html');
+};
+$('ctxEdit').onclick = () => openSheet();
+$('sheetClose').onclick = () => { pending = null; closeSheet(); };
+$('sheetBg').onclick = () => { pending = null; closeSheet(); };
+$('sheetDone').onclick = closeSheet;
+$('railPlan').onclick = () => planIt();
+$('sheetReset').onclick = () => {
+  ready = defaultsFrom(profile); budgetTouched = radiusTouched = edited = false;
+  renderSheet(); renderCtx();
+};
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape'){ if (!$('menu').classList.contains('hidden')){ closeMenu(); if (menuFrom) menuFrom.focus(); return; }
+    if (sheetOpen && !wide()){ pending = null; closeSheet(); } }
+  // keep keyboard focus inside the open sheet (phones/tablets)
+  if (e.key === 'Tab' && sheetOpen && !wide()){
+    const f = [...$('sheet').querySelectorAll('button:not([disabled]),input,[tabindex="0"]')].filter(x => x.offsetParent);
+    if (!f.length) return;
+    if (e.shiftKey && document.activeElement === f[0]){ e.preventDefault(); f[f.length - 1].focus(); }
+    else if (!e.shiftKey && document.activeElement === f[f.length - 1]){ e.preventDefault(); f[0].focus(); }
+  }
+});
+$('composer').addEventListener('submit', e => { e.preventDefault(); send($('input').value); });
+window.send = send;
+
+/* The input's example rotates while it's empty, so it's clear what you can ask. */
+const EXAMPLES = ['e.g. cheap sushi date in Kensington', "e.g. what's happening tonight?",
+                  'e.g. fun day with 4 friends, $60 each', 'e.g. something chill within 2 km'];
+let exampleI = 0;
+setInterval(() => {
+  exampleI = (exampleI + 1) % EXAMPLES.length;
+  ['input', 'askInput'].forEach(id => { const i = $(id); if (i && document.activeElement !== i && !i.value) i.placeholder = id === 'askInput' ? 'Ask Roamly — ' + EXAMPLES[exampleI].slice(5) : EXAMPLES[exampleI]; });
+}, 4000);
+
+function readyPrefs(){
   const prefs = { group_type: ready.group_type, party_size: ready.party_size, vibe: ready.vibe,
                   budget: ready.budget, time_of_day: ready.time_of_day, transport: ready.transport,
                   radius_km: ready.radius_km };
   if (ready.location) prefs.location = ready.location;
-  if (!userLoc && !ready.location){ renderReady('location'); return; }      // need a where first
-  const summary = readySummary();
-  addMsg('user', esc(o.surprise ? `🎲 Surprise me · ${summary}` : summary));
-  // Keep a text trace so later free-text turns ("make it cheaper") have context.
-  messages.push({ role:'user', content:`Plan: ${summary}${o.surprise ? ' (surprise me)' : ''}` });
-  typing(true);
-  if (o.pick){ fetchOptions(prefs); return; }
-  runPlan(prefs, o);
+  if (ready.interests) prefs.interests = ready.interests;
+  return prefs;
 }
 
-async function runPlan(prefs, o){
-  const btn = readyEl.querySelector('.plan-it'); btn.disabled = true;
+/* ================= actions: plan · surprise · pick ================= */
+function planIt(o = {}){
+  if (!token()){ requireSignIn(); return; }
+  if (!userLoc && !ready.location){ needLocation(() => planIt(o)); return; }   // need a where first
+  if (busy){ toast('One sec — still working on the last plan.'); return; }
+  if (view !== 'chat') showView('chat', { bottom:true });
+  const title = o.surprise ? '🎲 Surprise me' : o.pick ? '🧩 Let me pick the spots' : '✨ Plan my night';
+  // No hidden text trace: a later typed turn ("make it cheaper") gets its context
+  // from the bar (sent as `defaults`), which is always current — a stale trace isn't.
+  addMsg('user', `${esc(title)}<span class="sub">${esc(readySummary())}</span>`);
+  typing(true, o.pick ? 'pick' : 'plan');
+  if (o.pick){ fetchOptions(readyPrefs()); return; }
+  runPlan(readyPrefs(), o);
+}
+async function runPlan(prefs, o = {}){
+  busy = true;                                         // no double plans from quick taps
   const again = () => runPlan(prefs, o);
+  const at = o.at || userLoc;                          // plan-around-an-event centres on the event
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages:[], prefs, lat:userLoc&&userLoc.lat, lng:userLoc&&userLoc.lng,
-        exclude:[...seenVenues], seed: Math.floor(Math.random()*1e9), surprise: !!o.surprise }) });
+      body: JSON.stringify({ messages:[], prefs, lat:at && at.lat, lng:at && at.lng, tz: USER_TZ,
+        exclude: o.keepVenues ? [] : [...seenVenues], seed: Math.floor(Math.random() * 1e9), surprise: !!o.surprise }) });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
-    showChatResponse(await r.json(), again);
-  }catch(e){ failed(e, again); }
-  finally{ btn.disabled = false; }
+    const res = await r.json();
+    if (o.withEvent && res.type === 'itinerary' && res.plan){
+      addEventToPlan(res.plan, o.withEvent);
+      res.plan.events = [];                             // it's in the plan, don't re-offer it
+      res.message = `Here's a night built around ${o.withEvent.name}: ` + (res.message || '');
+    }
+    busy = false;
+    showChatResponse(res, again, { prev: o.prev });
+  }catch(e){ failed(e, again, 'plan'); }
+  finally{ busy = false; }
 }
 
-/* ---------- boot ---------- */
-// No session → the sign-in page. Otherwise straight to the ready card, pre-filled
-// from the taste profile when there is one (the survey is optional).
-(async function boot(){
-  if (!token()){
-    location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search));
+/* ================= what's on: live events near the planning state ================= */
+const WINDOWS = [['now','Right now'],['tonight','Tonight'],['weekend','This weekend']];
+const WINDOW_TEXT = { now:'right now', tonight:'tonight', weekend:'this weekend' };
+const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar' };
+const EV_ART = [
+  [/music|concert|jazz|rock|hip|pop|dj/i, '🎵', 'linear-gradient(135deg,#e2ddff,#f7dcff)'],
+  [/sport|hockey|basketball|soccer|baseball|football/i, '🏟️', 'linear-gradient(135deg,#dff1ff,#def7ea)'],
+  [/theat|art|comedy|dance|opera|ballet/i, '🎭', 'linear-gradient(135deg,#ffe0ea,#ffe9d6)'],
+  [/film|movie|cinema/i, '🎬', 'linear-gradient(135deg,#e6e4ff,#dfe9ff)'],
+  [/festival|fair|market|parade/i, '🎪', 'linear-gradient(135deg,#fff0c7,#ffdcd0)'],
+  [/food|drink|taste|wine|beer/i, '🍢', 'linear-gradient(135deg,#ffe9d6,#fff2cf)'],
+  [/family|kid|children/i, '🧸', 'linear-gradient(135deg,#dcf6e9,#fff2cf)'],
+];
+function evArt(ev){
+  const hay = `${ev.category || ''} ${ev.name || ''}`;
+  const hit = EV_ART.find(([re]) => re.test(hay));
+  return hit ? { emoji:hit[1], bg:hit[2] } : { emoji:'🎟️', bg:'linear-gradient(135deg,#efeaff,#ffe4ed)' };
+}
+/* "On now" / "Starts in 40 min" / "8:30 PM" — worked out here, so it stays right. */
+function evStatus(ev){
+  const now = Date.now(), st = ev.start ? Date.parse(ev.start) : NaN, en = ev.end ? Date.parse(ev.end) : NaN;
+  if (isNaN(st)) return { live:false, text: evWhen(ev) };
+  if (st <= now && (isNaN(en) || en >= now)) return { live:true, text:'On now' };
+  const mins = Math.round((st - now) / 60000);
+  if (mins > 0 && mins < 90) return { live:false, text:`Starts in ${mins} min` };
+  const d = new Date(st), today = d.toDateString() === new Date().toDateString();
+  return { live:false, text: (today ? 'Today · ' : d.toLocaleDateString(undefined, { weekday:'short' }) + ' · ')
+    + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) };
+}
+function evCardHtml(ev, i){
+  const s = evStatus(ev), art = evArt(ev);
+  const cat = ev.category ? ev.category.split(',')[0].trim() : '';
+  const price = ev.free ? '<span class="tag free">Free</span>'
+    : ev.price_min ? `<span class="tag">from $${Math.round(ev.price_min)}</span>` : '';
+  const where = [ev.venue, ev.distance_km != null ? `${ev.distance_km} km away` : null].filter(Boolean).map(esc).join(' · ');
+  const dir = ev.lat != null
+    ? `https://www.google.com/maps/search/?api=1&query=${ev.lat},${ev.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((ev.venue || '') + ' ' + ev.name)}`;
+  const link = safeUrl(ev.url), img = safeUrl(ev.image);
+  return `<article class="evc">
+    <div class="evc-art" style="background:${art.bg}"><span aria-hidden="true">${art.emoji}</span>${img ? `<img src="${esc(img)}" alt="" loading="lazy" onerror="this.remove()">` : ''}</div>
+    <div class="evc-body">
+      <div class="evc-when${s.live ? ' live' : ''}">${s.live ? '<span class="live-dot" aria-hidden="true"></span>' : ''}${esc(s.text || '')}</div>
+      <h4 class="evc-name">${esc(ev.name)}</h4>
+      ${where ? `<div class="evc-meta">${where}</div>` : ''}
+      <div class="evc-tags">${price}${cat ? `<span class="tag">${esc(cat)}</span>` : ''}</div>
+    </div>
+    <div class="evc-acts">
+        <button class="btn btn-soft btn-sm" data-plan="${i}">${ic('plus','sm')} Plan around it</button>
+        <a class="btn btn-ghost btn-sm" href="${esc(dir)}" target="_blank" rel="noopener">${ic('nav','sm')} Directions</a>
+        ${link ? `<a class="btn btn-ghost btn-sm" href="${esc(link)}" target="_blank" rel="noopener">${ev.source === 'ticketmaster' ? 'Tickets' : 'Details'} ${ic('external','sm')}</a>` : ''}
+    </div>
+    <div class="evc-src">${esc(SOURCE_LABEL[ev.source] || '')}</div>
+  </article>`;
+}
+
+/* Typed "what's on tonight?" answers right in the chat. */
+function renderEventsInline(res){
+  const evs = res.events || [];
+  if (evs.length){
+    const wrap = document.createElement('div'); wrap.className = 'evlist';
+    wrap.innerHTML = evs.map(evCardHtml).join('');
+    wrap.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => planAround(evs[+b.dataset.plan]));
+    thread.appendChild(wrap);
+  }
+  const wider = clamp(ready.radius_km * 2, RADIUS_MIN, RADIUS_MAX);
+  appendFoot([
+    ...WINDOWS.filter(([m]) => m !== res.window).map(([m, label]) => ({ label: label, onclick: () => showView('events', { window:m }) })),
+    ...(!evs.length && wider > ready.radius_km ? [{ label:`📏 Search ${fmtKm(wider)}`, onclick: () => {
+        ready.radius_km = wider; radiusTouched = true; renderCtx(); showView('events', { window: res.window || 'now' }); } }] : []),
+    { label:'✨ Plan my night instead', onclick: () => planIt() },
+  ]);
+  scrollDown();
+}
+
+/* The What's on screen: time tabs, filters built from what's actually listed,
+   and the same "Plan around it" hand-off into the planner. */
+let ev = { window:'now', filter:'all', res:null, key:null, ts:0, seq:0 };
+let evRefreshT;
+function evKey(){
+  return [ev.window, ready.radius_km, ready.location || (userLoc ? userLoc.lat.toFixed(3) + ',' + userLoc.lng.toFixed(3) : '')].join('|');
+}
+function queueEventsRefresh(){
+  clearTimeout(evRefreshT);
+  evRefreshT = setTimeout(() => { if (view === 'events' && ev.shown !== evKey() && (userLoc || ready.location)) openEvents(); }, 700);
+}
+function renderEventsShell(){
+  const el = $('v-events');
+  el.innerHTML = `<div class="page">
+    <header class="page-head"><div><h1 class="t-title" id="evTitle">What's on</h1><p class="t-meta">Live and upcoming events near you</p></div>${AVATAR_BTN()}</header>
+    <div class="seg" role="tablist" aria-label="When">${WINDOWS.map(([w, l]) =>
+      `<button role="tab" data-w="${w}" aria-selected="${ev.window === w}">${esc(l)}</button>`).join('')}</div>
+    <div class="ev-where">${ic('pin','sm')}<span>${esc(ready.location || (userLoc ? 'Near you' : 'No place set'))} · within ${fmtKm(ready.radius_km)}</span>
+      <button class="link" data-ev-where>Change</button></div>
+    <div class="ev-filters" id="evFilters" role="group" aria-label="Filter events"></div>
+    <div id="evList" aria-live="polite" aria-busy="false"></div>
+  </div>`;
+  el.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { ev.window = b.dataset.w; openEvents(); });
+  el.querySelector('[data-ev-where]').onclick = () => openSheet(ready.location || userLoc ? 'radius_km' : 'location');
+}
+function openEvents(w){
+  if (w) ev.window = w;
+  if (!ready) return;
+  renderEventsShell();
+  ev.shown = evKey();
+  if (!userLoc && !ready.location){
+    $('evList').innerHTML = `<div class="empty"><div class="e-art" aria-hidden="true">📍</div><h3>Where should Roamly look?</h3>
+      <p>Turn on your live location or type a neighbourhood — then you'll see what's on around it.</p>
+      <button class="btn btn-primary" data-ev-loc>${ic('pin','sm')} Set location</button></div>`;
+    $('evList').querySelector('[data-ev-loc]').onclick = () => needLocation(() => { if (view === 'events') openEvents(); });
     return;
   }
-  getLoc();
-  $('savedCount').textContent = getSaved().length;
-  let p = null;
+  if (!token()){ requireSignIn(); return; }
+  const key = evKey();
+  if (ev.key === key && ev.res && Date.now() - ev.ts < 5 * 60000){ renderEvList(); return; }
+  loadEvents(key);
+}
+async function loadEvents(key){
+  const list = $('evList'), seq = ++ev.seq;
+  list.setAttribute('aria-busy', 'true');
+  list.innerHTML = `<p class="t-meta ev-summary" role="status">${ic('live','sm')} Checking what's on ${esc(WINDOW_TEXT[ev.window])}…</p>
+    <div class="ev-items skel-wrap" aria-hidden="true">${[0,1,2].map(() => `<div class="skel-ev"><div class="skel" style="width:84px;height:84px;border-radius:16px"></div>
+      <div style="flex:1;display:grid;gap:8px;align-content:start;padding-top:4px"><div class="skel" style="height:10px;width:30%"></div>
+      <div class="skel" style="height:14px;width:80%"></div><div class="skel" style="height:10px;width:55%"></div></div></div>`).join('')}</div>`;
+  const prefs = { mode: ev.window, radius_km: ready.radius_km };
+  if (ready.location) prefs.location = ready.location;
   try{
-    const r = await apiFetch(`${API}/users/me/profile`, { headers: authHeaders() });
+    const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
+      headers:{'Content-Type':'application/json', ...authHeaders()},
+      body: JSON.stringify({ messages:[], prefs, lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng, tz: USER_TZ }) });
+    if (seq !== ev.seq) return;                         // a newer tab/radius superseded this one
     if (r.status === 401){ requireSignIn(); return; }
-    if (r.ok) p = await r.json();
-  }catch(e){ /* server asleep/unreachable — fall through to plain defaults */ }
-  startReady(p || { defaults:{} });
+    ev.res = await r.json(); ev.key = key; ev.ts = Date.now(); ev.filter = 'all';
+    if (view === 'events') renderEvList();
+  }catch(e){
+    if (seq !== ev.seq || view !== 'events') return;
+    list.setAttribute('aria-busy', 'false');
+    const slow = /too long/i.test((e && e.message) || '');
+    list.innerHTML = `<div class="notice err" style="margin-top:16px"><span class="n-ic">${ic('alert')}</span><div>
+      <b>${slow ? 'Hmm — that took longer than usual' : "Couldn't reach Roamly"}</b><p>${slow ? 'Event search can be slow right now.' : 'Check your connection and try again.'}</p>
+      <div class="n-acts"><button class="btn btn-dark btn-sm" data-retry>${ic('refresh','sm')} Try again</button></div></div></div>`;
+    list.querySelector('[data-retry]').onclick = () => loadEvents(key);
+  }
+}
+function renderEvList(){
+  const list = $('evList'), res = ev.res; if (!list || !res) return;
+  list.setAttribute('aria-busy', 'false');
+  const evs = res.events || [];
+  if (res.type !== 'events'){
+    list.innerHTML = `<div class="notice" style="margin-top:16px"><span class="n-ic">${ic('ticket')}</span><div><b>Live events aren't available here yet</b>
+      <p>${esc(res.message || '')}</p><div class="n-acts"><button class="btn btn-dark btn-sm" data-plan-instead>${ic('sparkle','sm')} Plan my night instead</button></div></div></div>`;
+    list.querySelector('[data-plan-instead]').onclick = () => planIt();
+    return;
+  }
+  if (!evs.length){
+    const wider = clamp(ready.radius_km * 2, RADIUS_MIN, RADIUS_MAX);
+    const next = WINDOWS.find(([w]) => w !== ev.window && w !== 'now') || WINDOWS[1];
+    list.innerHTML = `<div class="empty"><div class="e-art" aria-hidden="true">🗓️</div>
+      <h3>Nothing listed ${esc(WINDOW_TEXT[ev.window])} within ${fmtKm(ready.radius_km)}</h3>
+      <p>Roamly checks ticketed events and the city's festival calendar, so small free pop-ups can be missing.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center">
+        ${wider > ready.radius_km ? `<button class="btn btn-ghost btn-sm" data-wider>${ic('radius','sm')} Search ${fmtKm(wider)}</button>` : ''}
+        <button class="btn btn-ghost btn-sm" data-next>${esc(next[1])}</button>
+        <button class="btn btn-primary btn-sm" data-plan-instead>${ic('sparkle','sm')} Plan my night instead</button></div></div>`;
+    const wb = list.querySelector('[data-wider]');
+    if (wb) wb.onclick = () => { ready.radius_km = wider; radiusTouched = edited = true; renderCtx(); if (wide()) renderSheet(); openEvents(); };
+    list.querySelector('[data-next]').onclick = () => { ev.window = next[0]; openEvents(); };
+    list.querySelector('[data-plan-instead]').onclick = () => planIt();
+    return;
+  }
+  // filters from what's actually in the list (first category word) + Free
+  const cats = [...new Set(evs.map(e => (e.category || '').split(',')[0].trim()).filter(Boolean))].slice(0, 5);
+  const hasFree = evs.some(e => e.free);
+  const filters = [['all','All'], ...(hasFree ? [['free','Free']] : []), ...cats.map(c => [c, c])];
+  $('evFilters').innerHTML = filters.length > 2 ? filters.map(([k, l]) =>
+    `<button class="chip sm" data-f="${esc(k)}" aria-pressed="${ev.filter === k}">${esc(l)}</button>`).join('') : '';
+  $('evFilters').querySelectorAll('[data-f]').forEach(b => b.onclick = () => { ev.filter = b.dataset.f; renderEvList(); });
+  const shown = evs.filter(e => ev.filter === 'all' || (ev.filter === 'free' ? e.free : (e.category || '').split(',')[0].trim() === ev.filter));
+  list.innerHTML = `<p class="t-meta ev-summary">${esc(res.message || '')}</p>
+    <div class="ev-items">${shown.map(e => evCardHtml(e, evs.indexOf(e))).join('')}</div>
+    <p class="ev-note">Ticketed events via Ticketmaster. Free festivals come from the City of Toronto calendar when it's available.</p>`;
+  list.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { showView('chat', { bottom:true }); planAround(evs[+b.dataset.plan]); });
+}
+
+function planAround(e){
+  if (!token()){ requireSignIn(); return; }
+  if (busy){ toast('One sec — still working on the last plan.'); return; }
+  const prefs = readyPrefs();
+  const at = e.lat != null ? { lat: e.lat, lng: e.lng } : null;
+  if (at) delete prefs.location;                      // centre the plan on the event itself
+  if (!at && !userLoc && !ready.location){ needLocation(() => planAround(e)); return; }
+  addMsg('user', esc(`➕ Plan a night around ${e.name}`));
+  typing(true, 'plan');
+  runPlan(prefs, { at, withEvent: e });
+}
+
+/* ================= home ================= */
+function skyline(){
+  // A generic city silhouette, generated (deterministic) — no image request.
+  const r = n => { const s = Math.sin(n * 12.9898) * 43758.5453; return s - Math.floor(s); };
+  const T = 560;                                   // the tower: right of centre, clear of the headline
+  let back = '', front = '', win = '', x = 0, i = 0;
+  while (x < 800){ const w = 16 + Math.round(r(i + 1) * 16), h = 38 + Math.round(r(i + 7) * 46);
+    back += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`; x += w + 2; i++; }
+  x = 0;
+  while (x < 800){ const w = 20 + Math.round(r(i + 3) * 18), h = 20 + Math.round(r(i + 5) * 30);
+    if (x + w < T - 18 || x > T + 18){
+      front += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`;
+      if (r(i + 9) > .3) win += `<rect x="${x + 5}" y="${126 - h}" width="3" height="3"/>`;
+      if (r(i + 11) > .55) win += `<rect x="${x + w - 9}" y="${134 - h}" width="3" height="3"/>`;
+    }
+    x += w + 3; i++; }
+  return `<svg class="skyline" viewBox="0 0 800 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
+    <g fill="#2b1d6e" opacity=".5">${back}</g>
+    <g fill="#1a1242">${front}<path d="M${T - 7} 120l4-62h6l4 62z"/><rect x="${T - 1.5}" y="6" width="3" height="56"/>
+      <ellipse cx="${T}" cy="47" rx="9" ry="4.5"/><rect x="${T - 5}" y="54" width="10" height="3" rx="1.5"/></g>
+    <g fill="#ffd27a" opacity=".85">${win}<rect x="${T - 1}" y="45" width="2" height="2"/></g></svg>`;
+}
+const SKYLINE = skyline();
+const HOME_EXAMPLES = [['🍣 Cheap sushi date', 'cheap sushi date tonight'], ["🎶 What's on tonight?", "what's on tonight?"],
+  ['👯 Day out with 4 friends', 'fun day with 4 friends, $60 each'], ['🌿 Something chill nearby', 'something chill within 2 km']];
+const AVATAR_BTN = () => `<button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${esc(initialOf())}</button>`;
+function initialOf(){ const n = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'R'; return n.trim().charAt(0).toUpperCase(); }
+function firstName(){ const n = me && (me.display_name || me.username); return n ? n.trim().split(/\s+/)[0] : ''; }
+function renderHome(first){
+  const h = new Date().getHours();
+  const hello = h < 5 ? 'Up late' : h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  const dusk = h >= 17 || h < 6;
+  const saved = getSaved();
+  const a = profile && profile.completed && profile.archetype;
+  const home = document.createElement('div'); home.className = 'home' + (first ? ' anim' : '');
+  home.innerHTML = `
+    <div class="hero home-hero${dusk ? '' : ' day'}">
+      ${SKYLINE}<span class="glow" aria-hidden="true"></span>
+      <div class="hero-bar">
+        <span class="logo on-dark"><svg class="logo-mark" aria-hidden="true"><use href="#i-logo-w"/></svg>Roamly</span>
+        <button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${esc(initialOf())}</button>
+      </div>
+      <div class="hero-copy">
+        <p class="hello">${esc(hello)}${firstName() ? ', ' + esc(firstName()) : ''} ✨</p>
+        <h1 class="t-display" id="homeTitle">What are we up to?</h1>
+        <p class="hero-sub">Tell Roamly what you're after — it figures out the details, and you stay in control.</p>
+      </div>
+    </div>
+    <div class="home-body">
+      <section class="card plan-around" aria-labelledby="paLabel">
+        <div class="pa-head"><span class="t-label" id="paLabel">Planning around</span><button class="link" data-open-sheet>Adjust</button></div>
+        <div class="ctx-chips wrap" data-ctx role="group" aria-labelledby="paLabel"></div>
+        <p class="loc-note" data-locnote></p>
+      </section>
+      <div class="acts">
+        <button class="act act-primary" data-a="plan">
+          <span class="act-ic">${ic('sparkle','lg')}</span>
+          <span class="act-t"><b>Plan my night</b><small>A full plan from your settings, in one tap</small></span>
+          <span class="act-go" aria-hidden="true">${ic('chev')}</span></button>
+        <div class="act-row">
+          <button class="act act-pink" data-a="now"><span class="act-ic">${ic('live')}</span><span><b>What's on now</b><br><small>Live events near you</small></span></button>
+          <button class="act act-sun" data-a="surprise"><span class="act-ic">${ic('dice')}</span><span><b>Surprise me</b><br><small>Let Roamly pick</small></span></button>
+          <button class="act act-mint" data-a="pick"><span class="act-ic">${ic('grid')}</span><span><b>Pick my spots</b><br><small>Build it yourself</small></span></button>
+        </div>
+      </div>
+      <form class="ask card" id="askForm" autocomplete="off">
+        <span class="ask-ic" aria-hidden="true">${ic('sparkle')}</span>
+        <input class="ask-input" id="askInput" aria-label="Tell Roamly what you want" placeholder="Ask Roamly — cheap sushi date in Kensington" />
+        <button class="send" type="submit" aria-label="Send">${ic('up')}</button>
+      </form>
+      <div class="examples" role="group" aria-label="Try asking">${HOME_EXAMPLES.map(([l, t]) =>
+        `<button class="chip sm" data-ex="${esc(t)}">${esc(l)}</button>`).join('')}</div>
+      ${lastAskText && thread.children.length ? `<button class="card continue" data-continue>
+          <span class="c-ic">${ic('chat')}</span>
+          <span class="c-t"><b>Pick up where you left off</b><span class="t-meta">${esc(lastAskText)}</span></span>
+          ${ic('chev')}</button>` : ''}
+      ${saved.length ? `<div class="sec-h"><h2 class="t-h">Your saved plans</h2><button class="link" data-see-saved>See all</button></div>
+        <div class="mini-row">${saved.slice(0, 6).map(it => `<button class="card mini" data-open="${it.id}">
+          <span class="m-art" style="background:${(it.days ? { bg:'linear-gradient(135deg,#dff1ff,#e9e2ff)' } : (VIBE_ART[(it.plan || {}).vibe] || VIBE_ART.chill)).bg}"><span aria-hidden="true">${it.days ? '🧳' : (VIBE_ART[(it.plan || {}).vibe] || VIBE_ART.chill).emoji}</span></span>
+          <span class="m-b"><b>${esc(it.title)}</b><span class="t-meta">${esc(savedSub(it))}</span></span></button>`).join('')}</div>` : ''}
+      ${a ? `<a class="card taste-card" href="profile.html"><span class="tc-ic" aria-hidden="true">${esc(a.emoji)}</span>
+          <span class="tc-t"><b>Planning with your taste</b><p>${esc(a.title)} — tap to review or change it.</p></span>${ic('chev')}</a>`
+        : `<a class="card taste-card" href="profile.html?redirect=roamly.html"><span class="tc-ic" aria-hidden="true">🧠</span>
+          <span class="tc-t"><b>Make Roamly yours</b><p>A 2-minute taste survey — every plan then starts from what you love.</p></span>${ic('chev')}</a>`}
+    </div>`;
+  const box = $('v-home'); box.innerHTML = ''; box.appendChild(home);
+  home.querySelector('[data-a="plan"]').onclick = () => planIt();
+  home.querySelector('[data-a="now"]').onclick = () => showView('events', { window:'now' });
+  home.querySelector('[data-a="surprise"]').onclick = () => planIt({ surprise:true });
+  home.querySelector('[data-a="pick"]').onclick = () => planIt({ pick:true });
+  home.querySelector('[data-open-sheet]').onclick = () => openSheet();
+  home.querySelector('#askForm').onsubmit = e => { e.preventDefault(); send($('askInput').value); };
+  home.querySelectorAll('[data-ex]').forEach(b => b.onclick = () => send(b.dataset.ex));
+  const c = home.querySelector('[data-continue]'); if (c) c.onclick = () => showView('chat');
+  const ss = home.querySelector('[data-see-saved]'); if (ss) ss.onclick = () => showView('saved');
+  home.querySelectorAll('.mini[data-open]').forEach(b => b.onclick = () => loadSaved(+b.dataset.open));
+  shownLabels = {};                                  // fresh chips here shouldn't flash
+  renderCtx();
+}
+function syncIdentity(){
+  document.querySelectorAll('[data-initial]').forEach(el => el.textContent = initialOf());
+  const name = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'Your account';
+  document.querySelectorAll('[data-name]').forEach(el => el.textContent = name);
+  const handle = (me && me.username) || localStorage.getItem('trek_user');
+  document.querySelectorAll('[data-handle]').forEach(el => el.textContent = handle ? '@' + handle : '');
+}
+
+/* ================= boot ================= */
+// No session → the sign-in page. Otherwise straight to Home with sensible defaults;
+// the taste profile fills them in as soon as it arrives (the survey is optional),
+// so a sleeping server never leaves a blank screen.
+(async function boot(){
+  if (!token()){
+    location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search + location.hash));
+    return;
+  }
+  const want = (location.hash || '').slice(1);
+  history.replaceState({ v:'home' }, '', location.pathname + location.search);
+  // Live location is opt-in: use it silently only if permission was already
+  // granted; otherwise the Where settings (or a plan that needs a place) ask.
+  try{
+    navigator.permissions.query({ name:'geolocation' })
+      .then(st => { if (st.state === 'granted') getLoc(); }).catch(() => {});
+  }catch(e){}
+  syncSavedCount(); syncIdentity();
+  startHome({ defaults:{} });
+  showView(VIEWS[want] && want !== 'chat' ? want : 'home');
+  const [pr, mr] = await Promise.allSettled([
+    apiFetch(`${API}/users/me/profile`, { headers: authHeaders() }),
+    apiFetch(`${API}/users/me`, { headers: authHeaders() }),
+  ]);
+  if (pr.status === 'fulfilled' && pr.value.status === 401){
+    localStorage.removeItem('trek_token');           // expired — sign in again, then come straight back
+    location.replace('auth.html?redirect=roamly.html'); return;
+  }
+  if (mr.status === 'fulfilled' && mr.value.ok){ try{ me = await mr.value.json(); }catch(e){} syncIdentity(); }
+  if (pr.status === 'fulfilled' && pr.value.ok){
+    try{ profile = await pr.value.json(); }catch(e){}
+    // Apply the profile's defaults unless the user already started changing things.
+    if (profile && !edited && !thread.children.length && !budgetTouched && !radiusTouched){
+      const loc = ready.location; ready = defaultsFrom(profile); ready.location = loc;
+      shownLabels = {};
+    }
+    renderCtx(); if (wide()) renderSheet();
+    if (view === 'home') renderHome(false);
+  }
 })();
 </script>
 </body>

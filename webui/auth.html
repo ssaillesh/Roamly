@@ -15,237 +15,159 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Roamly — Sign in</title>
 <meta name="description" content="Sign in or create a free Roamly account to start planning your night." />
-<meta name="theme-color" content="#0b0b10" />
+<meta name="theme-color" content="#221a5c" />
 <meta name="robots" content="noindex" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="/roamly.css" />
 <script src="/config.js"></script>
 <style>
-  :root{
-    --accent:#ff5a5f; --accent2:#7c5cff; --hot:#ff3d9a; --lime:#b8f34a;
-    --ink:#1d1d1f; --ink2:#515154; --ink3:#86868b;
-    --brd:rgba(255,255,255,.14); --hair:rgba(255,255,255,.09);
-    /* Near-opaque instead of backdrop-blurred: a blur over the animated blobs
-       is recomputed every frame and lagged the whole browser. */
-    --card:rgba(20,18,28,.9); --card-solid:#141219;
-    --shadow:0 40px 90px -30px rgba(0,0,0,.7), 0 10px 30px -12px rgba(124,92,255,.25);
-    --ease:cubic-bezier(.22,1,.36,1);
-    --pop:cubic-bezier(.34,1.56,.64,1);
+  body{min-height:100vh; min-height:100dvh;}
+  .shell{min-height:100vh; min-height:100dvh; display:flex; flex-direction:column;}
+
+  /* ---- hero: the same dusk + skyline art as the planner's home ---- */
+  .auth-hero{padding:18px 22px 110px; border-radius:0 0 32px 32px;}
+  .auth-hero .skyline{height:118px;}
+  .ah-bar{display:flex; align-items:center; justify-content:space-between; min-height:48px;}
+  .ah-back{display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 14px 0 10px; border-radius:var(--r-pill);
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.26); color:#fff; font-size:13.5px; font-weight:700;}
+  .ah-back:hover{background:rgba(255,255,255,.22);}
+  .ah-copy{margin-top:18px; max-width:30ch;}
+  .ah-copy h1{margin:0; font-size:clamp(30px,7vw,46px); font-weight:800; letter-spacing:-.035em; line-height:1.05;}
+  .ah-copy p{margin:12px 0 0; font-size:15px; color:rgba(255,255,255,.9); max-width:36ch;}
+  .uses{display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;}
+  .uses span{display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:var(--r-pill); font-size:13px; font-weight:700;
+    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.24); color:#fff;}
+  .demo-card{display:none;}
+
+  .auth-wrap{flex:1; display:flex; justify-content:center; padding:0 16px 40px; margin-top:-86px; position:relative;}
+
+  /* ---- the form card ---- */
+  .card.auth{width:100%; max-width:430px; padding:28px 24px 24px; position:relative; overflow:hidden; border-radius:30px; box-shadow:var(--sh-3);
+    animation:cardIn .5s var(--ease) both; align-self:flex-start;}
+  @keyframes cardIn{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;}}
+  .card.shake{animation:shake .42s;}
+  @keyframes shake{10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);}}
+  .card-head{margin-bottom:20px;}
+  .card-head .m{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--primary-ink); margin-bottom:6px;}
+  .card-head h2{margin:0; font-size:27px; font-weight:800; letter-spacing:-.03em;}
+  .card-head p{margin:6px 0 0; font-size:14.5px; color:var(--ink-2);}
+
+  .seg{position:relative; display:flex; background:var(--surface-3); border-radius:var(--r-pill); padding:4px; margin-bottom:20px;}
+  .seg .thumb{position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:var(--r-pill); background:var(--surface);
+    box-shadow:var(--sh-1); transition:transform .32s var(--pop);}
+  .seg button{position:relative; z-index:1; flex:1; min-height:42px; border:0; background:transparent; color:var(--ink-2);
+    font-size:14px; font-weight:750; border-radius:var(--r-pill); cursor:pointer; transition:color .25s;}
+  .seg button.on{color:var(--ink);}
+
+  .fld{margin-bottom:14px;}
+  .fld label{display:block; font-size:13px; font-weight:750; color:var(--ink-2); margin-bottom:6px;}
+  .in-wrap{position:relative; display:flex; align-items:center;}
+  .in-wrap .ic{position:absolute; left:15px; color:var(--ink-3); pointer-events:none;}
+  .in-wrap .input{padding-left:44px;}
+  .fld.ok .input{border-color:rgba(21,122,76,.55);}
+  .fld.err .input{border-color:var(--danger); box-shadow:0 0 0 4px rgba(192,44,79,.1);}
+  .fld.err label{color:var(--danger);}
+  .toggle-pw{position:absolute; right:6px; width:40px; height:40px; border:0; background:none; border-radius:12px; color:var(--ink-3); cursor:pointer; display:grid; place-items:center;}
+  .toggle-pw:hover{color:var(--ink); background:var(--surface-2);}
+  .hint{font-size:12.5px; color:var(--ink-3); margin-top:6px; min-height:16px; font-weight:550;}
+  .fld.err .hint{color:var(--danger);}
+  .strength{display:flex; gap:4px; margin-top:8px; height:4px;}
+  .strength i{flex:1; border-radius:99px; background:var(--surface-3); transition:background .3s;}
+  .strength.s1 i:nth-child(1){background:#d6336c;}
+  .strength.s2 i:nth-child(1),.strength.s2 i:nth-child(2){background:#e8892f;}
+  .strength.s3 i:nth-child(1),.strength.s3 i:nth-child(2),.strength.s3 i:nth-child(3){background:#e0b300;}
+  .strength.s4 i{background:var(--mint);}
+  .row-between{display:flex; justify-content:flex-end; margin:-6px 0 12px;}
+  .row-between .link{font-size:13.5px;}
+  .submit{position:relative; overflow:hidden;}
+  .spin{width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; animation:spin .7s linear infinite; display:none;}
+  .submit.loading .spin{display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .msg-box{margin-top:14px; font-size:13.5px; font-weight:650; text-align:center; min-height:18px;}
+  .msg-box.err{color:var(--danger);} .msg-box.ok{color:var(--mint-ink);}
+  .switcher{text-align:center; margin-top:18px; font-size:14px; color:var(--ink-2);}
+  .switcher b{color:var(--primary-ink); cursor:pointer; font-weight:750;}
+  .switcher b:hover{text-decoration:underline; text-underline-offset:3px;}
+  .fineprint{font-size:12px; color:var(--ink-3); text-align:center; margin-top:16px;}
+  .success{position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+    background:rgba(255,255,255,.97); opacity:0; pointer-events:none; transition:opacity .3s var(--ease); text-align:center; padding:20px;}
+  .success.on{opacity:1; pointer-events:auto;}
+  .check{width:74px; height:74px; border-radius:50%; background:var(--grad); display:grid; place-items:center; color:#fff;
+    transform:scale(0); animation:pop .5s var(--pop) .1s forwards; box-shadow:var(--sh-cta);}
+  .check .ic{width:34px; height:34px; stroke-width:2.6;}
+  @keyframes pop{to{transform:scale(1);}}
+  .success h3{margin:0; font-size:20px; font-weight:800; letter-spacing:-.02em;}
+  .success p{margin:0; font-size:14px; color:var(--ink-2);}
+  .fp-panel{display:none;}
+  .fp-panel.on{display:block; animation:cardIn .35s var(--ease) both;}
+  .fp-back{margin-bottom:10px; padding:6px 0;}
+
+  /* ---- desktop: hero panel left, form right ---- */
+  @media (min-width:980px){
+    .shell{flex-direction:row; padding:24px; gap:24px; align-items:stretch;}
+    .auth-hero{flex:1 1 55%; border-radius:32px; padding:28px 40px 150px; display:flex; flex-direction:column;}
+    .auth-hero .skyline{height:150px;}
+    .ah-copy{margin-top:48px;}
+    .demo-card{display:block; margin-top:34px; max-width:440px; padding:18px 18px 12px; border-radius:24px; background:rgba(255,255,255,.96);
+      color:var(--ink); box-shadow:0 30px 60px -30px rgba(10,6,40,.6);}
+    .auth-wrap{flex:0 0 470px; margin:0; padding:0; align-items:center;}
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%; margin:0;}
-  body{
-    background:#0b0b10; color:#f5f5f7; overflow:hidden;
-    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.45;
-    display:flex; align-items:center; justify-content:center;
-    position:relative;
-  }
-  a{color:inherit;}
-  ::selection{background:var(--accent2); color:#fff;}
-  .grad{background:linear-gradient(100deg,var(--accent) 10%,var(--hot) 45%,var(--accent2) 90%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;}
-
-  /* ---------- aurora backdrop ----------
-     Static on purpose: animating these huge 90px-blurred blobs made the
-     compositor redraw the whole viewport 60x/s while idle, lagging the browser. */
-  .bg{position:fixed; inset:0; z-index:0; overflow:hidden;}
-  .bg i{position:absolute; border-radius:50%; filter:blur(90px); opacity:.55;}
-  .bg .b1{width:640px; height:640px; left:-160px; top:-160px; background:radial-gradient(circle,rgba(255,90,95,.55),transparent 70%);}
-  .bg .b2{width:720px; height:720px; right:-220px; top:-120px; background:radial-gradient(circle,rgba(124,92,255,.55),transparent 70%);}
-  .bg .b3{width:560px; height:560px; left:30%; bottom:-260px; background:radial-gradient(circle,rgba(255,61,154,.4),transparent 70%);}
-  .grain{position:fixed; inset:0; z-index:1; opacity:.035; pointer-events:none;
-    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");}
-
-  /* ---------- shell ---------- */
-  .shell{position:relative; z-index:2; width:100%; height:100%; display:flex; align-items:stretch; justify-content:center;}
-  header.top{position:fixed; top:0; left:0; right:0; z-index:20; display:flex; align-items:center;
-    justify-content:space-between; padding:20px 26px; pointer-events:none;}
-  header.top > *{pointer-events:auto;}
-  .back{display:inline-flex; align-items:center; gap:7px; font-size:13.5px; font-weight:650; color:#e6e6ea;
-    background:rgba(28,26,36,.9); border:1px solid var(--brd); padding:8px 15px 8px 12px; border-radius:999px;
-    transition:.2s var(--ease); text-decoration:none;}
-  .back:hover{background:rgba(44,42,54,.95); transform:translateX(-2px);}
-  .top-logo{font-weight:850; letter-spacing:-.02em; font-size:17px; display:inline-flex; align-items:center; gap:6px;}
-
-  .stage-wrap{flex:1 1 640px; display:flex; align-items:center; justify-content:center; position:relative;
-    padding:80px 40px;}
-  .auth-wrap{flex:0 0 480px; max-width:480px; display:flex; align-items:center; justify-content:center;
-    padding:80px 28px; position:relative;}
-  @media(max-width:980px){ .stage-wrap{display:none;} .auth-wrap{flex:1 1 auto; max-width:none;} }
-
-  /* ---------- left: living preview panel ---------- */
-  .preview{width:100%; max-width:460px;}
-  .eyebrow{font-size:13px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:#c9b8ff; margin-bottom:16px;
-    display:flex; align-items:center; gap:9px;}
-  .eyebrow .dot{width:7px; height:7px; border-radius:50%; background:var(--accent); box-shadow:0 0 10px var(--accent); animation:pulse 2s 3;}  /* finite: an infinite loop keeps the page redrawing at 60fps */
-  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.35;}}
-  .preview h1{font-size:clamp(32px,3.2vw,44px); line-height:1.08; letter-spacing:-.03em; font-weight:800; margin:0 0 14px;}
-  .preview p{font-size:16px; color:#b9b9c2; max-width:38ch; margin:0 0 34px;}
-
-  .stage{background:var(--card); border:1px solid var(--brd);
-    border-radius:26px; box-shadow:var(--shadow); padding:22px 22px 18px; min-height:280px;
-    animation:cardIn 1s var(--pop) both;}
-  @keyframes cardIn{from{opacity:0; transform:translateY(18px) scale(.97);} to{opacity:1; transform:none;}}
-  .stage .bar{display:flex; gap:7px; margin-bottom:18px;}
-  .stage .bar i{width:10px; height:10px; border-radius:50%; background:var(--hair); display:block;}
-  .msg{display:flex; gap:10px; margin-bottom:13px; animation:rise .45s var(--ease) both;}
-  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-  .av{width:28px; height:28px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center;
-    font-size:13px; color:#fff; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2));}
-  .bubble{padding:10px 14px; border-radius:16px; font-size:14px; background:rgba(255,255,255,.06); border-top-left-radius:5px;}
-  .msg.me{flex-direction:row-reverse;}
-  .msg.me .av{background:linear-gradient(135deg,var(--accent2),var(--hot));}
-  .msg.me .bubble{background:var(--ink); background:linear-gradient(180deg,#2a2a33,#1c1c22); border-radius:16px; border-top-right-radius:5px;}
-  .stops{margin-top:2px; border-top:1px solid var(--hair); padding-top:12px;}
-  .stop{display:flex; align-items:baseline; gap:11px; padding:7px 2px; font-size:14px;}
-  .stop .time{font-size:10.5px; font-weight:700; color:#fff; background:var(--accent); padding:2px 8px; border-radius:999px;}
-  .stop .name{font-weight:650; letter-spacing:-.01em;}
-  .stop .cat{color:#8f8f98; font-size:12.5px;}
-  .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
-    background:#8f8f98; animation:blink 1.2s infinite;}
+  /* demo chat inside the hero card */
+  .dmsg{display:flex; gap:10px; margin-bottom:10px; animation:rise .4s var(--ease) both;}
+  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .dmsg .av{width:28px; height:28px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center; background:var(--surface-2);}
+  .dmsg .av .logo-mark{width:16px; height:16px;}
+  .dmsg .bub{padding:9px 13px; border-radius:16px; font-size:14px; background:var(--surface-2); border-top-left-radius:6px;}
+  .dmsg.me{flex-direction:row-reverse;}
+  .dmsg.me .bub{background:var(--ink); color:#fff; border-radius:16px; border-top-right-radius:6px;}
+  .dstops{border-top:1px solid var(--line-2); padding-top:8px; margin-bottom:6px;}
+  .dstop{display:flex; align-items:baseline; gap:10px; padding:6px 2px; font-size:14px;}
+  .dstop .time{font-size:11px; font-weight:800; color:var(--primary-ink); background:var(--primary-soft); padding:2px 8px; border-radius:999px;}
+  .dstop .name{font-weight:750;}
+  .dstop .cat{color:var(--ink-3); font-size:12.5px;}
+  .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:var(--primary); opacity:.4; animation:blink 1.2s infinite;}
   .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
   @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
-
-
-  /* ---------- right: auth card ---------- */
-  .card{width:100%; max-width:400px; background:var(--card);
-    border:1px solid var(--brd); border-radius:28px; box-shadow:var(--shadow); padding:34px 30px 28px;
-    position:relative; overflow:hidden; animation:cardIn .7s var(--pop) both; transition:transform .25s var(--ease);}
-  .card::before{content:""; position:absolute; inset:0 0 auto 0; height:1px;
-    background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent); pointer-events:none;}
-  .card.shake{animation:shake .42s;}
-  @keyframes shake{10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);}
-    30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);}}
-
-  .card-head{margin-bottom:22px;}
-  .card-head .m{font-size:13px; font-weight:700; color:var(--accent2); letter-spacing:.02em; margin-bottom:6px;}
-  .card-head h2{margin:0; font-size:26px; font-weight:800; letter-spacing:-.025em;}
-  .card-head p{margin:6px 0 0; font-size:13.5px; color:#a1a1a8;}
-
-  /* segmented toggle w/ sliding pill */
-  .seg{position:relative; display:flex; background:rgba(255,255,255,.05); border:1px solid var(--brd);
-    border-radius:14px; padding:4px; margin-bottom:22px;}
-  .seg .thumb{position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:10px;
-    background:linear-gradient(135deg,var(--accent),var(--accent2)); box-shadow:0 6px 18px -6px rgba(124,92,255,.6);
-    transition:transform .32s var(--pop);}
-  .seg button{position:relative; z-index:1; flex:1; border:0; background:transparent; color:#b6b6bd;
-    font-size:13.5px; font-weight:700; padding:10px 6px; border-radius:10px; cursor:pointer; transition:color .25s;}
-  .seg button.on{color:#fff;}
-
-  .field{margin-bottom:14px; position:relative;}
-  .field label{display:block; font-size:11px; font-weight:700; color:#9a9aa3; text-transform:uppercase;
-    letter-spacing:.06em; margin-bottom:7px; transition:color .2s;}
-  .field.err label{color:#ff8fa3;}
-  .in-wrap{position:relative; display:flex; align-items:center;}
-  .in-wrap .ic{position:absolute; left:14px; font-size:15px; opacity:.6; pointer-events:none;}
-  input{width:100%; padding:13px 14px 13px 40px; border-radius:13px; border:1.5px solid var(--brd);
-    background:rgba(255,255,255,.045); color:#fff; font-size:14.5px; outline:none; transition:.2s var(--ease);}
-  input::placeholder{color:#6f6f78;}
-  input:focus{border-color:var(--accent2); background:rgba(124,92,255,.08); box-shadow:0 0 0 4px rgba(124,92,255,.14);}
-  .field.ok input{border-color:rgba(184,243,74,.55);}
-  .field.err input{border-color:rgba(255,90,95,.65); box-shadow:0 0 0 4px rgba(255,90,95,.12);}
-  .toggle-pw{position:absolute; right:12px; background:none; border:0; color:#9a9aa3; cursor:pointer; font-size:14px;
-    padding:4px; border-radius:8px; transition:.15s;}
-  .toggle-pw:hover{color:#fff;}
-  .hint{font-size:11.5px; color:#77777f; margin-top:6px; min-height:14px; transition:color .2s;}
-  .field.err .hint{color:#ff8fa3;}
-
-  .strength{display:flex; gap:4px; margin-top:8px; height:4px;}
-  .strength i{flex:1; border-radius:99px; background:rgba(255,255,255,.09); transition:background .3s, transform .3s;}
-  .strength.s1 i:nth-child(1){background:#ff5a5f;}
-  .strength.s2 i:nth-child(1),.strength.s2 i:nth-child(2){background:#ffb347;}
-  .strength.s3 i:nth-child(1),.strength.s3 i:nth-child(2),.strength.s3 i:nth-child(3){background:#ffd166;}
-  .strength.s4 i{background:#b8f34a;}
-
-  .row-between{display:flex; justify-content:flex-end; margin:-4px 0 16px;}
-  .link-sm{font-size:12.5px; color:#a9a3ff; font-weight:600; cursor:pointer; background:none; border:0; padding:0;}
-  .link-sm:hover{color:#fff; text-decoration:underline;}
-
-  .submit{width:100%; border:0; border-radius:14px; padding:14px; font-size:15px; font-weight:800; cursor:pointer;
-    color:#fff; background:linear-gradient(120deg,var(--accent),var(--accent2)); box-shadow:0 16px 32px -12px rgba(255,90,95,.55);
-    transition:transform .18s var(--pop), box-shadow .2s var(--ease); position:relative; overflow:hidden;
-    display:flex; align-items:center; justify-content:center; gap:9px;}
-  .submit:hover{transform:translateY(-2px); box-shadow:0 20px 38px -12px rgba(124,92,255,.6);}
-  .submit:active{transform:translateY(0) scale(.98);}
-  .submit:disabled{opacity:.7; cursor:default; transform:none;}
-  .spin{width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff;
-    animation:spin .7s linear infinite; display:none;}
-  .submit.loading .spin{display:inline-block;} .submit.loading .lbl{opacity:.85;}
-  @keyframes spin{to{transform:rotate(360deg);}}
-
-  .msg-box{margin-top:14px; font-size:13px; text-align:center; min-height:18px; display:flex; align-items:center;
-    justify-content:center; gap:7px;}
-  .msg-box.err{color:#ff8fa3;} .msg-box.ok{color:#b8f34a;}
-
-  .switcher{text-align:center; margin-top:20px; font-size:13px; color:#8c8c94;}
-  .switcher b{color:#fff; cursor:pointer; font-weight:700;}
-  .switcher b:hover{color:var(--accent2);}
-
-  .divider{display:flex; align-items:center; gap:12px; margin:20px 0 16px; color:#6f6f78; font-size:11.5px;
-    text-transform:uppercase; letter-spacing:.08em;}
-  .divider::before,.divider::after{content:""; flex:1; height:1px; background:var(--hair);}
-
-  .fineprint{font-size:11px; color:#6f6f78; text-align:center; margin-top:18px; line-height:1.6;}
-  .fineprint a{color:#9a9aa3; text-decoration:underline;}
-
-  /* success overlay */
-  .success{position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center;
-    justify-content:center; gap:14px; background:linear-gradient(180deg,rgba(18,16,24,.85),rgba(18,16,24,.97));
-    backdrop-filter:blur(6px); opacity:0; pointer-events:none; transition:opacity .35s var(--ease);}
-  .success.on{opacity:1; pointer-events:auto;}
-  .check{width:74px; height:74px; border-radius:50%; background:linear-gradient(135deg,var(--lime),#6fe0a8);
-    display:grid; place-items:center; font-size:32px; color:#0b0b10; transform:scale(0);
-    animation:pop .5s var(--pop) .1s forwards; box-shadow:0 20px 40px -12px rgba(184,243,74,.5);}
-  @keyframes pop{to{transform:scale(1);}}
-  .success h3{margin:0; font-size:19px; font-weight:800; letter-spacing:-.01em;}
-  .success p{margin:0; font-size:13px; color:#a1a1a8;}
-
-  /* forgot-password mini panel */
-  .fp-panel{display:none;}
-  .fp-panel.on{display:block; animation:rise .35s var(--ease) both;}
-  .fp-back{display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#9a9aa3;
-    cursor:pointer; margin-bottom:14px; background:none; border:0; padding:0;}
-  .fp-back:hover{color:#fff;}
-
-  @media(max-width:520px){
-    .auth-wrap{padding:56px 18px;}
-    header.top{padding:16px 16px;}
-    .card{padding:28px 20px 24px; border-radius:24px;}
-  }
-  @media(prefers-reduced-motion:reduce){
-    .eyebrow .dot,.dots span{animation:none;}
-    .card,.stage,.msg{animation:none;}
-  }
 </style>
 </head>
 <body>
-
-<div class="bg"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
-<div class="grain"></div>
-
-<header class="top">
-  <a class="back" href="/"><span>←</span> Roamly</a>
-  <span class="top-logo grad">🧭 Roamly</span>
-</header>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs>
+  <symbol id="i-logo" viewBox="0 0 32 32"><path fill="url(#rg)" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#rg)" stroke="none" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-logo-w" viewBox="0 0 32 32"><path fill="#fff" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="#fff" stroke="none" opacity=".8" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="m4 7.5 8 6 8-6"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
+  <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.8-3.6 3.8-5.8 7.5-5.8s6.7 2.2 7.5 5.8"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M4 4l16 16M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.9 3.6M6.4 7.9C3.9 9.6 2.5 12 2.5 12S6 18 12 18c1.4 0 2.7-.3 3.8-.8"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 3.1 6.9 7.5 7.5-4.4.6-6.9 3.1-7.5 7.5-.6-4.4-3.1-6.9-7.5-7.5 4.4-.6 6.9-3.1 7.5-7.5Z"/></symbol>
+</svg>
 
 <div class="shell">
-  <div class="stage-wrap">
-    <div class="preview">
-      <div class="eyebrow"><span class="dot"></span> Your night, planned</div>
-      <h1>One login.<br><span class="grad">A whole night out.</span></h1>
-      <p>Real venues, live hours, mapped stop by stop — tailored the second you sign in.</p>
-
-      <div class="stage" id="demo-stage">
-        <div class="bar"><i></i><i></i><i></i></div>
-        <div id="demo"></div>
-      </div>
-
+  <section class="hero auth-hero" aria-label="About Roamly">
+    <svg class="skyline" id="skyline" viewBox="0 0 800 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
+    <span class="glow" aria-hidden="true"></span>
+    <div class="ah-bar">
+      <span class="logo on-dark"><svg class="logo-mark" aria-hidden="true"><use href="#i-logo-w"/></svg>Roamly</span>
+      <a class="ah-back" href="/"><svg class="ic sm" aria-hidden="true"><use href="#i-back"/></svg> Home</a>
     </div>
-  </div>
+    <div class="ah-copy">
+      <h1>Better plans.<br>Less planning.</h1>
+      <p>Tell Roamly what you're after — real places near you, timed and budgeted, ready to go.</p>
+      <div class="uses" aria-label="Made for"><span>💘 Date nights</span><span>🎉 Friends</span><span>🧍 Solo</span><span>👨‍👩‍👧 Family</span><span>✨ Any mood</span></div>
+    </div>
+    <div class="demo-card" aria-hidden="true"><div id="demo"></div></div>
+  </section>
 
   <div class="auth-wrap">
-    <div class="card" id="card">
-      <div class="success" id="success">
-        <div class="check">✓</div>
+    <div class="card auth" id="card">
+      <div class="success" id="success" role="status">
+        <div class="check"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></div>
         <h3 id="successTitle">Welcome back</h3>
         <p id="successSub">Taking you to your plan…</p>
       </div>
@@ -253,12 +175,12 @@
       <!-- MAIN AUTH FORM -->
       <div id="mainPanel">
         <div class="card-head">
-          <div class="m">Members only</div>
+          <div class="m"><svg class="ic sm" aria-hidden="true"><use href="#i-sparkle"/></svg> Roamly</div>
           <h2 id="headTitle">Welcome back</h2>
-          <p id="headSub">Sign in to keep planning your night.</p>
+          <p id="headSub">Good to see you again — let's get back to planning.</p>
         </div>
 
-        <div class="seg">
+        <div class="seg" role="group" aria-label="Sign in or create an account">
           <div class="thumb" id="segThumb"></div>
           <button type="button" class="on" data-mode="login">Sign in</button>
           <button type="button" data-mode="register">Create account</button>
@@ -266,48 +188,48 @@
 
         <form id="authForm" novalidate>
           <div id="regFields">
-            <div class="field" id="fUsername">
-              <label>Username</label>
-              <div class="in-wrap"><span class="ic">@</span>
-                <input id="username" placeholder="explorer" autocomplete="username" />
+            <div class="fld" id="fUsername">
+              <label for="username">Username</label>
+              <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-at"/></svg>
+                <input class="input" id="username" placeholder="explorer" autocomplete="username" aria-describedby="hUsername" />
               </div>
               <div class="hint" id="hUsername">3–30 characters — letters, numbers, underscore.</div>
             </div>
-            <div class="field" id="fDisplay">
-              <label>Display name</label>
-              <div class="in-wrap"><span class="ic">✦</span>
-                <input id="displayName" placeholder="Your name" autocomplete="name" />
+            <div class="fld" id="fDisplay">
+              <label for="displayName">Display name</label>
+              <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>
+                <input class="input" id="displayName" placeholder="Your name" autocomplete="name" />
               </div>
             </div>
           </div>
 
-          <div class="field" id="fEmail">
-            <label>Email</label>
-            <div class="in-wrap"><span class="ic">✉</span>
-              <input id="email" type="email" placeholder="you@example.com" autocomplete="email" />
+          <div class="fld" id="fEmail">
+            <label for="email">Email address</label>
+            <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg>
+              <input class="input" id="email" type="email" placeholder="you@example.com" autocomplete="email" aria-describedby="hEmail" />
             </div>
             <div class="hint" id="hEmail"></div>
           </div>
 
-          <div class="field" id="fPassword">
-            <label>Password</label>
-            <div class="in-wrap"><span class="ic">⚿</span>
-              <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" />
-              <button type="button" class="toggle-pw" id="togglePw">👁</button>
+          <div class="fld" id="fPassword">
+            <label for="password">Password</label>
+            <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>
+              <input class="input" id="password" type="password" placeholder="••••••••" autocomplete="current-password" aria-describedby="hPassword" />
+              <button type="button" class="toggle-pw" id="togglePw" aria-label="Show password"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button>
             </div>
-            <div class="strength" id="strength"><i></i><i></i><i></i><i></i></div>
+            <div class="strength" id="strength" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
             <div class="hint" id="hPassword">At least 6 characters.</div>
           </div>
 
           <div class="row-between">
-            <button type="button" class="link-sm" id="forgotLink">Forgot password?</button>
+            <button type="button" class="link" id="forgotLink">Forgot password?</button>
           </div>
 
-          <button type="submit" class="submit" id="submitBtn">
+          <button type="submit" class="btn btn-primary btn-lg btn-block submit" id="submitBtn">
             <span class="spin"></span><span class="lbl" id="submitLbl">Sign in</span>
           </button>
 
-          <div class="msg-box" id="formMsg"></div>
+          <div class="msg-box" id="formMsg" role="alert"></div>
         </form>
 
         <div class="switcher" id="switcher">
@@ -319,22 +241,23 @@
 
       <!-- FORGOT PASSWORD PANEL -->
       <div class="fp-panel" id="fpPanel">
-        <button class="fp-back" id="fpBack">← Back to sign in</button>
+        <button class="link fp-back" id="fpBack"><svg class="ic sm" aria-hidden="true"><use href="#i-back"/></svg> Back to sign in</button>
         <div class="card-head">
           <div class="m">Reset access</div>
           <h2>Forgot password?</h2>
           <p>Enter your email and we'll send reset instructions.</p>
         </div>
-        <div class="field" id="fFpEmail">
-          <label>Email</label>
-          <div class="in-wrap"><span class="ic">✉</span>
-            <input id="fpEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+        <div class="fld" id="fFpEmail">
+          <label for="fpEmail">Email address</label>
+          <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg>
+            <input class="input" id="fpEmail" type="email" placeholder="you@example.com" autocomplete="email" />
           </div>
+          <div class="hint"></div>
         </div>
-        <button type="button" class="submit" id="fpSubmit">
+        <button type="button" class="btn btn-primary btn-lg btn-block submit" id="fpSubmit">
           <span class="spin"></span><span class="lbl">Send reset link</span>
         </button>
-        <div class="msg-box" id="fpMsg"></div>
+        <div class="msg-box" id="fpMsg" role="status"></div>
       </div>
     </div>
   </div>
@@ -364,7 +287,7 @@ function applyMode(animate=true){
     $('strength').style.display = 'flex';
   } else {
     $('headTitle').textContent = 'Welcome back';
-    $('headSub').textContent = 'Sign in to keep planning your night.';
+    $('headSub').textContent = "Good to see you again — let's get back to planning.";
     $('submitLbl').textContent = 'Sign in';
     $('switcher').innerHTML = "New to Roamly? <b id=\"switchLink\">Create a free account</b>";
     $('password').setAttribute('autocomplete','current-password');
@@ -427,7 +350,8 @@ $('togglePw').onclick = () => {
   const inp = $('password');
   const show = inp.type === 'password';
   inp.type = show ? 'text' : 'password';
-  $('togglePw').textContent = show ? '🙈' : '👁';
+  $('togglePw').innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${show ? 'eye-off' : 'eye'}"/></svg>`;
+  $('togglePw').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
 };
 
 /* ---------- submit ---------- */
@@ -518,16 +442,19 @@ $('fpSubmit').onclick = async () => {
   }
 };
 
-/* ---------- subtle 3D tilt on the card (desktop only) ---------- */
-if (matchMedia('(hover:hover) and (pointer:fine)').matches){
-  const card = $('card');
-  card.addEventListener('mousemove', (e) => {
-    const r = card.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width - .5, py = (e.clientY - r.top) / r.height - .5;
-    card.style.transform = `perspective(900px) rotateY(${px*3}deg) rotateX(${-py*3}deg)`;
-  });
-  card.addEventListener('mouseleave', () => { card.style.transform = ''; });
-}
+/* ---------- hero skyline (same generated art as the planner) ---------- */
+(function(){
+  const r = n => { const s = Math.sin(n * 12.9898) * 43758.5453; return s - Math.floor(s); };
+  const T = 560; let back = '', front = '', win = '', x = 0, i = 0;
+  while (x < 800){ const w = 16 + Math.round(r(i + 1) * 16), h = 38 + Math.round(r(i + 7) * 46); back += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`; x += w + 2; i++; }
+  x = 0;
+  while (x < 800){ const w = 20 + Math.round(r(i + 3) * 18), h = 20 + Math.round(r(i + 5) * 30);
+    if (x + w < T - 18 || x > T + 18){ front += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`;
+      if (r(i + 9) > .3) win += `<rect x="${x + 5}" y="${126 - h}" width="3" height="3"/>`; }
+    x += w + 3; i++; }
+  $('skyline').innerHTML = `<g fill="#2b1d6e" opacity=".5">${back}</g><g fill="#1a1242">${front}<path d="M${T - 7} 120l4-62h6l4 62z"/>
+    <rect x="${T - 1.5}" y="6" width="3" height="56"/><ellipse cx="${T}" cy="47" rx="9" ry="4.5"/></g><g fill="#ffd27a" opacity=".85">${win}</g>`;
+})();
 
 /* ---------- animated itinerary preview (mirrors the marketing site) ---------- */
 const SCENARIOS = [
@@ -547,22 +474,24 @@ async function playDemo(){
   for(;;){
     const s = SCENARIOS[i % SCENARIOS.length]; i++;
     demo.innerHTML = '';
-    demo.appendChild(el(`<div class="msg me"><div class="av">🙂</div><div class="bubble">${s.ask}</div></div>`));
+    demo.appendChild(el(`<div class="dmsg me"><div class="bub">${s.ask}</div></div>`));
+    const AV = '<div class="av"><svg class="logo-mark"><use href="#i-logo"/></svg></div>';
     if (!reduce){
-      const typing = el(`<div class="msg"><div class="av">R</div><div class="bubble dots"><span></span><span></span><span></span></div></div>`);
+      const typing = el(`<div class="dmsg">${AV}<div class="bub dots"><span></span><span></span><span></span></div></div>`);
       demo.appendChild(typing); await sleep(950); typing.remove();
     }
-    demo.appendChild(el(`<div class="msg"><div class="av">R</div><div class="bubble">${s.reply}</div></div>`));
-    const stops = el(`<div class="stops"></div>`); demo.appendChild(stops);
+    demo.appendChild(el(`<div class="dmsg">${AV}<div class="bub">${s.reply}</div></div>`));
+    const stops = el(`<div class="dstops"></div>`); demo.appendChild(stops);
     for (const [t, n, c] of s.stops){
       if (!reduce) await sleep(380);
-      const row = el(`<div class="stop"><span class="time">${t}</span><span class="name">${n}</span><span class="cat">${c}</span></div>`);
+      const row = el(`<div class="dstop"><span class="time">${t}</span><span class="name">${n}</span><span class="cat">${c}</span></div>`);
       row.style.animation = 'rise .4s var(--ease) both'; stops.appendChild(row);
     }
     await sleep(4200);
   }
 }
-playDemo();
+// The demo only exists on wide screens — don't run its loop when it's hidden.
+if (matchMedia('(min-width:980px)').matches) playDemo();
 </script>
 </body>
 </html>

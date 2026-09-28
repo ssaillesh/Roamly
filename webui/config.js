@@ -31,9 +31,9 @@ try {
       toast.textContent = 'Waking up the server… (can take up to a minute)';
       toast.style.cssText =
         'position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:99999;' +
-        'max-width:calc(100% - 32px);padding:10px 16px;border-radius:999px;' +
-        'background:#1c1c22;color:#f4f4f6;font:500 13px/1.3 system-ui,sans-serif;' +
-        'box-shadow:0 6px 24px rgba(0,0,0,.35);pointer-events:none;transition:opacity .2s;';
+        'max-width:calc(100% - 32px);padding:11px 18px;border-radius:999px;' +
+        'background:#17153a;color:#fff;font:650 13.5px/1.3 "Plus Jakarta Sans",system-ui,sans-serif;' +
+        'box-shadow:0 18px 40px -16px rgba(23,21,58,.55);pointer-events:none;transition:opacity .2s;';
       document.body.appendChild(toast);
     }
     toast.style.opacity = on ? '1' : '0';

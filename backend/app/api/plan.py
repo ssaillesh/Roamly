@@ -22,6 +22,7 @@ from app.schemas.plan import (
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile
 from app.services import events as events_svc
+from app.services import live_events
 from app.services.geocoding import geocode, geocode_place
 from app.services.planner import (
     build_plan, build_trip, VIBE_PLANS, gather_options, option_sections, build_from_selection,
@@ -375,6 +376,21 @@ def _words(s):
     return {w.rstrip("s") for w in re.findall(r"[a-z]{4,}", (s or "").lower())}
 
 
+def _apply_session_early(prefs, session):
+    """The page's "Planning around" settings fill what a typed request doesn't say.
+    They sit between the message (always wins) and the taste profile (fills only
+    what's left) — and already started from the profile, so they come first."""
+    if not session:
+        return
+    if not prefs.get("group_type") and session.get("group_type"):
+        prefs["group_type"] = session["group_type"]
+        if session.get("party_size"):
+            prefs["party_size"] = session["party_size"]
+    for k in ("time_of_day", "transport", "interests", "dietary"):
+        if not prefs.get(k) and session.get(k):
+            prefs[k] = session[k]
+
+
 def _apply_taste_early(prefs, taste):
     """Profile traits the request didn't state. Runs right after extraction.
     The LLM always fills party_size (default 2), so the crew only comes from the
@@ -423,15 +439,20 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
     structured = req.prefs is not None
     # Chip-sent prefs skip the LLM entirely and never run text heuristics.
     text = "" if structured else _joined_user_text(req)
+    # Typed requests carry the page's current settings; they fill the gaps only.
+    session = _structured(req.defaults) if (req.defaults and not structured) else {}
     if structured:
         prefs = _structured(req.prefs)
     else:
         prefs = (_llm_extract(req) if llm.available() else None) or _heuristic_extract(text)
+    _apply_session_early(prefs, session)
     _apply_taste_early(prefs, taste)
 
-    # A city the user names wins over the device pin.
+    # A city the user names wins over the device pin (and over the page's place).
     lat, lng = req.lat, req.lng
     loc_name = prefs.get("location") or (None if structured else _extract_location(_orig_user_text(req)))
+    if not loc_name and session.get("location"):
+        loc_name = prefs["location"] = session["location"]
     if loc_name:
         coords = geocode(loc_name, None)
         if coords:
@@ -474,6 +495,8 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
                   or group_kw or prefs.get("group_type") == "friends")
     if prefs.get("budget") and per_person and not structured:   # chip budgets are already totals
         prefs["budget"] = float(prefs["budget"]) * int(prefs.get("party_size") or 2)
+    if not prefs.get("budget") and session.get("budget"):
+        prefs["budget"] = session["budget"]          # the bar's budget is a total — never re-scaled
     if req.surprise or any(w in text for w in ["surprise", "random", "you pick", "you choose", "whatever"]):
         prefs["surprise"] = True
         prefs.setdefault("budget", 100)
@@ -483,6 +506,8 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
         r = _extract_radius(text)
         if r:
             prefs["radius"] = r
+        elif session.get("radius"):
+            prefs["radius"] = session["radius"]
     if not prefs.get("days"):
         prefs["days"] = _extract_days(text)
     if not prefs.get("time_of_day") and any(k in text for k in
@@ -495,28 +520,113 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
                                "bougie", "boujee", "high end", "high-end", "luxury", "luxurious",
                                "more expensive", "splurge", "baller", "treat ourselves", "treat myself"]):
         prefs["vibe"] = "extravagant"
-        b = float(prefs.get("budget") or 0)
-        prefs["budget"] = max(b * 1.6, b, 250)
+        # Bump the budget only for a "make it fancier" follow-up. When the same
+        # message states an amount ("$60 fancy date"), that amount is the budget.
+        if not re.search(r"\$\s*\d|\b\d{2,5}\s*(?:dollars|bucks|each|pp)\b", last):
+            b = float(prefs.get("budget") or 0)
+            prefs["budget"] = max(b * 1.6, b, 250)
         if any(w in last for w in ["no object", "no limit", "unlimited", "sky is the limit"]):
             prefs["budget"] = max(prefs["budget"], 600)
     elif any(w in last for w in ["cheaper", "cheap", "budget friendly", "more affordable",
                                  "affordable", "save money", "less expensive", "cost less", "on a budget"]):
         prefs["vibe"] = "chill"
+    if not prefs.get("vibe") and session.get("vibe"):       # after surprise, so "surprise me" still surprises
+        prefs["vibe"] = session["vibe"]
     _apply_taste_late(prefs, taste)
     return lat, lng, prefs
+
+
+# "What's on?" questions get a list of events, not a plan. Deliberately narrow:
+# "plan a date tonight" is still a plan; "what's happening tonight" is events.
+_EVENTS_RE = re.compile(
+    r"\b(?:what'?s|whats|what is) (?:on|happening|going on)\b"
+    r"|\bhappening (?:now|right now|tonight|today|this weekend|near me|nearby|around)\b"
+    r"|\b(?:live )?events? (?:tonight|today|now|right now|this weekend|near me|nearby|around)\b"
+    r"|\bany(?:thing)? (?:events?|festivals?|shows?|concerts?|gigs?)\b"
+    r"|\b(?:festivals?|concerts?|gigs?) (?:tonight|today|now|this weekend|near me|nearby|on)\b")
+_WINDOW_LABEL = {"now": "right now", "tonight": "tonight", "weekend": "this weekend"}
+
+
+def _events_window(req: ChatRequest, last: str) -> str | None:
+    """now | tonight | weekend when this is a what's-on request, else None."""
+    mode = (req.prefs or {}).get("mode")
+    if mode in _WINDOW_LABEL:
+        return mode
+    if not last or not _EVENTS_RE.search(last):
+        return None
+    if "weekend" in last:
+        return "weekend"
+    return "tonight" if "tonight" in last else "now"
+
+
+def _events_reply(lat, lng, window, radius_km, tz, prefs) -> ChatResponse:
+    when = _WINDOW_LABEL[window]
+    if not live_events.available_for(lat, lng):
+        return ChatResponse(type="message", window=window,
+            message="Live event search isn't switched on here yet — want me to plan something instead?")
+    evs = live_events.happening(lat, lng, window=window, radius_km=radius_km, tz=tz,
+        classification=events_svc.classification_for(prefs.get("vibe"), prefs.get("interests")))
+    km = f"{radius_km:g} km"
+    if not evs:
+        return ChatResponse(type="events", window=window, events=[], message=(
+            f"Nothing listed {when} within {km}. I check ticketed events and the city's festival "
+            "calendar, so small free pop-ups can be missing — try a wider radius, or I can plan "
+            "something instead."))
+    on_now = sum(1 for e in evs if live_events.is_on_now(e))
+    lead = f"{on_now} on now · " if window == "now" and on_now else ""
+    return ChatResponse(type="events", window=window, events=[Event(**e) for e in evs],
+        message=f"Here's what's on {when} within {km} ({lead}{len(evs)} found):")
+
+
+_UNDERSTOOD_CHOICES = {"vibe": set(VIBE_PLANS), "group_type": {"date", "friends", "family", "solo"},
+                       "time_of_day": {"morning", "afternoon", "evening", "night"},
+                       "transport": {"walk", "transit", "car"}}
+
+
+def _understood(prefs: dict) -> dict:
+    """The resolved settings worth showing back to the user (valid values only)."""
+    out = {k: prefs[k] for k, ok in _UNDERSTOOD_CHOICES.items() if prefs.get(k) in ok}
+    for k, cast in (("party_size", int), ("budget", float)):
+        try:
+            if prefs.get(k):
+                out[k] = cast(prefs[k])
+        except (TypeError, ValueError):
+            pass
+    if prefs.get("radius"):
+        out["radius_km"] = round(prefs["radius"] / 1000, 1)
+    if isinstance(prefs.get("location"), str) and prefs["location"].strip():
+        out["location"] = prefs["location"].strip()[:100]
+    if isinstance(prefs.get("interests"), str) and prefs["interests"].strip():
+        out["interests"] = prefs["interests"].strip()[:120]   # "sushi" shows in the bar and survives a re-plan
+    return out
 
 
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest, user: User = Depends(get_current_user),
          db: Session = Depends(get_db)):
+    seen: dict = {}
+    resp = _chat(req, user, db, seen)
+    if seen.get("prefs") is not None:
+        resp.understood = _understood(seen["prefs"])
+    return resp
+
+
+def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse:
     req = _fresh_cut(req)
     structured = req.prefs is not None
     text = "" if structured else _joined_user_text(req)
     last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
-    lat, lng, prefs = _resolve(req, _taste_defaults(db, user))
+    taste = _taste_defaults(db, user)
+    lat, lng, prefs = _resolve(req, taste)
+    seen["prefs"] = prefs
     if lat is None or lng is None:
         return ChatResponse(type="message",
             message="Tell me where — enable location, or just name a city (e.g. \"in Toronto\") — plus your budget and vibe.")
+
+    window = _events_window(req, last)
+    if window:
+        radius_km = (prefs["radius"] / 1000) if prefs.get("radius") else taste.get("radius_km", 10)
+        return _events_reply(lat, lng, window, radius_km, req.tz, prefs)
 
     missing = _needs(prefs)
     if missing:

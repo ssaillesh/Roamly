@@ -17,6 +17,7 @@ from app.services.osm_places import fetch_places
 from app.services import llm
 from app.services import weather as weather_svc
 from app.services import events as events_svc
+from app.services import live_events
 from app.services import experience
 from app.metrics import time_itinerary_generation
 
@@ -542,9 +543,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     # round-trip per stop. Whatever isn't back by the deadline is left out.
     jobs = {k: _POOL.submit(_gather, center, k, price_pref, radius, dietary, *route(k))
             for k in dict.fromkeys(slots)}
-    ev_job = (_POOL.submit(events_svc.search_events, lat, lng, radius_km=25, size=8,
+    # Events in the next 24h within the plan's reach — ticketed and free city ones.
+    ev_job = (_POOL.submit(live_events.happening, lat, lng, window="day", size=8,
+                           radius_km=max(5.0, radius / 1000),
                            classification=events_svc.classification_for(vibe, interests))
-              if events_svc.available() else None)
+              if live_events.available_for(lat, lng) else None)
     wait(list(jobs.values()), timeout=max(0.0, left()))
     late = {k for k, f in jobs.items() if not f.done()}
     found = {k: [c for c in _result(f, []) if keep(c)] for k, f in jobs.items()}
@@ -869,13 +872,10 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
             return
     # deterministic fallback
     plan["intro"] = _template_intro(plan)
+    # No per-stop "why" without the narrator: the card already shows rating,
+    # price and category, and repeating them read as clutter.
     for s in stops:
-        bits = []
-        if s.get("rating"):
-            bits.append(f"{s['rating']}★" + (f" · {s['price']}" if s.get("price") else ""))
-        if s.get("categories"):
-            bits.append(s["categories"][0])
-        s["why"] = " · ".join(bits) or f"A solid {s['label'].lower()} nearby."
+        s.pop("why", None)
 
 
 def _template_intro(plan):
