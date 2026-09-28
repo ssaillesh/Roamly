@@ -18,6 +18,10 @@ def upgrade() -> None:
     # against the *current* models, which already include this column. Only add
     # it when missing so the chain also applies cleanly to older databases.
     bind = op.get_bind()
+    # badges itself is gone from the models as of 0009, so a fresh DB never
+    # creates it at all — skip (same pattern as trip_photos in 0005).
+    if "badges" not in sa.inspect(bind).get_table_names():
+        return
     cols = [c["name"] for c in sa.inspect(bind).get_columns("badges")]
     if "emoji" not in cols:
         op.add_column("badges", sa.Column("emoji", sa.String(length=16), nullable=True))

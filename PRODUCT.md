@@ -295,7 +295,7 @@ Eventbrite no longer offers public event search, and Meetup's API requires a pai
 
 **Hosting:**
 - Website: Vercel (static)
-- API and background worker: Render (free plan, kept awake by a ping every 5 minutes)
+- API: Render (free plan, kept awake by a ping every 5 minutes). No background worker.
 - Database: Postgres on Render. ⚠️ The free database **expires 2026-10-25**; move to a paid database with backups before real users arrive.
 
 ---
@@ -303,7 +303,7 @@ Eventbrite no longer offers public event search, and Meetup's API requires a pai
 ## 10. Not part of Roamly (removed or switched off)
 
 - **The hidden-gems map app:** removed entirely, including the gem catalog and "hidden gem" ranking.
-- **Travel logging** (trips, friends, feed, leaderboards, challenges, badges, share cards): these came from an earlier project ("TrekRank"). The code and data remain, but the routes are switched off because nothing in the app uses them.
+- **Travel logging** (trips, friends, feed, leaderboards, challenges, badges, share cards): these came from an earlier project ("TrekRank"). Removed: migration `0009` drops their tables and the travel columns on `users`, and their code is gone (see `CLEANUP.md`).
 
 ---
 

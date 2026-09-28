@@ -1,9 +1,7 @@
-"""TrekRank FastAPI application entrypoint."""
-import os
+"""Roamly FastAPI application entrypoint."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import settings
@@ -11,9 +9,9 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.api import auth, users, waitlist, plan
 
 app = FastAPI(
-    title="TrekRank API",
+    title="Roamly API",
     version="0.1.0",
-    description="Travel logging, leaderboards, badges and share cards.",
+    description="AI outing planner: accounts, taste profiles, plans and live events.",
 )
 
 app.add_middleware(
@@ -29,10 +27,6 @@ app.add_middleware(RateLimitMiddleware)
 # histogram_quantile in PromQL/Grafana), exposed at GET /metrics.
 Instrumentator().instrument(app).expose(app, include_in_schema=False)
 
-# Serve locally-stored media (share cards) when STORAGE_BACKEND=local.
-if settings.storage_backend == "local":
-    os.makedirs(settings.local_storage_dir, exist_ok=True)
-    app.mount("/media", StaticFiles(directory=settings.local_storage_dir), name="media")
 
 # Only what the web app uses is exposed. The travel-logging features (trips,
 # friends, feed, leaderboards, challenges, share cards) have no screens yet, so

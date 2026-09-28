@@ -1,10 +1,8 @@
 # Render Blueprint — TrekRank backend.
 #
-# The API and the Celery worker run in ONE web service (via backend/start.sh)
-# so they share a disk. The EXIF photo pipeline depends on the worker being able
-# to read the photo the API just saved — separate services with separate disks
-# would break geolocation. (For durable storage later, switch STORAGE_BACKEND to
-# S3/R2 and you can split them into independent services.)
+# One web service runs the API (backend/start.sh: migrations, then uvicorn).
+# NOTE: the live service is Docker-runtime (backend/Dockerfile) and isn't managed
+# by this Blueprint — see CLEANUP.md before relying on this file.
 #
 # Deploy: push this repo to GitHub, then in Render: New → Blueprint → pick the repo.
 
@@ -29,7 +27,7 @@ services:
     rootDir: backend
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: sh start.sh   # runs migrations + seeds + Celery worker + uvicorn
+    startCommand: sh start.sh   # runs migrations + uvicorn
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -41,8 +39,6 @@ services:
           type: keyvalue
           name: trekrank-redis
           property: connectionString
-      - key: STORAGE_BACKEND
-        value: local
       - key: JWT_SECRET
         generateValue: true
       - key: ENVIRONMENT
@@ -50,7 +46,3 @@ services:
       # Nominatim asks for a descriptive UA with contact info — set your email.
       - key: GEOCODE_USER_AGENT
         value: "TrekRank/1.0 (your-email@example.com)"
-      # After the first deploy, set this to the service's public URL,
-      # i.e. https://trekrank.onrender.com  (used to build photo URLs).
-      - key: PUBLIC_BASE_URL
-        sync: false

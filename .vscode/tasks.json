@@ -2,32 +2,15 @@
   // Run TrekRank locally from VS Code.
   //   Terminal ▸ Run Task…  (or ⇧⌘B for the default build task)
   //
-  // "TrekRank: Web App" starts the API, the Celery worker, and the static web
+  // "TrekRank: Web App" starts the API and the static web
   // UI, then you can open http://127.0.0.1:8080 in VS Code's Simple Browser
   // (⇧⌘P ▸ "Simple Browser: Show") or any browser.
-  //
-  // The Worker is required for adding trips — it geocodes the cities and
-  // computes distance in the background. Without it, new trips stay stuck in
-  // "processing" forever.
   "version": "2.0.0",
   "tasks": [
     {
       "label": "TrekRank: API",
       "type": "shell",
       "command": "./run_local.sh api",
-      "options": { "cwd": "${workspaceFolder}/backend" },
-      "isBackground": true,
-      "problemMatcher": [],
-      "presentation": {
-        "group": "trekrank",
-        "panel": "dedicated",
-        "reveal": "always"
-      }
-    },
-    {
-      "label": "TrekRank: Worker",
-      "type": "shell",
-      "command": "./run_local.sh worker",
       "options": { "cwd": "${workspaceFolder}/backend" },
       "isBackground": true,
       "problemMatcher": [],
@@ -52,7 +35,7 @@
     },
     {
       "label": "TrekRank: Web App",
-      "dependsOn": ["TrekRank: API", "TrekRank: Worker", "TrekRank: Web UI"],
+      "dependsOn": ["TrekRank: API", "TrekRank: Web UI"],
       "dependsOrder": "parallel",
       "group": { "kind": "build", "isDefault": true },
       "problemMatcher": []

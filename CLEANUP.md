@@ -1,148 +1,109 @@
 # Codebase cleanup notes
 
-*Audited 2026-09-28. Nothing below has been deleted yet: this is a checklist for you to work through and commit.*
+Roamly started life as **TrekRank**, a travel-logging app (trips, badges, leaderboards, friends, feed, share cards). This file tracks removing that history, so it doesn't affect the outing planner.
 
-Roamly started life as **TrekRank**, a travel-logging app (trips, badges, leaderboards, friends, feed, share cards). The product is now the outing planner, but most of that older code is still in the repo. This file lists what the current app doesn't use, and how safe each item is to remove.
-
-## How "not in use" was decided
-
-- **Import graph.** Built from everything production actually runs:
-  - `app.main` (the API)
-  - what `backend/start.sh` launches: the Celery worker, `scripts.seed_badges`, `scripts.reprocess_stuck`
-  - Alembic
-- **API calls.** Checked every call the web app makes. It uses only:
+**How "not in use" was decided:**
+- **Import graph.** Built from what production runs: the API, `start.sh` and Alembic.
+- **API calls.** Checked the endpoints the web app calls:
   - `/auth/register`, `/auth/login`, `/auth/forgot-password`
-  - `/users/me`, `/users/me/profile`, `/users/me/profile/questions`
+  - `/users/me` and `/users/me/profile*`
   - `/plan/chat`, `/plan/options`, `/plan/build`
   - `/waitlist`, `/health`
-- **Deploy targets.** Frontend: Vercel (`webui/` + `vercel.json`). Backend: Render, **Docker runtime** (`backend/Dockerfile` → `start.sh`).
-- **Test check.** After each tier, run `cd backend && ./run_local.sh test`. Today it gives 33 passed, 4 skipped.
+- **Deploy targets.** Frontend: Vercel. Backend: Render, Docker runtime (`backend/Dockerfile` → `start.sh`).
 
 ---
 
-## Tier A — safe to delete now (nothing imports or runs them)
+## ✅ Done — database migration (2026-09-29, not yet committed)
 
-Deleting these changes no behaviour. About 1,600 lines.
+**New migration `backend/alembic/versions/0009_drop_travel_tables.py`:**
+- **Drops 9 tables:** `activity_feed`, `user_badges`, `challenge_participants`, `friendships`, `visited_cities`, `visited_countries`, `challenges`, `badges`, `trips`. It drops children before parents, following the real foreign keys.
+- **Drops 9 `users` columns:** `apple_id` (Apple sign-in was removed earlier), `home_country`, `featured_badges`, `total_countries`, `total_cities`, `total_km`, `total_trips`, `current_streak`, `longest_streak`.
+- **Idempotent:** it only drops what exists.
+- **One-way:** downgrade refuses, because the rows can't be rebuilt from code. Restore a backup instead.
 
-| File | Why it's unused |
+**Migration `0002_badge_emoji`** now skips when `badges` doesn't exist. This follows the same guard `0005` uses for `trip_photos`. Without it, a fresh database would crash at `0002`.
+
+**Deleted (the badge feature):**
+- `app/models/badge.py`
+- `app/services/badge_evaluator.py`
+- `app/workers/badge_worker.py`
+- `scripts/seed_badges.py`
+- `tests/test_badges.py`
+
+**Live code no longer references anything old:**
+
+| File | Change |
 |---|---|
-| `backend/app/api/trips.py` | Router not mounted in `app/main.py` |
-| `backend/app/api/friends.py` | Router not mounted |
-| `backend/app/api/feed.py` | Router not mounted |
-| `backend/app/api/leaderboards.py` | Router not mounted |
-| `backend/app/api/challenges.py` | Router not mounted |
-| `backend/app/api/share.py` | Router not mounted |
-| `backend/app/api/dispatch.py` | Only imported by `trips.py` and `share.py` |
-| `backend/app/schemas/trip.py` | Only imported by `trips.py` |
-| `backend/tests/test_trips.py`, `test_feed.py`, `test_leaderboards.py`, `test_badges.py` | Each file calls `pytest.skip(...)` at the top (these are the "4 skipped") |
-| `backend/scripts/seed_demo.py`, `seed_bulk.py` | Seed fake trips and leaderboards for the removed features |
-| `backend/scripts/sway_hallucination_scan.py` | One-off LLM experiment. Imports `uqlm`, which isn't in `requirements.txt`. Uses an old product name ("Sway"). |
-| `webui/Dockerfile`, `webui/Caddyfile` | Static hosting for Railway. The front end is on Vercel. |
-| `docker-compose.yml`, `infra/` (Prometheus + Grafana) | A local "prod-like" stack with MinIO, Prometheus and Grafana. Neither Render nor Vercel uses it, and local dev uses Homebrew via `run_local.sh`. Keep it only if you want local Grafana dashboards. |
-| `.DS_Store`, `backend/.DS_Store` | macOS junk that got committed. Remove them, and add `.DS_Store` to `.gitignore`. |
-| `backend/media/` (local only, git-ignored) | Old share-card images on your disk. |
+| `app/models/__init__.py` | Registers only `User`, `TasteProfile`, `WaitlistSignup` |
+| `app/models/user.py` | The 9 dropped columns removed. **Must deploy with the migration**, which `start.sh` guarantees because it migrates before starting the API. |
+| `app/api/users.py` | Keeps `GET/PATCH /me` and the three `/me/profile` routes. Removed: featured badges, user search, public profiles, badges, stats, map. |
+| `app/schemas/user.py` | Just the account fields |
+| `app/main.py` | `/media` mount removed; title and description now say Roamly |
+| `app/config.py` | Share-card storage / S3 / MinIO settings removed. Old env vars are ignored (`extra="ignore"`). |
+| `start.sh` | Migrations, then uvicorn. **No Celery worker, badge seeding or trip healing**, so less memory on the 512 MB instance. |
+| `requirements.txt` | `celery` and `Pillow` removed (`redis` stays for the planner cache) |
+| `tests/conftest.py` | Badge seeding and the trip-processor/leaderboard fixtures removed |
+| `run_local.sh`, `.vscode/tasks.json`, `render.yaml`, `README.md`, `PRODUCT.md` | Worker and badge references removed |
 
-> If you delete `docker-compose.yml`/`infra/`, also delete the README lines that describe them.
+**Verified:**
+- **Existing database:** the local DB went `0008` → `0009`. All 474 users, 67 taste profiles and 2 waitlist signups kept. A backup was taken first: a `pg_dump` in the session scratchpad.
+- **Fresh empty database:** the full chain `0001` → `0009` runs cleanly and leaves only `users`, `user_profiles`, `waitlist_signups` (plus PostGIS's `spatial_ref_sys`). Re-running is a no-op.
+- **Tests:** `pytest` gives 33 passed, 3 skipped.
+- **Smoke test:** `scripts/smoke_test.py` passes: register → survey → plans → reset → delete.
+- **Browser:** sign-up, survey, My taste and planner flows pass, with no JS errors.
 
----
+### ⚠️ What happens when you push
+Render runs `alembic upgrade head` on start, so **`0009` drops those tables on the production database on the first deploy.** Everything the app uses is kept (accounts, taste profiles, waitlist). I haven't looked inside the production database. Since those routes have been switched off, expect little more than the 24 seeded badges there.
 
-## Tier B — remove together in one change (the old background worker)
-
-About 1,265 lines, plus one dependency and several lines in `start.sh`. **Nothing in the live product sends work to the Celery worker.** The only code that enqueues tasks is `api/dispatch.py` (Tier A). The single badge call left in `users.py` runs inline, without the worker.
-
-Yet `start.sh` still starts three things on every deploy:
-- a Celery worker process
-- a badge seed
-- a "heal stuck trips" pass
-
-On the 512 MB free Render instance, removing them frees memory and speeds up cold starts.
-
-**Delete:**
-- `backend/app/workers/` (the whole folder: `celery_app.py`, `trip_processor.py`, `badge_worker.py`, `share_worker.py`, `__init__.py`)
-- `backend/app/services/`: `badge_evaluator.py`, `distance.py`, `friends.py`, `leaderboard.py`, `stats.py`, `share_card.py`, `storage.py`
-- `backend/app/data/` (`countries.py`, used only by badges and stats)
-- `backend/scripts/seed_badges.py`, `backend/scripts/reprocess_stuck.py`
-- `backend/app/schemas/social.py`
-
-**Edit at the same time:**
-- **`backend/start.sh`:** remove the background block that seeds badges and heals trips, and the `celery -A app.workers worker …` line. Keep the DB-host log line and `alembic upgrade head`.
-- **`backend/app/api/users.py`:**
-  - Remove the travel endpoints the web app never calls: `PUT /me/featured`, `GET /search`, `GET /{username}`, `/{username}/badges`, `/{username}/stats`, `/{username}/map`.
-  - In `PATCH /me`, remove the `home_changed` / `evaluate_badges_sync` branch.
-  - Remove the now-unused imports (`VisitedCountry`, `VisitedCity`, `Badge`, `UserBadge`, `BadgeOut`, `detailed_stats`).
-  - Keep `GET /me`, `PATCH /me` and the three `/me/profile` routes.
-- **`backend/app/schemas/user.py`:** drop `UserStats`, `UserMap` and `FeaturedBadgesUpdate`, plus the stats fields on `UserProfile` if you like.
-- **`backend/tests/conftest.py`:** remove the `seed()` import and the `_seed_badges` session fixture.
-- **`backend/app/main.py`:** remove the `/media` static mount (share-card images only).
-- **`backend/app/config.py`, `render.yaml`:** remove `storage_backend`, `local_storage_dir`, `public_base_url` and the S3/MinIO settings (`STORAGE_BACKEND`, `PUBLIC_BASE_URL` in `render.yaml`).
-- **`backend/requirements.txt`:** remove `celery` and `Pillow` (share cards only). Keep `redis`: the planner still caches in Redis.
-- **`backend/run_local.sh`:** remove the `worker` command.
-- **`.vscode/tasks.json`:** remove the "TrekRank: Worker" task. The file still describes the old trips app.
-
-**Check:** run the tests, then deploy and confirm the Render log shows only migrations and uvicorn, with no Celery.
+If you want a copy first: Render dashboard → Roamly-db → **Backups**, or run `pg_dump "<external database URL>" -Fc -f roamly-before-0009.dump`.
 
 ---
 
-## Tier C — the old database tables (needs a migration, don't just delete)
+## ⏳ Left for you — delete the leftover old files
 
-**Don't delete these model files on their own.**
-- Migration `0001_init` builds every table from the current `app/models` with `create_all()`.
-- Migration `0002_badge_emoji` reads the `badges` table without checking that it exists.
-- The free Postgres is recreated every 30 days (the current one expires 2026-10-25), so migrations run on a fresh database regularly.
-- If you delete the `Badge` model, the next fresh database fails at `0002`, and the API won't start.
+These are now **orphaned**. Nothing imports them, and several import modules that no longer exist, so they couldn't run anyway. (The automated delete was blocked, so this step is yours.) From the repo root:
 
-**Models:**
-- `backend/app/models/`: `trip.py`, `visited.py`, `badge.py`, `challenge.py`, `friendship.py`, `activity.py`
-- The travel columns on `User`: `home_country`, `featured_badges`, `total_countries`, `total_cities`, `total_km`, `total_trips`, `current_streak`, `longest_streak`
+```bash
+git rm -r backend/app/workers backend/app/data \
+  backend/app/api/{trips,friends,feed,leaderboards,challenges,share,dispatch}.py \
+  backend/app/schemas/{trip,social}.py \
+  backend/app/services/{distance,friends,leaderboard,stats,share_card,storage}.py \
+  backend/app/models/{trip,visited,challenge,friendship,activity}.py \
+  backend/scripts/{reprocess_stuck,seed_demo,seed_bulk}.py \
+  backend/tests/test_{trips,feed,leaderboards}.py
+git add -A backend render.yaml README.md PRODUCT.md CLEANUP.md .vscode
+cd backend && ./run_local.sh test      # expect: 33 passed
+```
 
-**Safe way, following the repo's own `trip_photos` precedent in `0005`–`0007`:**
-1. Add migration `0009_drop_travel_tables`. It drops each table (and the `User` columns) only if it exists, in dependency order: participants/feed/friendships/visited/user_badges before trips, badges, challenges.
-2. Make `0002_badge_emoji` return early when `"badges"` isn't in `sa.inspect(bind).get_table_names()`, the same guard as `0005`. Check `0004_featured_badges` the same way.
-3. Then delete the model files, and their imports in `app/models/__init__.py`.
-4. Test on a throwaway empty database: `createdb roamly_fresh`, point `DATABASE_URL` at it, run `alembic upgrade head`, then run the tests.
-
-This removes about 250 lines of models and several empty tables, and user rows get smaller. It's low value but tidy. Do it after Tier B.
+`git rm` stages the deletions for your commit. The files stay in git history if you ever need them.
 
 ---
 
-## Tier D — your call: the paid venue APIs
+## Still open (not required by the migration)
 
-About 270 lines. You set the rule that **no paid API should be in play**. These clients are wired into the planner but switched off:
-- Yelp and Foursquare have keys on Render, but no card, so they're inactive.
-- Google Places has no key anywhere.
+**Safe to delete:** nothing runs them.
+- `docker-compose.yml` and `infra/` (Prometheus/Grafana/MinIO). A legacy local stack. Its `worker` service can no longer start (Celery is gone).
+- `webui/Dockerfile`, `webui/Caddyfile`. Railway static hosting; the front end is on Vercel.
+- `backend/scripts/sway_hallucination_scan.py`. A one-off LLM experiment. It needs `uqlm`, which isn't in `requirements.txt`.
+- `.DS_Store`, `backend/.DS_Store`. macOS junk that got committed. Also add `.DS_Store` to the root `.gitignore`, which today only ignores `/.claude`.
+- `backend/media/` (local only, git-ignored). Old share-card images.
+- `app/metrics.py`: its PostGIS query-timing metric was only used by the old `distance.py`. The itinerary metric is still used, so keep the file.
 
-Each returns nothing when inactive, so today they are dead code paths.
+**Your call: the paid venue APIs** (Yelp, Foursquare, Google Places). Wired into the planner but inactive (no card / no key). Removing them means:
+- deleting `backend/app/services/{yelp,foursquare,google_places}.py`
+- editing their imports and calls in `app/services/planner.py` and `app/api/plan.py`
+- removing their settings in `app/config.py` and the `YELP_*` / `FOURSQUARE_*` env vars on Render
 
-- `backend/app/services/yelp.py`, `foursquare.py`, `google_places.py`
-- **Edit alongside:** their imports and calls in `app/services/planner.py` and `app/api/plan.py`, their settings in `app/config.py`, and the `YELP_*` / `FOURSQUARE_*` env vars on Render.
-- **Benefit:** it's guaranteed that no request can ever go to a paid API, even if someone adds a card later.
-- **Caution:** if you ever want Yelp photos or prices back, it's in git history.
-
----
-
-## Worth fixing (not unused, but leftover history)
-
-| What | Note |
-|---|---|
-| `render.yaml` | **Out of sync with the live service.** It says `runtime: python` and `trekrank-redis`; the live service is Docker-runtime with `roamly-redis`. Either update it to match, or delete it and treat the Render dashboard as the source of truth. Check first whether the service is Blueprint-managed (Render dashboard → the service → "Blueprint"). |
-| `.gitignore` (root) | Only ignores `/.claude`, which is why the two `.DS_Store` files got committed. Add `.DS_Store` and `*.log`. |
-| `README.md` "Tests" paragraph | Still describes "10 pytest integration tests (trips, badges, leaderboards)", which are the skipped ones. Update after Tier A/B. |
-| "TrekRank" naming | Appears in the FastAPI title/description in `main.py` (it still says "Travel logging, leaderboards, badges and share cards"), the Celery app name, `.vscode/tasks.json`, and the Grafana dashboard name. Cosmetic. |
+**Worth fixing:**
+- **`render.yaml`** is out of sync with the live service. It says `runtime: python` and `trekrank-redis`; the live service is Docker-runtime with `roamly-redis`. Update it or delete it (check the service isn't Blueprint-managed first).
+- **Naming:** "TrekRank" still appears in cosmetic places (`/health` says `"app":"TrekRank"` via `settings.app_name`, `.vscode/tasks.json`, the Grafana dashboard).
 
 ## Keep, even though they look like history
 
 | What | Why |
 |---|---|
-| `backend/alembic/versions/0001`–`0008` | The live database's schema history. Never delete or renumber these. |
-| `localStorage` keys `trek_token`, `trek_user`, `wander_saved` | Renaming them signs everyone out and loses their saved plans. Only change them with a migration step in the page. |
-| `https://trekrank.onrender.com` | The live API URL. Render kept the subdomain after the rename. `config.js`, `keepalive.yml` and cron-job.org all use it. |
-| `.github/workflows/keepalive.yml` | In use: an hourly outage alert. cron-job.org does the 5-minute keep-awake. |
-| `app/metrics.py` | Used by the planner (itinerary timing metrics). |
-| `backend/scripts/smoke_test.py` | Current. It tests exactly what the web app uses (register → survey → plans → reset → delete). |
-
-## Suggested order
-1. **Tier A:** delete, run the tests, commit.
-2. **Tier B:** one commit. Run the tests, deploy, and check the Render log shows no Celery.
-3. The `render.yaml` / `.gitignore` / README fixes.
-4. **Tier C,** when you have time to test on a fresh database.
-5. **Tier D,** if you want the no-paid-API rule enforced by the code itself.
+| `backend/alembic/versions/0001`–`0009` | The live database's schema history. Never delete or renumber these. |
+| `localStorage` keys `trek_token`, `trek_user`, `wander_saved` | Renaming them signs everyone out and loses their saved plans. |
+| `https://trekrank.onrender.com` | The live API URL. `config.js`, `keepalive.yml` and cron-job.org use it. |
+| `.github/workflows/keepalive.yml` | In use: an hourly outage alert. |
+| `backend/scripts/smoke_test.py` | Current: tests exactly what the web app uses. |

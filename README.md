@@ -1,40 +1,32 @@
 # Roamly
 
-An AI trip-night planner. Tell it your budget and vibe and it builds a real,
-timed itinerary from live venues nearby, with a route map of the stops. The
-backend service (FastAPI/Celery) is
-internally named **TrekRank** — it also does travel-logging: trips, distances,
-friend & global leaderboards, badges, and shareable year-in-travel cards.
+An AI outing planner. Tell it what you're after — or tap the controls — and it builds a
+real, timed plan from live venues and events nearby, with a route map of the stops. See
+[PRODUCT.md](PRODUCT.md) for how it works and how people use it.
 
 ```
-webui (static HTML)  ──HTTP──▶  FastAPI  ──▶  PostgreSQL (PostGIS-ready)
-                                        ├──▶  Redis (leaderboards, cache, rate limit)
-                                        ├──▶  Celery workers (geocode, distance, badges, share cards)
-                                        └──▶  Object storage (local disk in dev / S3·MinIO in prod)
-
-Geocoding: Nominatim / OpenStreetMap (free, no API key)
+webui (static HTML, Vercel)  ──HTTP──▶  FastAPI (Render)  ──▶  PostgreSQL
+                                                 ├──▶  Redis (planner cache, rate limit)
+                                                 └──▶  free venue/event sources (OpenStreetMap,
+                                                        Ticketmaster free tier, City of Toronto feed)
 ```
 
-Everything uses **free / open-source components** — no paid APIs required. Geocoding is
-the free Nominatim endpoint; share-card storage defaults to the local filesystem.
+Everything uses **free / open-source components** — no paid APIs. (The backend was once a
+travel-logging app called **TrekRank**; that code and its tables were removed — migration
+`0009` drops the tables. Some names, like the `trekrank.onrender.com` URL, remain.)
 
 ---
 
 ## What's implemented
 
-**Backend (Python 3.10+, FastAPI):** auth (email register/login + JWT refresh +
-Apple sign-in stub + forgot/reset password + GDPR delete), users/profile/stats/map/search,
-trips CRUD + onboarding backfill, friends (request/accept/reject/suggestions), friend &
-global leaderboards (Redis sorted sets), cursor-paginated activity feed, badges (24 seeded)
-+ evaluation, group challenges, Instagram-Story share-card generation, an AI planner
-(chat / guided "build your own" itinerary / options endpoints backed by live venue data,
-with an OpenStreetMap fallback when the keyed venue APIs come up short), a taste profile
-(14-question onboarding survey whose answers become planner defaults — crew, budget, pace,
-crowds, energy, food rules, loves & hard nopes, no-alcohol), and a waitlist signup endpoint.
-
-**3 Celery workers:** trip processor (geocode → distance → visited tables → stats →
-leaderboards → feed → badge trigger), badge evaluator, share-card generator
-(Pillow, 1080×1920 PNG).
+**Backend (Python 3.10+, FastAPI):** auth (email register/login, JWT refresh,
+forgot/reset/change password, account deletion), the current user (`/users/me`), an AI
+planner (chat / "pick my spots" builder / options, backed by live venue data with an
+OpenStreetMap fallback, a 25-second time budget and live events), a taste profile
+(14-question optional survey whose answers become planner defaults — crew, budget, pace,
+crowds, energy, food rules, loves & hard nopes, no-alcohol), and a waitlist signup
+endpoint. No background worker: everything runs in the API process, with Redis for
+caching and rate limiting.
 
 **Web UI (`webui/`, static HTML/CSS/JS, no build step):**
 - `index.html` — marketing landing page with an animated itinerary demo and a waitlist form.
@@ -59,22 +51,9 @@ leaderboards → feed → badge trigger), badge evaluator, share-card generator
 - `roamly.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
   planner, My taste and sign-in pages.
 
-**Tests:** 10 pytest integration tests (trips, badges, leaderboards, feed) — 8 passing.
-`test_five_countries_badge` (expects a `streak_3` badge not in the seeded catalog) and
-`test_global_leaderboard` currently fail; pre-existing, unrelated to the web UI/backend
-changes described above.
-
----
-
-## PostGIS
-
-Trip coordinates are stored as plain `lat`/`lng` float columns (portable across any
-PostgreSQL, no PostGIS required), and the default distance calculation is a Haversine
-great-circle formula in Python (`app/services/distance.py` → `distance_km`). An optional
-`distance_km_postgis` helper in the same module computes the equivalent via `ST_Distance`
-over `GEOGRAPHY(POINT, 4326)` for deployments that do have PostGIS enabled (the
-`docker-compose.yml` Postgres image is `postgis/postgis:16-3.4`) — the two methods agree
-to within ~0.5%.
+**Tests:** `./run_local.sh test` — pytest against the local Postgres + Redis (auth security,
+taste profile, planner time budget, radius, live events, session defaults).
+`./run_local.sh smoke` runs a live end-to-end check against a running API.
 
 ---
 
@@ -89,10 +68,9 @@ brew services start redis
 createdb trekrank
 
 cd backend
-./run_local.sh setup           # venv + deps + migrate + seed badges
-./run_local.sh worker          # terminal 1: Celery worker
-./run_local.sh api             # terminal 2: API on http://127.0.0.1:8001
-./run_local.sh smoke           # terminal 3: live end-to-end test
+./run_local.sh setup           # venv + deps + migrate
+./run_local.sh api             # API on http://127.0.0.1:8001
+./run_local.sh smoke           # (another terminal) live end-to-end test
 ```
 
 Interactive API docs: <http://127.0.0.1:8001/docs>
@@ -101,23 +79,15 @@ Interactive API docs: <http://127.0.0.1:8001/docs>
 ./run_local.sh test            # run the pytest suite
 ```
 
-## Run it — Option B: full stack via Docker
-
-Brings up Postgres+PostGIS, Redis, MinIO, Prometheus, Grafana, API, and worker:
-
-```bash
-docker compose up --build
-# API on :8000, MinIO console :9001, Grafana :3000, Prometheus :9090
-```
-
-(Docker isn't installed on the current machine, so Option A is the verified path.)
+`docker-compose.yml` and `infra/` (Prometheus/Grafana/MinIO) are a legacy local stack that
+is no longer maintained — see [CLEANUP.md](CLEANUP.md).
 
 ---
 
 ## Web UI
 
-Static files, no build step — served by Caddy in production (`webui/Dockerfile` +
-`webui/Caddyfile`), or open directly / serve with anything static in dev.
+Static files, no build step — deployed on Vercel (`webui/vercel.json`); serve with
+anything static in dev.
 
 ```bash
 cd webui
@@ -127,8 +97,8 @@ open http://localhost:5173
 
 `webui/config.js` is the single source of truth for the API URL: it points at
 `http://127.0.0.1:8001/api/v1` on `localhost`, and at the deployed backend everywhere
-else — edit that file if your API lives somewhere else. `render.yaml` / `webui/Dockerfile`
-describe the deployed setup (Render backend + a Railway/Caddy static site for `webui/`).
+else — edit that file if your API lives somewhere else. The backend deploys to Render
+(Docker runtime, `backend/Dockerfile` → `backend/start.sh`: migrations, then uvicorn).
 
 ---
 
@@ -138,18 +108,16 @@ describe the deployed setup (Render backend + a Railway/Caddy static site for `w
 Sway/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              FastAPI app + middleware + static media
+│   │   ├── main.py              FastAPI app + middleware
 │   │   ├── config.py            env-driven settings
 │   │   ├── database.py          SQLAlchemy engine/session
-│   │   ├── models/              ORM models (users, trips, badges, …)
+│   │   ├── models/              ORM models (users, taste profiles, waitlist)
 │   │   ├── schemas/             Pydantic request/response models
-│   │   ├── api/                 routers (auth, users, trips, friends, plan, …)
-│   │   ├── services/            geocoding, distance, stats, badges, leaderboard, planner, share
-│   │   ├── workers/             Celery app + 3 workers
-│   │   ├── middleware/          JWT auth + Redis rate limiting
-│   │   └── data/countries.py    ISO country + continent reference data
+│   │   ├── api/                 routers (auth, users, plan, waitlist)
+│   │   ├── services/            planner, venue/event sources, geocoding, weather, LLM, taste profile
+│   │   └── middleware/          JWT auth + Redis rate limiting
 │   ├── alembic/                 migrations
-│   ├── scripts/                 seed_badges, smoke_test
+│   ├── scripts/                 smoke_test
 │   ├── tests/                   pytest suite
 │   └── run_local.sh             native launcher
 ├── webui/
@@ -159,8 +127,8 @@ Sway/
 │   ├── profile.html          My taste + taste survey
 │   ├── roamly.css            shared design system
 │   ├── config.js              API_BASE (single source of truth)
-│   └── Dockerfile, Caddyfile  static-site deploy
-├── docker-compose.yml            full prod-like stack (PostGIS/MinIO/Prom/Grafana)
+│   └── vercel.json            static-site deploy (Vercel)
+├── docker-compose.yml            legacy local stack (see CLEANUP.md)
 ├── render.yaml                   backend deploy config (Render)
 └── infra/prometheus.yml
 ```
@@ -173,14 +141,7 @@ Sway/
 |---|---|---|
 | POST | `/auth/register` `/auth/login` `/auth/refresh` | JWT |
 | POST | `/auth/forgot-password` `/auth/reset-password` | password recovery |
-| POST | `/trips` | returns `201` immediately; worker fills `distance_km` async |
-| POST | `/trips/backfill` | bulk onboarding import |
-| GET | `/users/{username}/stats` `/users/{username}/map` | detailed stats / visited-places map |
-| POST | `/friends/request`, `/friends/accept/{id}` | friend graph |
-| GET | `/leaderboards/friends?metric=countries&period=2026` | Redis ZSET |
-| GET | `/feed` | cursor-paginated, friends only |
-| GET | `/badges/me` | earned + locked |
-| POST | `/share/card` | 1080×1920 PNG |
+| GET/PATCH | `/users/me` | the signed-in account |
 | POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker); optional structured `prefs` |
 | GET/PUT | `/users/me/profile` · GET `/users/me/profile/questions` | taste survey (partial saves merge) |
 | POST | `/waitlist` | early-access signup |
