@@ -1,6 +1,6 @@
 """Foursquare Places — the trendiness signal.
 
-Foursquare is the only major free places API with a real `popularity` score
+Foursquare is the only major places API with a real `popularity` score
 (0..1, computed from foot-traffic signals), so it tells us what's actually
 buzzing right now — not just what's well-reviewed. We use it two ways:
   1. annotate Yelp candidates with popularity (matched by name), and
@@ -10,6 +10,10 @@ Set FOURSQUARE_API_KEY. Supports both key generations:
   - new "service key" → places-api.foursquare.com (Bearer + version header)
   - legacy fsq3… key  → api.foursquare.com/v3
 With no key this module returns [] and the planner works as before.
+
+rating, price and popularity are Foursquare *Premium* fields, billed from the
+first call, so it's switched off in code (services/usage.DISABLED) and never
+called, even with FOURSQUARE_API_KEY set.
 """
 import json
 
@@ -31,7 +35,9 @@ _mode: str | None = None
 
 
 def available() -> bool:
-    return bool(settings.foursquare_api_key)
+    # Switched off as a paid product (services/usage.DISABLED): never called,
+    # even with a key set.
+    return bool(settings.foursquare_api_key) and not usage.disabled("foursquare")
 
 
 def _request(url: str, params: dict, headers: dict) -> list[dict] | None:
@@ -88,6 +94,8 @@ def search(lat: float, lng: float, *, query: str | None = None,
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached)
+    if not usage.allow("foursquare"):
+        return []
 
     params = {"ll": f"{lat},{lng}", "radius": min(max(radius, 100), 100000),
               "limit": min(limit, 50)}

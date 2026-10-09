@@ -8,6 +8,7 @@ import logging
 import httpx
 
 from app.config import settings
+from app.services import usage
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,9 @@ def send_email(to_email: str, subject: str, html: str, text: str | None = None) 
     """Send one email. Returns True on success, False otherwise (never raises)."""
     if not email_enabled():
         logger.warning("Email not configured; skipping send to %s", to_email)
+        return False
+    if not usage.allow("sendgrid"):
+        logger.warning("Daily free email allowance used up; skipping send to %s", to_email)
         return False
 
     payload = {
@@ -42,7 +46,9 @@ def send_email(to_email: str, subject: str, html: str, text: str | None = None) 
         )
     except httpx.HTTPError as exc:
         logger.error("SendGrid request failed: %s", exc)
+        usage.record("sendgrid", ok=False)
         return False
+    usage.record("sendgrid", ok=resp.status_code < 300)
     if resp.status_code >= 300:
         logger.error("SendGrid error %s: %s", resp.status_code, resp.text)
         return False

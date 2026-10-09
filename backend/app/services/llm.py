@@ -36,8 +36,9 @@ def ping() -> tuple[bool, str]:
 
 def chat(messages: list[dict], *, temperature: float = 0.7,
          max_tokens: int = 1200, want_json: bool = False, timeout: float = 45.0) -> str | None:
-    """Return the assistant's reply text, or None on any failure."""
-    if not available():
+    """Return the assistant's reply text, or None on any failure (or when the
+    free-tier blocker says the daily allowance is used up)."""
+    if not available() or not usage.allow("llm"):
         return None
     payload = {
         "model": settings.llm_model,

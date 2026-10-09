@@ -5,6 +5,9 @@ ratings, price levels and photos straight from Places API (New) Text Search.
 Set GOOGLE_PLACES_API_KEY (Places API (New) must be enabled on the key).
 With no key this module returns [] and the planner falls back to
 Yelp / Foursquare / OpenStreetMap exactly as before.
+
+It needs a billing card and charges past the free monthly allowance, so it's
+switched off in code (services/usage.DISABLED) and never called, even with a key.
 """
 import json
 
@@ -17,8 +20,11 @@ from app.services import usage
 _URL = "https://places.googleapis.com/v1/places:searchText"
 _FIELDS = ",".join(f"places.{f}" for f in (
     "displayName", "formattedAddress", "location", "rating", "userRatingCount",
-    "priceLevel", "types", "googleMapsUri", "photos",
+    "priceLevel", "types", "googleMapsUri",
 ))
+# No photos: each photo the browser loads is a separately billed Place Photo, the
+# server can't count those against the free cap, and the photo URL would carry
+# the API key to every visitor.
 _PRICE = {
     "PRICE_LEVEL_INEXPENSIVE": "$", "PRICE_LEVEL_MODERATE": "$$",
     "PRICE_LEVEL_EXPENSIVE": "$$$", "PRICE_LEVEL_VERY_EXPENSIVE": "$$$$",
@@ -27,16 +33,11 @@ _TTL = 60 * 60 * 3  # 3h
 
 
 def available() -> bool:
-    return bool(settings.google_places_api_key)
+    # Switched off as a paid product (services/usage.DISABLED): never called,
+    # even with a key set.
+    return bool(settings.google_places_api_key) and not usage.disabled("google_places")
 
 
-def _photo_url(p: dict) -> str | None:
-    photos = p.get("photos") or []
-    name = photos[0].get("name") if photos else None
-    if not name:
-        return None
-    return (f"https://places.googleapis.com/v1/{name}/media"
-            f"?key={settings.google_places_api_key}&maxWidthPx=640")
 
 
 def _parse(p: dict) -> dict | None:
@@ -54,7 +55,7 @@ def _parse(p: dict) -> dict | None:
         "categories": [t.replace("_", " ") for t in (p.get("types") or [])
                        if t not in ("point_of_interest", "establishment")][:4],
         "address": p.get("formattedAddress"),
-        "image": _photo_url(p),
+        "image": None,
         "url": p.get("googleMapsUri"),
     }
 
@@ -68,6 +69,8 @@ def search(lat: float, lng: float, *, query: str,
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached)
+    if not usage.allow("google_places"):
+        return []
     try:
         with usage.counted("google_places"):
             r = httpx.post(

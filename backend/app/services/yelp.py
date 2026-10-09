@@ -1,6 +1,7 @@
 """Yelp Fusion — ratings, reviews, prices and photos for eat/date/nightlife.
 
-Free tier: create a key at yelp.com/developers (no credit card). Set YELP_API_KEY.
+Paid since 2024 (30-day trial, then a monthly plan), so it's switched off in
+code (services/usage.DISABLED) and never called, even with YELP_API_KEY set.
 With no key this module returns [] so the planner falls back to OpenStreetMap.
 
 Yelp's terms restrict long-term caching of their content, so results are cached
@@ -19,7 +20,9 @@ _CACHE_TTL = 60 * 30  # 30 min — short, per Yelp content policy
 
 
 def available() -> bool:
-    return bool(settings.yelp_api_key)
+    # Switched off as a paid product (services/usage.DISABLED): never called,
+    # even with a key set.
+    return bool(settings.yelp_api_key) and not usage.disabled("yelp")
 
 
 def search(lat: float, lng: float, *, term: str | None = None,
@@ -32,6 +35,8 @@ def search(lat: float, lng: float, *, term: str | None = None,
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached)
+    if not usage.allow("yelp"):
+        return []
 
     params = {
         "latitude": lat, "longitude": lng,

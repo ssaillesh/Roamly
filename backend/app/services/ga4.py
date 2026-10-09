@@ -25,8 +25,27 @@ class GA4Error(Exception):
     pass
 
 
+def problem() -> str | None:
+    """Why GA4 can't be used, in words for the dashboard; None when it's set up."""
+    pid = settings.ga4_property_id.strip()
+    if not pid:
+        return "GA4_PROPERTY_ID isn't set on the API service"
+    if not pid.isdigit():
+        return (f"GA4_PROPERTY_ID should be the property number (e.g. 558232293), "
+                f"not {pid[:14]!r}")
+    if not settings.ga4_credentials_json.strip():
+        return "GA4_CREDENTIALS_JSON isn't set on the API service"
+    try:
+        creds = json.loads(settings.ga4_credentials_json)
+    except ValueError:
+        return "GA4_CREDENTIALS_JSON isn't valid JSON (paste the whole key file)"
+    if not isinstance(creds, dict) or not creds.get("client_email") or not creds.get("private_key"):
+        return "GA4_CREDENTIALS_JSON isn't a service-account key (no client_email / private_key)"
+    return None
+
+
 def configured() -> bool:
-    return bool(settings.ga4_property_id and settings.ga4_credentials_json)
+    return problem() is None
 
 
 def _access_token() -> str:
@@ -54,7 +73,7 @@ def run_report(*, dimensions: list[str], metrics: list[str], days: int,
                limit: int = 25, event_filter: list[str] | None = None) -> list[dict]:
     """One runReport call → [{dimension: value, ..., metric: number, ...}]."""
     if not configured():
-        raise GA4Error("Google Analytics isn't connected")
+        raise GA4Error(problem())
     body = {
         "dateRanges": [{"startDate": f"{days}daysAgo", "endDate": "today"}],
         "dimensions": [{"name": d} for d in dimensions],

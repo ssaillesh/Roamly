@@ -138,6 +138,10 @@ the stats unless the "Test accounts" toggle is on.
 - **Waitlist invites and admin password resets** need `SENDGRID_API_KEY` and `EMAIL_FROM`.
 - **`METRICS_TOKEN`** lets a Prometheus scraper read `/metrics`. Otherwise `/metrics` is admin-only, and so is `/plan/debug`.
 
+**Paid products are off:** Foursquare, Yelp and Google Places are switched off in code (`DISABLED` in `backend/app/services/usage.py`). They're never called, even with a key set.
+
+**Free-tier blocker:** while `FREE_TIER_ONLY` is on (the default), the API never calls a metered free service (Groq, SendGrid, Ticketmaster, Open-Meteo) past a cap just under its free allowance. Caps and notes are in `FREE_TIER` in the same file; usage is shown under **Outside APIs** in the dashboard.
+
 ---
 
 ## Project layout

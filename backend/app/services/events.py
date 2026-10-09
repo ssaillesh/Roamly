@@ -52,6 +52,8 @@ def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached)
+    if not usage.allow("ticketmaster"):
+        return []
 
     params = {
         "apikey": settings.ticketmaster_api_key,

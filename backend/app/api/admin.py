@@ -85,8 +85,7 @@ def _ga4(fn):
     """Run a GA4 lookup, turning 'not connected' / API errors into a payload the
     page can show instead of failing the whole section."""
     if not ga4.configured():
-        return {"connected": False, "error": "Google Analytics isn't connected. Set GA4_PROPERTY_ID "
-                                             "and GA4_CREDENTIALS_JSON on the server."}
+        return {"connected": False, "error": f"Google Analytics isn't connected: {ga4.problem()}."}
     try:
         return {"connected": True, **fn()}
     except ga4.GA4Error as e:
@@ -166,6 +165,21 @@ def _live_status(db: Session) -> dict:
         "google_places": google_places.available(), "ticketmaster": events_svc.available(),
         "email": email_enabled(), "ga4": ga4.configured(),
     }
+    def missing(*names):
+        return " and ".join(n for n in names if not getattr(settings, n.lower())) + \
+            " not set on the API service"
+
+    out["why_off"] = {k: v for k, v in {
+        "llm": None if llm.available() else missing("LLM_API_KEY") + ": plans use the rule-based planner",
+        "yelp": None if yelp.available() else "switched off in code: " + usage.DISABLED["yelp"],
+        "foursquare": None if foursquare.available() else "switched off in code: " + usage.DISABLED["foursquare"],
+        "google_places": None if google_places.available() else "switched off in code: "
+                         + usage.DISABLED["google_places"],
+        "ticketmaster": None if events_svc.available() else missing("TICKETMASTER_API_KEY"),
+        "email": None if email_enabled() else missing("SENDGRID_API_KEY", "EMAIL_FROM"),
+        "ga4": ga4.problem(),
+    }.items() if v}
+    out["free_tier_only"] = settings.free_tier_only
     return out
 
 
@@ -528,6 +542,9 @@ def health(hours: int = Query(24, ge=1, le=24 * 365), db: Session = Depends(get_
 
 # --- outside APIs ---------------------------------------------------------------
 
+_KEYLESS = {"overpass": "Free, no key (OpenStreetMap)", "nominatim": "Free, no key (OpenStreetMap); 1 request a second"}
+
+
 @router.get("/apis")
 def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
     today = utc_today()
@@ -536,30 +553,40 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
     rows = db.execute(select(ApiUsage.day, ApiUsage.provider, ApiUsage.calls, ApiUsage.errors)
                       .where(ApiUsage.day >= min(since, month_start))).all()
     # Counts from the last minute that haven't been flushed yet aren't included;
-    # they appear within FLUSH_SECONDS.
+    # they appear within FLUSH_SECONDS. The blocker's own counters (quota) are live.
     configured = _live_status(db)["configured"]
-    providers = sorted({r.provider for r in rows} | set(usage.LIMITS))
+    configured["sendgrid"] = configured.pop("email")
+    quotas = usage.quota_status()
+    providers = sorted({r.provider for r in rows} | set(usage.FREE_TIER) | set(_KEYLESS))
     out = []
     for p in providers:
         mine = [r for r in rows if r.provider == p]
         t = [r for r in mine if r.day == today]
         m = [r for r in mine if r.day >= month_start]
         p_calls = [r for r in mine if r.day >= since]
-        period, limit = usage.LIMITS.get(p, (None, None))
-        used = sum(r.calls for r in (t if period == "day" else m)) if period else None
+        q = quotas.get(p)
         cost = None
-        if p in usage.COST_PER_CALL:
-            billable = max(0, sum(r.calls for r in m) - (limit or 0))
-            cost = round(billable * usage.COST_PER_CALL[p], 2)
+        if p in usage.COST_PER_CALL and q:
+            cost = round(max(0, sum(r.calls for r in m) - q["free"]) * usage.COST_PER_CALL[p], 2)
+        status = "free"
+        if q and q["disabled"]:
+            status = "disabled"                # paid product, switched off in code
+        elif q and q["enforced"]:
+            if q["cap"] == 0:
+                status = "never_free"          # blocked whatever happens
+            elif q["used"] is not None and q["used"] >= q["cap"]:
+                status = "capped"              # blocked until the period resets
+            elif q["used"] is not None and q["used"] >= 0.8 * q["cap"]:
+                status = "near"
+        elif q:
+            status = "unguarded"               # FREE_TIER_ONLY is off: billing possible
         out.append({
             "provider": p, "configured": configured.get(p, True),
             "today": sum(r.calls for r in t), "today_errors": sum(r.errors for r in t),
             "month": sum(r.calls for r in m),
             "period_calls": sum(r.calls for r in p_calls),
             "period_errors": sum(r.errors for r in p_calls),
-            "limit": limit, "limit_period": period, "used": used,
-            "used_pct": round(used / limit, 3) if limit and used is not None else None,
-            "warn": bool(limit and used is not None and used >= 0.8 * limit),
+            "quota": q, "status": status, "note": q["note"] if q else _KEYLESS.get(p),
             "est_cost_month": cost,
         })
     series = defaultdict(dict)
@@ -567,7 +594,7 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
         if r.day >= since:
             series[r.day.isoformat()][r.provider] = r.calls
     return {"providers": out, "series": [{"day": d, **series.get(d, {})} for d in _day_range(days)],
-            "llm_label": settings.llm_model}
+            "llm_label": settings.llm_model, "free_tier_only": settings.free_tier_only}
 
 
 # --- users ----------------------------------------------------------------------

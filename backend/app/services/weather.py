@@ -21,6 +21,8 @@ def get_weather(lat: float, lng: float) -> dict | None:
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached) or None
+    if not usage.allow("open_meteo"):
+        return None
     try:
         with usage.counted("open_meteo"):
             r = httpx.get(_URL, params={

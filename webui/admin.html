@@ -297,7 +297,7 @@ const tile = (k, v, d = '') => `<div class="tile"><div class="k">${esc(k)}</div>
 const panel = (title, body, sub = '', right = '') => `<div class="panel"><div class="panel-h"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${right}</div>${body}</div>`;
 const notice = (title, text, kind = 'warn') => `<div class="notice ${kind}"><span class="n-ic" aria-hidden="true">!</span><div><b>${esc(title)}</b><p>${esc(text)}</p></div></div>`;
 const statusBadge = (ok, okText = 'OK', badText = 'Down') => ok ? `<span class="badge good">${okText}</span>` : `<span class="badge crit">${badText}</span>`;
-const table = (cols, rows, opts = {}) => `<div class="tbl-wrap"><table class="t"><thead><tr>${cols.map(c => `<th class="${c.n ? 'n' : ''}">${c.hRaw ?? esc(c.h)}</th>`).join('')}</tr></thead><tbody>${
+const table = (cols, rows, opts = {}) => `<div class="tbl-wrap" ${opts.full ? 'style="max-height:none"' : ''}><table class="t"><thead><tr>${cols.map(c => `<th class="${c.n ? 'n' : ''}">${c.hRaw ?? esc(c.h)}</th>`).join('')}</tr></thead><tbody>${
   rows.length ? rows.map(r => `<tr ${opts.rowAttr ? opts.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.n ? 'n' : ''} ${c.cls || ''}">${c.f(r)}</td>`).join('')}</tr>`).join('')
   : `<tr><td colspan="${cols.length}" class="muted">${esc(opts.empty || 'Nothing here yet.')}</td></tr>`}</tbody></table></div>`;
 
@@ -402,6 +402,8 @@ async function renderOverview(seq){
     : err >= .05 ? `<span class="badge crit">High</span>` : err >= .01 ? `<span class="badge warn">Elevated</span>` : `<span class="badge good">Healthy</span>`;
   const conf = Object.entries(st.configured).map(([k, v]) =>
     `<span class="badge ${v ? 'good' : 'plain'}">${esc(k.replace('_', ' '))}${v ? '' : ': off'}</span>`).join('');
+  const why = Object.entries(st.why_off || {}).map(([k, v]) =>
+    `<li><b>${esc(k.replace('_', ' '))}</b>: ${esc(v)}</li>`).join('');
   $('secSub').textContent = state.includeTest ? 'Including test accounts and admins' : `Real accounts only · ${fmt(o.test_accounts)} test accounts hidden`;
   $('sec').innerHTML = `
     <div class="grid g-tiles">
@@ -421,7 +423,8 @@ async function renderOverview(seq){
           <dt>Redis</dt><dd>${statusBadge(st.redis.ok)} ${st.redis.ok ? ms(st.redis.ms) : esc(st.redis.error)}</dd>
           <dt>Up for</dt><dd>${upFor(st.uptime_s)} <span class="t-meta">(${esc(st.environment)})</span></dd>
           <dt>Last stats saved</dt><dd>${o.last_snapshot_at ? ago(o.last_snapshot_at) : 'none in the last 24h'}</dd>
-          <dt>Services</dt><dd class="chips">${conf}</dd></dl>`, 'Live check from this page load')}
+          <dt>Services</dt><dd><div class="chips">${conf}</div>${why ? `<ul class="t-meta" style="margin:8px 0 0;padding-left:18px">${why}</ul>` : ''}</dd>
+          <dt>Free-tier blocker</dt><dd>${st.free_tier_only ? '<span class="badge good">on</span> paid APIs stop before they cost money' : '<span class="badge crit">off</span> FREE_TIER_ONLY=false: paid usage possible'}</dd></dl>`, 'Live check from this page load')}
     </div>`;
   const s = act.series;
   drawChart('ovAct', { labels: s.map(r => ({ display: dshort(r.day) })),
@@ -699,24 +702,40 @@ async function renderHealth(seq){
 
 // ---- outside APIs
 const PROVIDER = { llm:'AI (LLM)', yelp:'Yelp', google_places:'Google Places', foursquare:'Foursquare',
-  ticketmaster:'Ticketmaster', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding', open_meteo:'Open-Meteo weather' };
+  ticketmaster:'Ticketmaster', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding',
+  open_meteo:'Open-Meteo weather', sendgrid:'SendGrid email' };
+const PER = { day:'today (UTC)', month:'this month' };
+function guardCell(r){
+  const q = r.quota;
+  if (!q) return `<span class="badge good">free</span>`;
+  if (r.status === 'disabled') return `<span class="badge plain">off: paid product</span><div class="t-meta">switched off in code, never called</div>`;
+  if (r.status === 'unguarded') return `<span class="badge crit">not guarded</span><div class="t-meta">FREE_TIER_ONLY is off</div>`;
+  if (r.status === 'never_free') return `<span class="badge warn">blocked</span><div class="t-meta">${r.configured ? 'never called: no free tier' : 'no free tier'}${q.blocked ? ` · ${fmt(q.blocked)} turned away` : ''}</div>`;
+  const used = q.used ?? 0, pctUsed = q.cap ? used / q.cap : 0;
+  const cls = r.status === 'capped' ? 'crit' : r.status === 'near' ? 'warn' : '';
+  return `<div style="display:flex;gap:8px;align-items:center"><div class="meter ${cls}" style="flex:1"><span style="width:${Math.min(100, pctUsed * 100).toFixed(1)}%"></span></div>
+    <span class="t-meta" style="white-space:nowrap">${q.used == null ? '?' : fmt(used)} / ${fmt(q.cap)} ${PER[q.period]}</span></div>
+    ${r.status === 'capped' ? `<div class="t-meta">Paused until the ${q.period === 'day' ? 'day' : 'month'} resets${q.blocked ? ` · ${fmt(q.blocked)} turned away` : ''}</div>` : ''}`;
+}
 async function renderApis(seq){
   const a = await api('/admin/apis' + q());
   if (stale(seq)) return;
-  const warn = a.providers.filter(p => p.warn);
+  const capped = a.providers.filter(p => p.status === 'capped' || p.status === 'near');
   $('secSub').textContent = 'Calls the planner makes to other services';
   $('sec').innerHTML = `
-    ${warn.length ? notice('Close to a limit', warn.map(p => `${PROVIDER[p.provider] || p.provider}: ${pct(p.used_pct, 0)} of the ${p.limit_period === 'day' ? 'daily' : 'monthly'} limit`).join(' · ')) : ''}
-    <div class="sec">${panel('Usage and limits', table([
-      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? `<div class="t-meta">${esc(a.llm_label)}</div>` : ''}` },
+    ${a.free_tier_only
+      ? `<div class="notice"><span class="n-ic" aria-hidden="true" style="background:#e3f6e3;color:#006300">✓</span><div><b>Free-tier blocker is on</b><p>Paid products (Foursquare, Yelp, Google Places) are switched off in code. Free services stop a little before their free allowance runs out. Blocked calls fall back (OpenStreetMap venues, the rule-based planner, no email).</p></div></div>`
+      : notice('Free-tier blocker is OFF', 'FREE_TIER_ONLY is set to false on the API, so services can be called past their free allowance and may bill. Remove that setting to turn the blocker back on.', 'err')}
+    ${capped.length ? `<div class="sec">${notice('At or near a free limit', capped.map(p => `${PROVIDER[p.provider] || p.provider}: ${fmt(p.quota.used)} of ${fmt(p.quota.cap)} ${PER[p.quota.period]}`).join(' · '))}</div>` : ''}
+    <div class="sec">${panel('Usage and free limits', table([
+      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? ` <span class="t-meta">${esc(a.llm_label)}</span>` : ''}<div class="t-meta" style="max-width:360px;white-space:normal">${esc(r.note || '')}</div>` },
       { h:'Set up', f: r => r.configured ? '<span class="badge good">on</span>' : '<span class="badge plain">off</span>' },
+      { h:'Free-tier guard', f: guardCell },
       { h:'Today', n:1, f: r => fmt(r.today) + (r.today_errors ? ` <span class="badge crit">${fmt(r.today_errors)} failed</span>` : '') },
       { h:'This month', n:1, f: r => fmt(r.month) },
-      { h:`${state.days}d calls`, n:1, f: r => fmt(r.period_calls) },
       { h:`${state.days}d failed`, n:1, f: r => r.period_calls ? pct(r.period_errors / r.period_calls, 1) : '—' },
-      { h:'Free limit used', f: r => r.limit ? `<div style="display:flex;gap:8px;align-items:center"><div class="meter ${r.used_pct >= 1 ? 'crit' : r.warn ? 'warn' : ''}" style="flex:1"><span style="width:${Math.min(100, r.used_pct * 100).toFixed(1)}%"></span></div><span class="t-meta" style="white-space:nowrap">${fmt(r.used)} / ${fmt(r.limit)} per ${r.limit_period}</span></div>` : '<span class="t-meta">no set limit</span>' },
       { h:'Est. cost this month', n:1, f: r => r.est_cost_month == null ? '—' : '$' + r.est_cost_month.toFixed(2) },
-    ], a.providers), 'Limits are each service’s free tier as of 2026. Check your own plan. Counts are saved once a minute.')}</div>`;
+    ], a.providers, { full: true }), 'Free allowances checked October 2026. Caps and notes live in backend/app/services/usage.py. Call counts are saved once a minute; the guard counts live.')}</div>`;
 }
 
 // ---- users

@@ -85,6 +85,10 @@ class Settings(BaseSettings):
     # restaurants/activities (ratings, prices, photos). Blank → Yelp/FSQ/OSM only.
     google_places_api_key: str = ""
 
+    # Free-tier blocker (services/usage.py): never call a metered API past its
+    # free allowance. Only turn this off on purpose, once you're ready to pay.
+    free_tier_only: bool = True
+
     # Admin dashboard.
     # Google Analytics 4: the numeric property ID (Admin → Property details) and
     # a service-account key (the whole JSON, pasted as one env var) whose email
