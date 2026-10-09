@@ -303,7 +303,9 @@ const table = (cols, rows, opts = {}) => `<div class="tbl-wrap" ${opts.full ? 's
 
 function webBlock(web, render){
   if (!web) return '';
-  if (!web.connected) return notice('Google Analytics isn’t connected', 'Set GA4_PROPERTY_ID and GA4_CREDENTIALS_JSON on the API server, and GA_MEASUREMENT_ID in config.js. Visitor numbers will show up here.');
+  if (!web.connected) return notice('Google Analytics isn’t connected',
+    (web.error || 'GA4 settings are missing on the API server.') +
+    ' These are read from the Render API service’s Environment; after changing them, the service must redeploy.');
   if (web.error) return notice('Couldn’t load Google Analytics', web.error, 'err');
   return render(web);
 }
