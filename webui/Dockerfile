@@ -4,6 +4,7 @@ COPY index.html /srv/index.html
 COPY auth.html /srv/auth.html
 COPY roamly.html /srv/roamly.html
 COPY profile.html /srv/profile.html
+COPY admin.html /srv/admin.html
 COPY config.js /srv/config.js
 COPY roamly.css /srv/roamly.css
 COPY Caddyfile /etc/caddy/Caddyfile

@@ -393,6 +393,7 @@ $('authForm').addEventListener('submit', async (e) => {
     localStorage.setItem('trek_token', d.access_token);
     localStorage.setItem('trek_user', d.user.username);
     if (d.refresh_token) localStorage.setItem('trek_refresh', d.refresh_token);
+    track(mode === 'register' ? 'sign_up' : 'login', { method: 'email' });
 
     $('successTitle').textContent = d.user.is_new_user ? `Welcome, ${d.user.display_name || d.user.username} 🎉` : `Welcome back, ${d.user.display_name || d.user.username} 👋`;
     // New accounts take the taste survey first; it forwards on to REDIRECT after.

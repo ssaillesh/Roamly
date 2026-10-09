@@ -18,6 +18,7 @@ def _profile(user: User) -> UserProfile:
     return UserProfile(
         id=str(user.id), username=user.username, display_name=user.display_name,
         avatar_url=user.avatar_url, bio=user.bio, home_city=user.home_city, email=user.email,
+        is_admin=user.is_admin,
     )
 
 

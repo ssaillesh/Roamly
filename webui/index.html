@@ -359,6 +359,7 @@ document.getElementById('wlForm').addEventListener('submit', async (e) => {
     });
     if (!res.ok) throw new Error();
     const data = await res.json();
+    if (!data.already_joined) track('waitlist_join');
     note.textContent = data.already_joined
       ? "You're already on the list — see you soon."
       : "You're in — we'll be in touch.";

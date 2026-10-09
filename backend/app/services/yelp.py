@@ -12,6 +12,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 _SEARCH_URL = "https://api.yelp.com/v3/businesses/search"
 _CACHE_TTL = 60 * 30  # 30 min — short, per Yelp content policy
@@ -44,9 +45,10 @@ def search(lat: float, lng: float, *, term: str | None = None,
     if price:
         params["price"] = price  # e.g. "1,2" for $ and $$
     try:
-        resp = httpx.get(_SEARCH_URL, params=params, timeout=15.0,
-                         headers={"Authorization": f"Bearer {settings.yelp_api_key}"})
-        resp.raise_for_status()
+        with usage.counted("yelp"):
+            resp = httpx.get(_SEARCH_URL, params=params, timeout=15.0,
+                             headers={"Authorization": f"Bearer {settings.yelp_api_key}"})
+            resp.raise_for_status()
         data = resp.json()
     except (httpx.HTTPError, ValueError):
         return []

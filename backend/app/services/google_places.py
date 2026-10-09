@@ -12,6 +12,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 _URL = "https://places.googleapis.com/v1/places:searchText"
 _FIELDS = ",".join(f"places.{f}" for f in (
@@ -68,23 +69,24 @@ def search(lat: float, lng: float, *, query: str,
     if cached is not None:
         return json.loads(cached)
     try:
-        r = httpx.post(
-            _URL,
-            json={
-                "textQuery": query,
-                "maxResultCount": min(limit, 20),
-                "locationBias": {"circle": {
-                    "center": {"latitude": lat, "longitude": lng},
-                    "radius": float(min(max(radius, 100), 50000)),
-                }},
-            },
-            headers={
-                "X-Goog-Api-Key": settings.google_places_api_key,
-                "X-Goog-FieldMask": _FIELDS,
-            },
-            timeout=15.0,
-        )
-        r.raise_for_status()
+        with usage.counted("google_places"):
+            r = httpx.post(
+                _URL,
+                json={
+                    "textQuery": query,
+                    "maxResultCount": min(limit, 20),
+                    "locationBias": {"circle": {
+                        "center": {"latitude": lat, "longitude": lng},
+                        "radius": float(min(max(radius, 100), 50000)),
+                    }},
+                },
+                headers={
+                    "X-Goog-Api-Key": settings.google_places_api_key,
+                    "X-Goog-FieldMask": _FIELDS,
+                },
+                timeout=15.0,
+            )
+            r.raise_for_status()
         results = r.json().get("places", [])
     except (httpx.HTTPError, ValueError):
         return []

@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Roamly Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="/roamly.css" />
+<script src="/config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  /* ============ admin dashboard: layout on top of roamly.css ============ */
+  :root{
+    /* chart roles: the dataviz reference palette (validated light-mode set) */
+    --viz-surface:#fcfcfb; --viz-grid:#e1e0d9; --viz-axis:#c3c2b7; --viz-muted:#898781;
+    --s1c:#2a78d6; --s2c:#eb6834; --s3c:#1baf7a;
+    --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --crit:#d03b3b;
+    --seq-1:#cde2fb; --seq-3:#86b6ef; --seq-5:#3987e5; --seq-7:#1c5cab;
+  }
+  body{background:var(--bg);}
+  .shell{display:grid; grid-template-columns:236px minmax(0,1fr); min-height:100vh;}
+  .aside{position:sticky; top:0; height:100vh; overflow-y:auto; padding:20px 14px; border-right:1px solid var(--line-2);
+    background:var(--surface);}
+  .aside .logo{padding:4px 10px 18px;}
+  .aside .logo small{font-size:11px; font-weight:800; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--primary-ink); background:var(--primary-soft); padding:3px 8px; border-radius:999px; margin-left:4px;}
+  .nav{display:flex; flex-direction:column; gap:2px;}
+  .nav .grp{margin:14px 10px 6px;}
+  .nav a{display:flex; align-items:center; gap:10px; min-height:40px; padding:0 12px; border-radius:var(--r-sm);
+    font-size:14px; font-weight:650; color:var(--ink-2);}
+  .nav a:hover{background:var(--surface-2); color:var(--ink);}
+  .nav a[aria-current="page"]{background:var(--primary-soft); color:var(--primary-ink);}
+  .nav a .dot{width:8px; height:8px; border-radius:50%; background:var(--line); flex:0 0 auto;}
+  .nav a[aria-current="page"] .dot{background:var(--primary);}
+  .nav a .warn-pip{margin-left:auto; width:8px; height:8px; border-radius:50%; background:var(--crit);}
+  .aside-foot{margin-top:22px; padding:12px 10px 0; border-top:1px solid var(--line-2); font-size:12.5px; color:var(--ink-3);}
+  .aside-foot a{color:var(--primary-ink); font-weight:700;}
+
+  .content{min-width:0; padding:0 28px 60px;}
+  .topbar{position:sticky; top:0; z-index:500; display:flex; flex-wrap:wrap; align-items:center; gap:12px;
+    padding:16px 0 14px; background:var(--bg); border-bottom:1px solid var(--line-2); margin-bottom:22px;}
+  .topbar h1{font-size:22px; font-weight:800; letter-spacing:-.025em; margin:0; flex:1 1 auto; min-width:160px;}
+  .topbar .sub{display:block; font-size:13px; font-weight:550; color:var(--ink-3); letter-spacing:0;}
+  .seg{display:inline-flex; padding:3px; gap:2px; border-radius:var(--r-pill); background:var(--surface);
+    border:1px solid var(--line);}
+  .seg button{border:0; background:none; min-height:34px; padding:0 12px; border-radius:var(--r-pill);
+    font-size:13px; font-weight:700; color:var(--ink-2); cursor:pointer;}
+  .seg button[aria-pressed="true"]{background:var(--ink); color:#fff;}
+  .tog{display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--ink-2);}
+  .tog .switch{width:44px; height:26px;}
+  .tog .switch::after{width:20px; height:20px;}
+  .tog .switch[aria-checked="true"]::after{transform:translateX(18px);}
+  .dd{position:relative;}
+  .dd-menu{position:absolute; right:0; top:calc(100% + 6px); min-width:220px; padding:6px; border-radius:var(--r-md);
+    background:var(--surface); border:1px solid var(--line); box-shadow:var(--sh-3); z-index:20;}
+  .dd-menu button{display:block; width:100%; text-align:left; border:0; background:none; padding:10px 12px;
+    border-radius:var(--r-xs); font-size:14px; font-weight:650; cursor:pointer;}
+  .dd-menu button:hover{background:var(--surface-2);}
+
+  .grid{display:grid; gap:16px;}
+  .g-tiles{grid-template-columns:repeat(auto-fill,minmax(176px,1fr));}
+  .g-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+  .g-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+  .sec{margin-top:26px;}
+  .sec > .t-label{display:block; margin-bottom:10px;}
+  .tile{background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r-md); padding:16px 18px;
+    box-shadow:var(--sh-1);}
+  .tile .k{font-size:12.5px; font-weight:700; color:var(--ink-3);}
+  .tile .v{font-size:28px; font-weight:800; letter-spacing:-.03em; line-height:1.15; margin-top:4px;}
+  .tile .d{font-size:12.5px; font-weight:600; color:var(--ink-3); margin-top:2px;}
+  .panel{background:var(--surface); border:1px solid var(--line-2); border-radius:var(--r-lg); padding:18px 20px;
+    box-shadow:var(--sh-1); min-width:0;}
+  .panel-h{display:flex; align-items:flex-start; gap:10px; margin-bottom:12px;}
+  .panel-h h2{font-size:16px; font-weight:780; letter-spacing:-.015em; margin:0;}
+  .panel-h p{margin:2px 0 0; font-size:12.5px; color:var(--ink-3); font-weight:550;}
+  .panel-h .grow{flex:1; min-width:0;}
+  .mini{border:1px solid var(--line); background:var(--surface); border-radius:var(--r-pill); min-height:30px;
+    padding:0 11px; font-size:12px; font-weight:700; color:var(--ink-2); cursor:pointer; white-space:nowrap;}
+  .mini:hover{border-color:rgba(106,76,240,.45);}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 14px; margin:0 0 8px; padding:0; list-style:none;
+    font-size:12.5px; font-weight:650; color:var(--ink-2);}
+  .legend i{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px;}
+  .chart-box{position:relative; height:260px;}
+  .chart-box.sm{height:180px;}
+
+  table.t{width:100%; border-collapse:collapse; font-size:13.5px;}
+  .t th{text-align:left; font-size:11.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--ink-3); padding:8px 10px; border-bottom:1px solid var(--line); white-space:nowrap; position:sticky; top:0;
+    background:var(--surface);}
+  .t td{padding:9px 10px; border-bottom:1px solid var(--line-2); vertical-align:top;}
+  .t td.n,.t th.n{text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .t tr.click{cursor:pointer;}
+  .t tr.click:hover td{background:var(--surface-2);}
+  .t .muted{color:var(--ink-3);}
+  .tbl-wrap{overflow:auto; max-height:520px; margin:0 -4px; padding:0 4px;}
+  .clip{max-width:380px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+  /* horizontal bar lists (a single series: one hue, value labels outside the bar) */
+  .bars{display:flex; flex-direction:column; gap:7px;}
+  .bar-row{display:grid; grid-template-columns:minmax(90px,38%) 1fr auto; gap:10px; align-items:center; font-size:13px;}
+  .bar-row .lab{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--ink-2); font-weight:600;}
+  .bar-row .trk{height:12px; border-radius:4px; background:var(--surface-2); overflow:hidden;}
+  .bar-row .fill{display:block; height:100%; border-radius:0 4px 4px 0; background:var(--s1c); min-width:2px;}
+  .bar-row .val{font-variant-numeric:tabular-nums; font-weight:700; min-width:46px; text-align:right;}
+  .bar-row .val small{color:var(--ink-3); font-weight:600; margin-left:4px;}
+
+  .badge{display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; font-size:12px;
+    font-weight:750; background:var(--surface-2); color:var(--ink-2); white-space:nowrap;}
+  .badge::before{content:''; width:7px; height:7px; border-radius:50%; background:currentColor; opacity:.9;}
+  .badge.good{background:#e3f6e3; color:#006300;} .badge.good::before{background:var(--good);}
+  .badge.warn{background:var(--warning-soft); color:var(--warning);} .badge.warn::before{background:var(--warn);}
+  .badge.crit{background:var(--danger-soft); color:var(--danger);} .badge.crit::before{background:var(--crit);}
+  .badge.plain::before{display:none;}
+  .meter{height:8px; border-radius:4px; background:var(--surface-2); overflow:hidden; min-width:80px;}
+  .meter > span{display:block; height:100%; border-radius:0 4px 4px 0; background:var(--s1c);}
+  .meter.warn > span{background:var(--warn);} .meter.crit > span{background:var(--crit);}
+
+  .ret td.c{text-align:center; font-variant-numeric:tabular-nums; font-weight:700; border-left:2px solid var(--surface);}
+  .map{height:380px; border-radius:var(--r-md); overflow:hidden; border:1px solid var(--line-2);}
+  .chips{display:flex; flex-wrap:wrap; gap:6px;}
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px;}
+  .toolbar .input{min-height:42px; max-width:340px;}
+  .pager{display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:12px; font-size:13px; color:var(--ink-3);}
+  pre.json{background:var(--surface-2); border-radius:var(--r-sm); padding:12px; font-size:12px; overflow:auto; max-height:320px;
+    margin:0; white-space:pre-wrap; word-break:break-word;}
+
+  /* drawer + modal */
+  .scrim{position:fixed; inset:0; background:rgba(23,21,58,.38); z-index:1000;}
+  .drawer{position:fixed; top:0; right:0; bottom:0; width:min(620px,100%); background:var(--bg); z-index:1001;
+    overflow-y:auto; padding:22px 24px 40px; box-shadow:var(--sh-3);}
+  .modal{position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(640px,calc(100% - 32px));
+    max-height:calc(100% - 48px); overflow-y:auto; background:var(--surface); border-radius:var(--r-lg); z-index:1002;
+    padding:22px 24px; box-shadow:var(--sh-3);}
+  .x-head{display:flex; align-items:flex-start; gap:12px; margin-bottom:16px;}
+  .x-head h2{margin:0; font-size:20px; font-weight:800; letter-spacing:-.02em; flex:1; min-width:0; overflow-wrap:anywhere;}
+  .kv{display:grid; grid-template-columns:140px 1fr; gap:6px 12px; font-size:13.5px;}
+  .kv dt{color:var(--ink-3); font-weight:650;} .kv dd{margin:0; overflow-wrap:anywhere;}
+  .acts{display:flex; flex-wrap:wrap; gap:8px; margin:16px 0;}
+  .btn-danger{background:var(--danger); color:#fff;}
+  .stop{display:flex; gap:10px; padding:8px 0; border-bottom:1px solid var(--line-2); font-size:13.5px;}
+  .stop b{font-weight:750;}
+  .center-msg{max-width:440px; margin:18vh auto; text-align:center; padding:0 16px;}
+
+  @media (max-width:1100px){ .g-3{grid-template-columns:repeat(2,minmax(0,1fr));} }
+  @media (max-width:860px){
+    .shell{grid-template-columns:1fr;}
+    .aside{position:static; height:auto; border-right:0; border-bottom:1px solid var(--line-2); padding:12px 16px;}
+    .aside .logo{padding:0 0 8px;}
+    .nav{flex-direction:row; overflow-x:auto; gap:4px; padding-bottom:4px;}
+    .nav .grp,.aside-foot{display:none;}
+    .nav a{white-space:nowrap; min-height:36px;}
+    .content{padding:0 16px 48px;}
+    .topbar{position:static;}
+    .g-2,.g-3{grid-template-columns:1fr;}
+    .kv{grid-template-columns:1fr;} .kv dt{margin-top:6px;}
+    .bar-row{grid-template-columns:minmax(80px,40%) 1fr auto;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="center-msg"><p class="t-meta">Loading the admin dashboard…</p></div></div>
+
+<script>
+const API = window.API_BASE;
+const $ = id => document.getElementById(id);
+const token = () => localStorage.getItem('trek_token');
+const authHeaders = () => token() ? { 'Authorization': 'Bearer ' + token() } : {};
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nf = new Intl.NumberFormat();
+const fmt = n => n == null ? '—' : nf.format(Math.round(n));
+const pct = (n, digits = 1) => n == null ? '—' : (n * 100).toFixed(digits).replace(/\.0$/, '') + '%';
+const ms = n => n == null ? '—' : n >= 1000 ? (n / 1000).toFixed(1) + ' s' : Math.round(n) + ' ms';
+const dshort = s => new Date(s + (s.length === 10 ? 'T00:00:00Z' : '')).toLocaleDateString(undefined, { month:'short', day:'numeric', timeZone:'UTC' });
+const dtime = s => s ? new Date(s).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+const ago = s => {
+  if (!s) return 'never';
+  const sec = (Date.now() - new Date(s)) / 1000;
+  if (sec < 90) return 'just now';
+  if (sec < 5400) return Math.round(sec / 60) + ' min ago';
+  if (sec < 129600) return Math.round(sec / 3600) + ' h ago';
+  return Math.round(sec / 86400) + ' days ago';
+};
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('admin_' + k); return v == null ? d : JSON.parse(v); }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('admin_' + k, JSON.stringify(v)); }catch(e){} },
+};
+
+const state = { days: store.get('days', 30), includeTest: store.get('includeTest', false), me: null, hours: 24 };
+let charts = [], maps = [];
+
+// ---------------------------------------------------------------- API
+async function api(path, opts = {}){
+  const r = await apiFetch(API + path, Object.assign({}, opts, {
+    headers: Object.assign({ 'Content-Type':'application/json' }, authHeaders(), opts.headers || {}) }), 45000);
+  if (r.status === 401){ localStorage.removeItem('trek_token'); location.replace('auth.html?redirect=admin.html'); throw new Error('Signed out'); }
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.detail || `Request failed (${r.status})`);
+  return d;
+}
+const q = (extra = {}) => '?' + new URLSearchParams(Object.assign(
+  { days: state.days, include_test: state.includeTest }, extra)).toString();
+
+async function download(path, name){
+  const r = await apiFetch(API + path, { headers: authHeaders() }, 120000);
+  if (!r.ok){ toast('Export failed (' + r.status + ')'); return; }
+  const blob = await r.blob();
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: name });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+function toast(msg){
+  let t = $('toast');
+  if (!t){ t = Object.assign(document.createElement('div'), { id:'toast', className:'toast' });
+    t.setAttribute('role','status'); document.body.appendChild(t); }
+  t.innerHTML = `<span>${esc(msg)}</span>`; t.classList.add('on');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 3200);
+}
+
+// ---------------------------------------------------------------- charts
+Chart.defaults.font.family = '"Plus Jakarta Sans", system-ui, sans-serif';
+Chart.defaults.font.size = 12;
+Chart.defaults.color = '#898781';
+const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const SERIES = () => [css('--s1c'), css('--s2c'), css('--s3c')];
+
+function axes(stacked = false, yFmt){
+  return {
+    x: { stacked, grid:{ display:false }, border:{ color: css('--viz-axis') },
+         ticks:{ maxRotation:0, autoSkipPadding:14 } },
+    y: { stacked, beginAtZero:true, grid:{ color: css('--viz-grid') }, border:{ display:false },
+         ticks:{ precision:0, callback: yFmt || (v => nf.format(v)) } },
+  };
+}
+
+// A chart card: legend (>=2 series), the canvas, and a table view of the same data.
+function chartCard({ id, title, sub, series, small }){
+  const legend = series.length > 1
+    ? `<ul class="legend">${series.map((s, i) => `<li><i style="background:${s.color || SERIES()[i]}"></i>${esc(s.label)}</li>`).join('')}</ul>` : '';
+  return `<div class="panel"><div class="panel-h"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>
+    <button class="mini" data-table-toggle="${id}">Table</button></div>${legend}
+    <div class="chart-box ${small ? 'sm' : ''}" id="${id}-box"><canvas id="${id}" role="img" aria-label="${esc(title)}"></canvas></div>
+    <div class="tbl-wrap hidden" id="${id}-tbl"></div></div>`;
+}
+
+function drawChart(id, { type = 'bar', labels, series, stacked = false, yFmt, tipFmt }){
+  const el = $(id); if (!el) return;
+  const colors = SERIES();
+  const datasets = series.map((s, i) => {
+    const c = s.color || colors[i];
+    return type === 'line'
+      ? { label: s.label, data: s.data, borderColor: c, backgroundColor: c, borderWidth: 2,
+          // isolated readings (e.g. one awake hour) would be invisible as a 0-length line
+          pointRadius: s.data.filter(v => v != null).length <= 3 ? 4 : 0,
+          pointHoverRadius: 5, pointHoverBorderWidth: 2, pointHoverBorderColor: css('--viz-surface'), tension: .25, spanGaps: false }
+      : { label: s.label, data: s.data, backgroundColor: c, borderRadius: { topLeft:4, topRight:4 }, borderSkipped:'start',
+          borderColor: css('--viz-surface'), borderWidth: stacked ? { top:2 } : 0,
+          barPercentage: .82, categoryPercentage: .86, maxBarThickness: 26 };
+  });
+  charts.push(new Chart(el, {
+    type, data: { labels: labels.map(l => l.display ?? l), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: { duration: 250 },
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false },
+        tooltip: { backgroundColor: '#17153a', padding: 10, cornerRadius: 10, boxPadding: 4, usePointStyle: true,
+          callbacks: { label: c => ` ${c.dataset.label}: ${(tipFmt || fmt)(c.parsed.y)}` } } },
+      scales: axes(stacked, yFmt),
+    },
+  }));
+  // table view
+  const tbl = $(id + '-tbl');
+  tbl.innerHTML = `<table class="t"><thead><tr><th></th>${series.map(s => `<th class="n">${esc(s.label)}</th>`).join('')}</tr></thead><tbody>${
+    labels.map((l, i) => `<tr><td>${esc(l.display ?? l)}</td>${series.map(s => `<td class="n">${(tipFmt || fmt)(s.data[i])}</td>`).join('')}</tr>`).join('')
+  }</tbody></table>`;
+}
+
+function barList(rows, { label = r => r.key, value = r => r.count, total, empty = 'No data yet.' } = {}){
+  if (!rows || !rows.length) return `<p class="t-meta">${esc(empty)}</p>`;
+  const max = Math.max(...rows.map(value), 1);
+  const sum = total ?? rows.reduce((a, r) => a + value(r), 0);
+  return `<div class="bars">${rows.map(r => {
+    const v = value(r);
+    return `<div class="bar-row" title="${esc(label(r))}: ${fmt(v)}"><span class="lab">${esc(label(r))}</span>
+      <span class="trk"><span class="fill" style="width:${(v / max * 100).toFixed(1)}%"></span></span>
+      <span class="val">${fmt(v)}${sum ? `<small>${pct(v / sum, 0)}</small>` : ''}</span></div>`;
+  }).join('')}</div>`;
+}
+
+const tile = (k, v, d = '') => `<div class="tile"><div class="k">${esc(k)}</div><div class="v">${v}</div>${d ? `<div class="d">${d}</div>` : ''}</div>`;
+const panel = (title, body, sub = '', right = '') => `<div class="panel"><div class="panel-h"><div class="grow"><h2>${esc(title)}</h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${right}</div>${body}</div>`;
+const notice = (title, text, kind = 'warn') => `<div class="notice ${kind}"><span class="n-ic" aria-hidden="true">!</span><div><b>${esc(title)}</b><p>${esc(text)}</p></div></div>`;
+const statusBadge = (ok, okText = 'OK', badText = 'Down') => ok ? `<span class="badge good">${okText}</span>` : `<span class="badge crit">${badText}</span>`;
+const table = (cols, rows, opts = {}) => `<div class="tbl-wrap"><table class="t"><thead><tr>${cols.map(c => `<th class="${c.n ? 'n' : ''}">${c.hRaw ?? esc(c.h)}</th>`).join('')}</tr></thead><tbody>${
+  rows.length ? rows.map(r => `<tr ${opts.rowAttr ? opts.rowAttr(r) : ''}>${cols.map(c => `<td class="${c.n ? 'n' : ''} ${c.cls || ''}">${c.f(r)}</td>`).join('')}</tr>`).join('')
+  : `<tr><td colspan="${cols.length}" class="muted">${esc(opts.empty || 'Nothing here yet.')}</td></tr>`}</tbody></table></div>`;
+
+function webBlock(web, render){
+  if (!web) return '';
+  if (!web.connected) return notice('Google Analytics isn’t connected', 'Set GA4_PROPERTY_ID and GA4_CREDENTIALS_JSON on the API server, and GA_MEASUREMENT_ID in config.js. Visitor numbers will show up here.');
+  if (web.error) return notice('Couldn’t load Google Analytics', web.error, 'err');
+  return render(web);
+}
+
+// ---------------------------------------------------------------- sections
+const SECTIONS = [
+  { id:'overview', title:'Overview', group:'Summary', render: renderOverview },
+  { id:'activity', title:'Users & retention', group:'People', render: renderActivity },
+  { id:'funnel', title:'Sign-up funnel', group:'People', render: renderFunnel },
+  { id:'traffic', title:'Traffic sources', group:'Reach', render: renderTraffic },
+  { id:'geo', title:'Where users are', group:'Reach', render: renderGeo },
+  { id:'planner', title:'Planner', group:'Product', render: renderPlanner },
+  { id:'taste', title:'Taste insights', group:'Product', render: renderTaste },
+  { id:'health', title:'Server health', group:'Systems', render: renderHealth },
+  { id:'apis', title:'Outside APIs', group:'Systems', render: renderApis },
+  { id:'users', title:'Users', group:'Manage', render: renderUsers },
+  { id:'waitlist', title:'Waitlist', group:'Manage', render: renderWaitlist },
+  { id:'audit', title:'Admin activity', group:'Manage', render: renderAudit },
+];
+const RANGES = [[7,'7d'],[30,'30d'],[90,'90d'],[365,'1y']];
+const usesRange = new Set(['activity','funnel','traffic','geo','planner','apis']);
+const usesTestToggle = new Set(['overview','activity','funnel','geo','planner','taste']);
+
+function shell(){
+  let groups = '', last = null;
+  for (const s of SECTIONS){
+    if (s.group !== last){ groups += `<span class="grp t-label">${esc(s.group)}</span>`; last = s.group; }
+    groups += `<a href="#${s.id}" data-sec="${s.id}"><span class="dot" aria-hidden="true"></span>${esc(s.title)}</a>`;
+  }
+  $('app').innerHTML = `<div class="shell">
+    <aside class="aside"><a class="logo" href="roamly.html">Roamly<small>Admin</small></a>
+      <nav class="nav" aria-label="Dashboard sections">${groups}</nav>
+      <div class="aside-foot">Signed in as <b>@${esc(state.me.username)}</b><br><a href="roamly.html">Back to the app</a></div></aside>
+    <main class="content"><div class="topbar"><h1 id="secTitle">Overview<span class="sub" id="secSub"></span></h1>
+      <div class="seg" id="rangeSeg" role="group" aria-label="Date range">${RANGES.map(([d, l]) =>
+        `<button data-days="${d}" aria-pressed="${state.days === d}">${l}</button>`).join('')}</div>
+      <label class="tog" id="testTog"><button class="switch" role="switch" id="testSwitch" aria-checked="${state.includeTest}" aria-label="Include test accounts"></button>Test accounts</label>
+      <div class="dd"><button class="btn btn-ghost btn-sm" id="exportBtn" aria-haspopup="menu" aria-expanded="false">Export CSV</button>
+        <div class="dd-menu hidden" id="exportMenu" role="menu">
+          <button role="menuitem" data-export="users">All users</button>
+          <button role="menuitem" data-export="waitlist">Waitlist</button>
+          <button role="menuitem" data-export="plans">Plan logs (selected range)</button></div></div>
+      <button class="btn btn-ghost btn-sm" id="refreshBtn">Refresh</button></div>
+      <div id="sec"></div></main></div>`;
+
+  $('rangeSeg').onclick = e => { const b = e.target.closest('[data-days]'); if (!b) return;
+    state.days = +b.dataset.days; store.set('days', state.days);
+    $('rangeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); route(); };
+  $('testSwitch').onclick = () => { state.includeTest = !state.includeTest; store.set('includeTest', state.includeTest);
+    $('testSwitch').setAttribute('aria-checked', state.includeTest); route(); };
+  $('refreshBtn').onclick = () => route();
+  $('exportBtn').onclick = e => { e.stopPropagation(); const m = $('exportMenu'); m.classList.toggle('hidden');
+    $('exportBtn').setAttribute('aria-expanded', !m.classList.contains('hidden')); };
+  document.addEventListener('click', () => { $('exportMenu').classList.add('hidden'); $('exportBtn').setAttribute('aria-expanded', 'false'); });
+  $('exportMenu').onclick = e => { const b = e.target.closest('[data-export]'); if (!b) return;
+    const k = b.dataset.export, stamp = new Date().toISOString().slice(0, 10);
+    download(`/admin/export/${k}.csv${k === 'plans' ? '?days=' + state.days : ''}`, `roamly-${k}-${stamp}.csv`); };
+  document.addEventListener('click', e => { const b = e.target.closest('[data-table-toggle]'); if (!b) return;
+    const id = b.dataset.tableToggle, showTbl = $(id + '-tbl').classList.toggle('hidden') === false;
+    $(id + '-box').classList.toggle('hidden', showTbl); b.textContent = showTbl ? 'Chart' : 'Table'; });
+  window.addEventListener('hashchange', route);
+}
+
+let routeSeq = 0;
+async function route(){
+  const id = (location.hash || '#overview').slice(1).split('/')[0];
+  const sec = SECTIONS.find(s => s.id === id) || SECTIONS[0];
+  document.querySelectorAll('.nav a').forEach(a =>
+    a.dataset.sec === sec.id ? a.setAttribute('aria-current', 'page') : a.removeAttribute('aria-current'));
+  $('secTitle').firstChild.textContent = sec.title;
+  $('secSub').textContent = '';
+  $('rangeSeg').classList.toggle('hidden', !usesRange.has(sec.id));
+  $('testTog').classList.toggle('hidden', !usesTestToggle.has(sec.id));
+  charts.forEach(c => c.destroy()); charts = [];
+  $('sec').onchange = null;
+  maps.forEach(m => m.remove()); maps = [];
+  const seq = ++routeSeq;
+  $('sec').innerHTML = `<div class="skel-wrap grid g-tiles">${'<div class="skel" style="height:96px"></div>'.repeat(4)}</div>`;
+  try{
+    const html = await sec.render(seq);
+    if (seq !== routeSeq) return;            // a newer navigation won
+    if (typeof html === 'string') $('sec').innerHTML = html;
+  }catch(e){
+    if (seq === routeSeq) $('sec').innerHTML = notice('Couldn’t load this section', e.message, 'err');
+  }
+}
+const stale = seq => seq !== routeSeq;
+const rangeText = () => state.days === 365 ? 'last 12 months' : `last ${state.days} days`;
+
+// ---- overview
+async function renderOverview(seq){
+  const [o, act] = await Promise.all([api('/admin/overview' + q()), api('/admin/activity' + q({ days: 30 }))]);
+  if (stale(seq)) return;
+  const st = o.status, err = o.error_rate_24h;
+  const errBadge = err == null ? '<span class="badge plain">no traffic</span>'
+    : err >= .05 ? `<span class="badge crit">High</span>` : err >= .01 ? `<span class="badge warn">Elevated</span>` : `<span class="badge good">Healthy</span>`;
+  const conf = Object.entries(st.configured).map(([k, v]) =>
+    `<span class="badge ${v ? 'good' : 'plain'}">${esc(k.replace('_', ' '))}${v ? '' : ': off'}</span>`).join('');
+  $('secSub').textContent = state.includeTest ? 'Including test accounts and admins' : `Real accounts only · ${fmt(o.test_accounts)} test accounts hidden`;
+  $('sec').innerHTML = `
+    <div class="grid g-tiles">
+      ${tile('Users', fmt(o.users_total), `+${fmt(o.users_new_7d)} this week · +${fmt(o.users_new_today)} today`)}
+      ${tile('Active today', fmt(o.dau), `${fmt(o.wau)} this week · ${fmt(o.mau)} this month`)}
+      ${tile('Finished the taste survey', pct(o.survey_rate, 0), people(o.survey_completed))}
+      ${tile('Plans today', fmt(o.plans_today), `${fmt(o.plans_7d)} in the last 7 days`)}
+      ${tile('Waitlist', fmt(o.waitlist_total))}
+      ${tile('Requests (24h)', fmt(o.requests_24h), `p95 latency ${ms(o.p95_ms_24h)}`)}
+      ${tile('Server errors (24h)', pct(err, 2), `${errBadge} ${fmt(o.errors_5xx_24h)} 5xx`)}
+    </div>
+    <div class="grid g-2 sec">
+      ${chartCard({ id:'ovAct', title:'Sign-ups and active users', sub:'Last 30 days',
+        series:[{ label:'Active users' }, { label:'Sign-ups' }] })}
+      ${panel('System status', `<dl class="kv">
+          <dt>Database</dt><dd>${statusBadge(st.database.ok)} ${st.database.ok ? ms(st.database.ms) : esc(st.database.error)}</dd>
+          <dt>Redis</dt><dd>${statusBadge(st.redis.ok)} ${st.redis.ok ? ms(st.redis.ms) : esc(st.redis.error)}</dd>
+          <dt>Up for</dt><dd>${upFor(st.uptime_s)} <span class="t-meta">(${esc(st.environment)})</span></dd>
+          <dt>Last stats saved</dt><dd>${o.last_snapshot_at ? ago(o.last_snapshot_at) : 'none in the last 24h'}</dd>
+          <dt>Services</dt><dd class="chips">${conf}</dd></dl>`, 'Live check from this page load')}
+    </div>`;
+  const s = act.series;
+  drawChart('ovAct', { labels: s.map(r => ({ display: dshort(r.day) })),
+    series:[{ label:'Active users', data: s.map(r => r.active) }, { label:'Sign-ups', data: s.map(r => r.signups) }] });
+}
+const people = n => `${fmt(n)} ${n === 1 ? 'person' : 'people'}`;
+const reqs = n => `${fmt(n)} request${n === 1 ? '' : 's'}`;
+const upFor = s => s < 3600 ? Math.round(s / 60) + ' min' : s < 172800 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' days';
+
+// ---- activity & retention
+async function renderActivity(seq){
+  const a = await api('/admin/activity' + q());
+  if (stale(seq)) return;
+  const s = a.series;
+  const sum = k => s.reduce((t, r) => t + r[k], 0);
+  const heat = v => {
+    if (v == null) return `<td class="c muted" title="Too early to tell">·</td>`;
+    const bg = v >= .5 ? css('--seq-7') : v >= .3 ? css('--seq-5') : v >= .15 ? css('--seq-3') : css('--seq-1');
+    const ink = v >= .3 ? '#fff' : 'var(--ink)';
+    return `<td class="c" style="background:${bg};color:${ink}">${pct(v, 0)}</td>`;
+  };
+  $('secSub').textContent = rangeText();
+  $('sec').innerHTML = `
+    <div class="grid g-tiles">
+      ${tile('Sign-ups', fmt(sum('signups')), rangeText())}
+      ${tile('Busiest day', fmt(Math.max(0, ...s.map(r => r.active))), 'active users in one day')}
+      ${tile('Avg. active per day', fmt(sum('active') / s.length))}
+    </div>
+    <div class="sec">${chartCard({ id:'actChart', title:'Active users and sign-ups per day',
+      sub:'Active = used the app while signed in that day (UTC)', series:[{ label:'Active users' }, { label:'Sign-ups' }] })}</div>
+    <div class="sec">${panel('Retention by sign-up week',
+      `<div class="tbl-wrap"><table class="t ret"><thead><tr><th>Week of</th><th class="n">Signed up</th>
+        <th class="n">Back next day</th><th class="n">Back in week 2</th><th class="n">Back in month 2</th></tr></thead><tbody>${
+        a.retention.length ? a.retention.map(r => `<tr><td>${dshort(r.week)}</td><td class="n">${fmt(r.size)}</td>${heat(r.day1)}${heat(r.week2)}${heat(r.month2)}</tr>`).join('')
+        : '<tr><td colspan="5" class="muted">No sign-ups in the last 12 weeks.</td></tr>'}</tbody></table></div>`,
+      'Share of each week’s new users who came back: the day after signing up, in days 7–13, and in days 30–59. “·” means too early to tell. Activity tracking started with this dashboard, so older weeks look lower than they were.')}</div>`;
+  drawChart('actChart', { type: state.days > 90 ? 'line' : 'bar', labels: s.map(r => ({ display: dshort(r.day) })),
+    series:[{ label:'Active users', data: s.map(r => r.active) }, { label:'Sign-ups', data: s.map(r => r.signups) }] });
+}
+
+// ---- funnel
+async function renderFunnel(seq){
+  const f = await api('/admin/funnel' + q());
+  if (stale(seq)) return;
+  const first = f.steps[0].count || 0;
+  const rows = f.steps.map((s, i) => {
+    const prev = i ? f.steps[i - 1].count : null;
+    return `<div class="bar-row" style="grid-template-columns:minmax(150px,30%) 1fr 150px"><span class="lab">${esc(s.label)}</span>
+      <span class="trk" style="height:18px"><span class="fill" style="width:${first ? (s.count / first * 100).toFixed(1) : 0}%"></span></span>
+      <span class="val">${fmt(s.count)}<small>${first ? pct(s.count / first, 0) + ' of sign-ups' : ''}</small>${
+        prev ? `<br><small>${pct(s.count / prev, 0)} of previous step</small>` : ''}</span></div>`;
+  }).join('');
+  const web = webBlock(f.web, w => {
+    const ev = w.events || {};
+    const steps = [['Visitors', w.visitors], ['Joined waitlist', ev.waitlist_join], ['Signed up', ev.sign_up],
+                   ['Finished survey', ev.survey_complete], ['Built a plan', ev.plan_built]];
+    return barList(steps.map(([k, v]) => ({ key:k, count: v || 0 })), { total: 0 }) +
+      `<p class="t-meta" style="margin:10px 0 0">From Google Analytics (visitors who accepted cookies). Event counts, so one person can count more than once.</p>`;
+  });
+  $('secSub').textContent = `People who signed up in the ${rangeText()}`;
+  $('sec').innerHTML = `<div class="grid g-2">
+      ${panel('From sign-up to coming back', `<div class="bars" style="gap:12px">${rows}</div>
+        ${f.note ? `<p class="t-meta" style="margin:12px 0 0">${esc(f.note)}</p>` : ''}`,
+        'Each step counts people from the sign-up group who got that far')}
+      ${panel('Before sign-up (website)', web, `Waitlist sign-ups in this period: ${fmt(f.waitlist_signups)}`)}
+    </div>`;
+}
+
+// ---- traffic
+async function renderTraffic(seq){
+  const t = await api('/admin/traffic' + q());
+  if (stale(seq)) return;
+  $('secSub').textContent = rangeText();
+  const ws = panel('Waitlist sign-ups by source', barList(t.waitlist_sources, { label: r => r.source }),
+    'The “source” the landing page sent with each waitlist sign-up');
+  if (!t.web.connected || t.web.error){
+    $('sec').innerHTML = `${webBlock(t.web)}<div class="grid g-2 sec">${ws}</div>`; return;
+  }
+  const w = t.web;
+  const daily = (w.daily || []).slice().sort((a, b) => a.date.localeCompare(b.date));
+  $('sec').innerHTML = `
+    ${chartCard({ id:'trDaily', title:'Visits per day', series:[{ label:'Sessions' }, { label:'Visitors' }] })}
+    <div class="grid g-2 sec">
+      ${panel('Where visits come from', table([
+        { h:'Source', f: r => esc(r.sessionSource) }, { h:'Medium', f: r => esc(r.sessionMedium) },
+        { h:'Sessions', n:1, f: r => fmt(r.sessions) }, { h:'Visitors', n:1, f: r => fmt(r.totalUsers) },
+        { h:'Engaged', n:1, f: r => pct(r.engagementRate, 0) }], w.sources), '“(direct)” means typed in or bookmarked')}
+      ${panel('Campaigns (UTM)', table([
+        { h:'Campaign', f: r => esc(r.sessionCampaignName) }, { h:'Sessions', n:1, f: r => fmt(r.sessions) },
+        { h:'Visitors', n:1, f: r => fmt(r.totalUsers) }], w.campaigns), 'Links tagged with ?utm_campaign=…')}
+      ${panel('Landing pages', table([
+        { h:'Page', cls:'clip', f: r => esc(r.landingPage) }, { h:'Sessions', n:1, f: r => fmt(r.sessions) },
+        { h:'Bounce', n:1, f: r => pct(r.bounceRate, 0) }], w.landing_pages))}
+      ${panel('Devices', barList(w.devices, { label: r => r.deviceCategory, value: r => r.sessions }))}
+      ${ws}
+    </div>`;
+  drawChart('trDaily', { type:'line', labels: daily.map(r => ({ display: dshort(`${r.date.slice(0,4)}-${r.date.slice(4,6)}-${r.date.slice(6)}`) })),
+    series:[{ label:'Sessions', data: daily.map(r => r.sessions) }, { label:'Visitors', data: daily.map(r => r.totalUsers) }] });
+}
+
+// ---- geo
+async function renderGeo(seq){
+  const g = await api('/admin/geo' + q());
+  if (stale(seq)) return;
+  $('secSub').textContent = `Where people planned outings · ${rangeText()}`;
+  const web = webBlock(g.web, w => `<div class="grid g-2">
+      <div><span class="t-label">Countries</span><div style="margin-top:8px">${barList(w.countries, { label: r => r.country, value: r => r.totalUsers })}</div></div>
+      <div><span class="t-label">Cities</span><div style="margin-top:8px">${barList(w.cities, { label: r => `${r.city}, ${r.country}`, value: r => r.totalUsers })}</div></div></div>`);
+  $('sec').innerHTML = `
+    ${panel('Plan locations', g.plan_points.length ? '<div class="map" id="geoMap"></div>' : '<p class="t-meta">No plans with a location in this range yet.</p>',
+      'Each circle is a ~1 km area; bigger means more plans')}
+    <div class="grid g-2 sec">
+      ${panel('Top areas planned in', barList(g.plan_areas, { label: r => r.area, value: r => r.plans }), 'The place typed in, or the city around the user’s location')}
+      ${panel('Home cities on profiles', barList(g.home_cities, { label: r => r.city, value: r => r.users }), 'What people entered as their home city')}
+    </div>
+    <div class="sec">${panel('Website visitors by location', web, 'Google Analytics')}</div>`;
+  if (g.plan_points.length){
+    const m = L.map('geoMap', { scrollWheelZoom: false });
+    maps.push(m);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(m);
+    const max = Math.max(...g.plan_points.map(p => p.plans));
+    const pts = g.plan_points.map(p => L.circleMarker([p.lat, p.lng], {
+      radius: 5 + 13 * Math.sqrt(p.plans / max), color: css('--viz-surface'), weight: 2,
+      fillColor: css('--s1c'), fillOpacity: .75 }).bindTooltip(`${fmt(p.plans)} plan${p.plans === 1 ? '' : 's'}`).addTo(m));
+    m.fitBounds(L.featureGroup(pts).getBounds().pad(.2), { maxZoom: 12 });
+  }
+}
+
+// ---- planner
+async function renderPlanner(seq){
+  const p = await api('/admin/planner' + q());
+  if (stale(seq)) return;
+  const t = p.totals, s = p.series;
+  const rateBadge = (v, warn, crit) => v == null ? '' : v >= crit ? '<span class="badge crit">High</span>' : v >= warn ? '<span class="badge warn">Watch</span>' : '<span class="badge good">OK</span>';
+  const bd = p.breakdown;
+  const LBL = { vibe:'Vibe', time_of_day:'Time of day', group_type:'Who with', budget:'Budget', radius_km:'Distance', response_type:'What came back' };
+  $('secSub').textContent = rangeText();
+  $('sec').innerHTML = `
+    <div class="grid g-tiles">
+      ${tile('Planner requests', fmt(t.plans), people(t.users))}
+      ${tile('Found nothing', pct(t.nothing_rate), `${rateBadge(t.nothing_rate, .1, .25)} ${reqs(t.nothing)}`)}
+      ${tile('Backup planner used', p.llm_configured ? pct(t.backup_rate) : 'AI off', p.llm_configured ? 'requests where the AI didn’t run' : 'No LLM key: every plan uses the rule-based planner')}
+      ${tile('AI calls failing', pct(t.llm_fail_rate), `${rateBadge(t.llm_fail_rate, .05, .2)} ${reqs(t.llm_failed)}`)}
+      ${tile('Typical response time', ms(t.p50_ms), `p95 ${ms(t.p95_ms)}`)}
+    </div>
+    <div class="sec">${chartCard({ id:'plSeries', title:'Planner requests per day', sub:'Chat = typed or one-tap plans · Options = build-your-own lists · Build = itineraries from picks',
+      series:[{ label:'Chat' }, { label:'Options' }, { label:'Build' }] })}</div>
+    <div class="grid g-2 sec">
+      ${chartCard({ id:'plNothing', title:'Requests that found nothing', small:true, series:[{ label:'Found nothing', color: css('--serious') }] })}
+      ${panel('Response time by type', table([
+        { h:'Type', f: r => esc(r[0]) }, { h:'Typical', n:1, f: r => ms(r[1].p50) }, { h:'p95', n:1, f: r => ms(r[1].p95) }],
+        Object.entries(p.latency)), 'Raw requests only (last 90 days)')}
+    </div>
+    <div class="grid g-3 sec">${Object.keys(LBL).map(k => panel(LBL[k], barList(bd[k]))).join('')}</div>
+    <div class="sec">${panel('Latest requests', table([
+      { h:'When', f: r => `<span title="${esc(dtime(r.created_at))}">${esc(ago(r.created_at))}</span>` },
+      { h:'User', f: r => '@' + esc(r.username || '?') },
+      { h:'Asked', cls:'clip', f: r => esc(r.user_text || '(tapped options)') },
+      { h:'Where', cls:'clip', f: r => esc(r.area || '—') },
+      { h:'Result', f: r => r.found_nothing ? '<span class="badge warn">nothing</span>' : esc(r.response_type) + (r.stops ? ` · ${r.stops}` : '') },
+      { h:'Time', n:1, f: r => ms(r.duration_ms) }], p.recent, { rowAttr: r => `class="click" data-plan="${r.id}"` }),
+      'Click a row to see the full request and answer')}</div>`;
+  const labels = s.map(r => ({ display: dshort(r.day) }));
+  drawChart('plSeries', { labels, stacked: true, series:[
+    { label:'Chat', data: s.map(r => r.chat) }, { label:'Options', data: s.map(r => r.options) }, { label:'Build', data: s.map(r => r.build) }] });
+  drawChart('plNothing', { labels, series:[{ label:'Found nothing', color: css('--serious'), data: s.map(r => r.nothing) }] });
+}
+
+document.addEventListener('click', e => {
+  const tr = e.target.closest('[data-plan]'); if (tr) openPlan(tr.dataset.plan);
+  const u = e.target.closest('[data-user]'); if (u) openUser(u.dataset.user);
+});
+
+function overlay(html, kind = 'modal'){
+  closeOverlay();
+  const scrim = Object.assign(document.createElement('div'), { className:'scrim', id:'scrim' });
+  const box = Object.assign(document.createElement('div'), { className: kind, id:'overlay' });
+  box.setAttribute('role','dialog'); box.setAttribute('aria-modal','true');
+  box.innerHTML = html;
+  scrim.onclick = closeOverlay;
+  document.body.append(scrim, box);
+  box.querySelector('[data-close]')?.focus();
+  return box;
+}
+function closeOverlay(){ $('scrim')?.remove(); $('overlay')?.remove(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeOverlay(); });
+document.addEventListener('click', e => { if (e.target.closest('[data-close]')) closeOverlay(); });
+const xHead = title => `<div class="x-head"><h2>${title}</h2><button class="icon-btn" data-close aria-label="Close">✕</button></div>`;
+
+async function openPlan(id){
+  const box = overlay(xHead('Plan request') + '<p class="t-meta">Loading…</p>');
+  try{
+    const p = await api('/admin/plans/' + id);
+    const r = p.response || {};
+    const plans = r.plan ? [r.plan] : (r.days || []);
+    const stops = plans.flatMap((pl, i) => (pl.stops || []).map(s => ({ ...s, day: plans.length > 1 ? i + 1 : null })));
+    box.innerHTML = xHead(`Plan request · @${esc(p.username || '?')}`) + `
+      <dl class="kv"><dt>When</dt><dd>${esc(dtime(p.created_at))}</dd>
+        <dt>Type</dt><dd>${esc(p.endpoint)} → ${esc(p.response_type)}${p.found_nothing ? ' <span class="badge warn">found nothing</span>' : ''}</dd>
+        <dt>They asked</dt><dd>${esc(p.user_text || '(tapped options, no text)')}</dd>
+        <dt>Where</dt><dd>${esc(p.area || '—')}${p.lat != null ? ` <span class="t-meta">(${p.lat.toFixed(3)}, ${p.lng.toFixed(3)})</span>` : ''}</dd>
+        <dt>Time taken</dt><dd>${ms(p.duration_ms)} · AI calls ${fmt(p.llm_calls)}${p.llm_failures ? `, <span class="badge crit">${p.llm_failures} failed</span>` : ''}</dd>
+        <dt>Roamly said</dt><dd>${esc(r.message || '—')}</dd></dl>
+      ${stops.length ? `<div class="sec"><span class="t-label">Stops</span>${stops.map(s => `<div class="stop"><span>${s.day ? 'Day ' + s.day + ' · ' : ''}${esc(s.time || '')}</span><div><b>${esc(s.name)}</b><div class="t-meta">${esc([s.category, s.price].filter(Boolean).join(' · '))}</div></div></div>`).join('')}</div>` : ''}
+      ${r.sections ? `<div class="sec"><span class="t-label">Options offered</span><p>${r.sections.map(s => `${esc(s.label)} (${s.options.length})`).join(' · ')}</p></div>` : ''}
+      <details class="sec"><summary class="t-meta">What the planner understood</summary><pre class="json">${esc(JSON.stringify(p.prefs, null, 2))}</pre></details>
+      <details class="sec"><summary class="t-meta">Full response</summary><pre class="json">${esc(JSON.stringify(r, null, 2))}</pre></details>`;
+  }catch(e){ box.innerHTML = xHead('Plan request') + notice('Couldn’t load it', e.message, 'err'); }
+}
+
+// ---- taste
+async function renderTaste(seq){
+  const t = await api('/admin/taste' + q());
+  if (stale(seq)) return;
+  $('secSub').textContent = 'Everyone’s survey answers, added up';
+  $('sec').innerHTML = `
+    <div class="grid g-tiles">
+      ${tile('Finished the survey', pct(t.completion_rate, 0), `${fmt(t.completed)} of ${fmt(t.users)} users`)}
+      ${tile('Started it', fmt(t.started), `${fmt(t.started - t.completed)} still part-way`)}
+    </div>
+    <div class="sec">${panel('Personas', barList(t.personas, { label: r => r.title }), 'The one-line persona each finished survey gets')}</div>
+    <div class="grid g-3 sec">${t.questions.map(qn => panel(qn.question,
+      barList(qn.options.filter(o => o.count), { label: o => o.label, total: qn.answered, empty: 'No answers yet.' }),
+      `${qn.section} · ${fmt(qn.answered)} answered${qn.type === 'multi' ? ' · pick several, so % adds up past 100' : ''}`)).join('')}</div>`;
+}
+
+// ---- health
+const HOURS = [[6,'6h'],[24,'24h'],[168,'7d'],[720,'30d'],[2160,'90d']];
+async function renderHealth(seq){
+  const h = await api('/admin/health?hours=' + state.hours);
+  if (stale(seq)) return;
+  const st = h.status;
+  // Lay out every bucket in the window so sleep/no-traffic shows as a gap.
+  const UNIT = { minute: 6e4, hour: 36e5, day: 864e5 }[h.unit];
+  const byT = new Map(h.series.map(r => [Date.parse(r.t + 'Z'), r]));
+  const end = Math.floor(Date.now() / UNIT) * UNIT;
+  const s = [];
+  for (let t = end - Math.ceil(state.hours * 36e5 / UNIT - 1) * UNIT; t <= end; t += UNIT)
+    s.push(byT.get(t) || { t, requests: null, '4xx': null, '5xx': null, p95_ms: null, empty: true });
+  const lab = t => { const d = new Date(typeof t === 'number' ? t : Date.parse(t + 'Z')); return h.unit === 'day' ? d.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+    : h.unit === 'hour' && state.hours > 24 ? d.toLocaleString(undefined, { weekday:'short', hour:'numeric' })
+    : d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }); };
+  const tot = s.reduce((a, r) => a + (r.requests || 0), 0), e5 = s.reduce((a, r) => a + (r['5xx'] || 0), 0);
+  const er = tot ? e5 / tot : null;
+  $('secSub').textContent = 'Saved once a minute while the server is awake';
+  $('sec').innerHTML = `
+    <div class="toolbar"><div class="seg" id="hoursSeg" role="group" aria-label="Time window">${HOURS.map(([v, l]) =>
+      `<button data-hours="${v}" aria-pressed="${state.hours === v}">${l}</button>`).join('')}</div>
+      <span class="t-meta">${esc(h.note)}</span></div>
+    <div class="grid g-tiles">
+      ${tile('Database', statusBadge(st.database.ok), st.database.ok ? ms(st.database.ms) + ' to answer' : esc(st.database.error))}
+      ${tile('Redis', statusBadge(st.redis.ok), st.redis.ok ? ms(st.redis.ms) + ' to answer' : esc(st.redis.error))}
+      ${tile('Up for', upFor(st.uptime_s), 'since the last restart or wake-up')}
+      ${tile('Requests', fmt(tot))}
+      ${tile('Server errors', pct(er, 2), `${fmt(e5)} 5xx responses`)}
+      ${tile('Cold starts', fmt(h.cold_starts.length), h.cold_starts[0] ? 'latest ' + ago(h.cold_starts[0]) : 'none in this window')}
+    </div>
+    <div class="sec">${chartCard({ id:'hReq', title:'Requests', sub:`Per ${h.unit}`, series:[{ label:'Requests' }] })}</div>
+    <div class="grid g-2 sec">
+      ${chartCard({ id:'hLat', title:'Response time (p95)', sub:'Slowest 5% of requests took at least this long', small:true, series:[{ label:'p95' }] })}
+      ${chartCard({ id:'hErr', title:'Server errors (5xx)', small:true, series:[{ label:'5xx errors', color: css('--crit') }] })}
+    </div>
+    <div class="sec">${panel('By route', table([
+      { h:'Route', cls:'clip', f: r => `<code>${esc(r.route)}</code>` },
+      { h:'Requests', n:1, f: r => fmt(r.requests) }, { h:'4xx', n:1, f: r => fmt(r['4xx']) },
+      { h:'5xx', n:1, f: r => r['5xx'] ? `<span class="badge crit">${fmt(r['5xx'])}</span>` : '0' },
+      { h:'p95 (avg)', n:1, f: r => ms(r.p95_ms) }, { h:'Worst p95', n:1, f: r => ms(r.worst_p95_ms) }], h.routes),
+      '“unmatched” = requests to URLs that don’t exist (often bots)')}</div>`;
+  $('hoursSeg').onclick = e => { const b = e.target.closest('[data-hours]'); if (!b) return; state.hours = +b.dataset.hours; route(); };
+  const labels = s.map(r => ({ display: lab(r.t) }));
+  drawChart('hReq', { labels, series:[{ label:'Requests', data: s.map(r => r.requests) }] });
+  drawChart('hLat', { type:'line', labels, series:[{ label:'p95', data: s.map(r => r.p95_ms) }], yFmt: v => ms(v), tipFmt: ms });
+  drawChart('hErr', { labels, series:[{ label:'5xx errors', color: css('--crit'), data: s.map(r => r['5xx']) }] });
+}
+
+// ---- outside APIs
+const PROVIDER = { llm:'AI (LLM)', yelp:'Yelp', google_places:'Google Places', foursquare:'Foursquare',
+  ticketmaster:'Ticketmaster', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding', open_meteo:'Open-Meteo weather' };
+async function renderApis(seq){
+  const a = await api('/admin/apis' + q());
+  if (stale(seq)) return;
+  const warn = a.providers.filter(p => p.warn);
+  $('secSub').textContent = 'Calls the planner makes to other services';
+  $('sec').innerHTML = `
+    ${warn.length ? notice('Close to a limit', warn.map(p => `${PROVIDER[p.provider] || p.provider}: ${pct(p.used_pct, 0)} of the ${p.limit_period === 'day' ? 'daily' : 'monthly'} limit`).join(' · ')) : ''}
+    <div class="sec">${panel('Usage and limits', table([
+      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? `<div class="t-meta">${esc(a.llm_label)}</div>` : ''}` },
+      { h:'Set up', f: r => r.configured ? '<span class="badge good">on</span>' : '<span class="badge plain">off</span>' },
+      { h:'Today', n:1, f: r => fmt(r.today) + (r.today_errors ? ` <span class="badge crit">${fmt(r.today_errors)} failed</span>` : '') },
+      { h:'This month', n:1, f: r => fmt(r.month) },
+      { h:`${state.days}d calls`, n:1, f: r => fmt(r.period_calls) },
+      { h:`${state.days}d failed`, n:1, f: r => r.period_calls ? pct(r.period_errors / r.period_calls, 1) : '—' },
+      { h:'Free limit used', f: r => r.limit ? `<div style="display:flex;gap:8px;align-items:center"><div class="meter ${r.used_pct >= 1 ? 'crit' : r.warn ? 'warn' : ''}" style="flex:1"><span style="width:${Math.min(100, r.used_pct * 100).toFixed(1)}%"></span></div><span class="t-meta" style="white-space:nowrap">${fmt(r.used)} / ${fmt(r.limit)} per ${r.limit_period}</span></div>` : '<span class="t-meta">no set limit</span>' },
+      { h:'Est. cost this month', n:1, f: r => r.est_cost_month == null ? '—' : '$' + r.est_cost_month.toFixed(2) },
+    ], a.providers), 'Limits are each service’s free tier as of 2026. Check your own plan. Counts are saved once a minute.')}</div>`;
+}
+
+// ---- users
+const uState = { q:'', filter:'real', page:1 };
+async function renderUsers(seq){
+  const d = await api('/admin/users?' + new URLSearchParams({ q: uState.q, filter: uState.filter, page: uState.page, per_page: 50 }));
+  if (stale(seq)) return;
+  const pages = Math.max(1, Math.ceil(d.total / d.per_page));
+  const F = [['real','Real'],['test','Test'],['admin','Admins'],['disabled','Disabled'],['all','Everyone']];
+  $('secSub').textContent = `${fmt(d.total)} matching`;
+  $('sec').innerHTML = `
+    <div class="toolbar"><input class="input" id="uq" type="search" placeholder="Search email, username or name" value="${esc(uState.q)}" aria-label="Search users" />
+      <div class="chips" role="group" aria-label="Filter">${F.map(([k, l]) => `<button class="chip sm ${uState.filter === k ? 'on' : ''}" data-uf="${k}">${l}</button>`).join('')}</div></div>
+    ${panel('Accounts', table([
+      { h:'User', f: r => `<b>@${esc(r.username)}</b> ${r.is_admin ? '<span class="badge plain">admin</span>' : ''}${r.is_test ? '<span class="badge plain">test</span>' : ''}${r.is_disabled ? '<span class="badge crit">disabled</span>' : ''}<div class="t-meta">${esc(r.email)}</div>` },
+      { h:'Joined', f: r => esc(dtime(r.created_at)) },
+      { h:'Last active', f: r => esc(ago(r.last_seen_at)) },
+      { h:'Survey', f: r => r.survey_completed_at ? '<span class="badge good">done</span>' : '<span class="badge plain">no</span>' },
+      { h:'Active days', n:1, f: r => fmt(r.active_days) },
+      { h:'Plans', n:1, f: r => fmt(r.plans) }], d.users, { rowAttr: r => `class="click" data-user="${r.id}"`, empty:'No accounts match.' }))}
+    <div class="pager"><span>Page ${d.page} of ${pages}</span>
+      <button class="mini" id="uPrev" ${d.page <= 1 ? 'disabled' : ''}>Previous</button><button class="mini" id="uNext" ${d.page >= pages ? 'disabled' : ''}>Next</button></div>`;
+  let t;
+  $('uq').oninput = e => { clearTimeout(t); t = setTimeout(() => { uState.q = e.target.value; uState.page = 1; route().then(() => { const i = $('uq'); if (i){ i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 300); };
+  document.querySelectorAll('[data-uf]').forEach(b => b.onclick = () => { uState.filter = b.dataset.uf; uState.page = 1; route(); });
+  $('uPrev').onclick = () => { uState.page--; route(); };
+  $('uNext').onclick = () => { uState.page++; route(); };
+}
+
+async function openUser(id){
+  const box = overlay(xHead('User') + '<p class="t-meta">Loading…</p>', 'drawer');
+  let u;
+  try{ u = await api('/admin/users/' + id); }
+  catch(e){ box.innerHTML = xHead('User') + notice('Couldn’t load this user', e.message, 'err'); return; }
+  const self = u.id === state.me.id;
+  box.innerHTML = xHead(`@${esc(u.username)}`) + `
+    <div class="chips">${u.is_admin ? '<span class="badge plain">admin</span>' : ''}${u.is_test ? '<span class="badge plain">test account</span>' : ''}${u.is_disabled ? '<span class="badge crit">disabled</span>' : '<span class="badge good">active</span>'}</div>
+    <dl class="kv sec"><dt>Name</dt><dd>${esc(u.display_name)}</dd><dt>Email</dt><dd>${esc(u.email)}</dd>
+      <dt>Home city</dt><dd>${esc(u.home_city || '—')}</dd><dt>Joined</dt><dd>${esc(dtime(u.created_at))}</dd>
+      <dt>Last active</dt><dd>${esc(ago(u.last_seen_at))}</dd><dt>Days active</dt><dd>${fmt(u.active_days_total)}</dd>
+      <dt>Persona</dt><dd>${esc(u.taste.persona || 'No survey yet')}${u.taste.completed_at ? '' : u.taste.persona ? ' <span class="t-meta">(survey not finished)</span>' : ''}</dd></dl>
+    ${u.taste.summary.length ? `<div class="chips sec">${u.taste.summary.map(c => `<span class="tag violet">${esc(c)}</span>`).join('')}</div>` : ''}
+    <div class="acts">
+      ${self ? '<span class="t-meta">This is you, so disable and delete are off.</span>' : `
+        <button class="btn btn-ghost btn-sm" data-act="disabled" data-v="${!u.is_disabled}">${u.is_disabled ? 'Enable account' : 'Disable account'}</button>`}
+      <button class="btn btn-ghost btn-sm" data-act="test" data-v="${!u.is_test}">${u.is_test ? 'Count in stats' : 'Mark as test account'}</button>
+      <button class="btn btn-ghost btn-sm" data-act="reset">Send password reset</button>
+      ${self ? '' : '<button class="btn btn-danger btn-sm" data-act="delete">Delete…</button>'}
+    </div>
+    <div class="sec"><span class="t-label">Plan requests (${u.plans.length}${u.plans.length === 100 ? '+' : ''}, last 90 days)</span>
+    ${table([
+      { h:'When', f: r => esc(dtime(r.created_at)) },
+      { h:'Asked', cls:'clip', f: r => esc(r.user_text || '(tapped options)') },
+      { h:'Result', f: r => r.found_nothing ? '<span class="badge warn">nothing</span>' : esc(r.response_type) }],
+      u.plans, { rowAttr: r => `class="click" data-plan="${r.id}"`, empty:'No plans in the last 90 days.' })}</div>`;
+  box.onclick = async e => {
+    const b = e.target.closest('[data-act]'); if (!b) return;
+    const act = b.dataset.act;
+    try{
+      if (act === 'disabled' || act === 'test'){
+        await api(`/admin/users/${u.id}/${act}`, { method:'POST', body: JSON.stringify({ value: b.dataset.v === 'true' }) });
+        toast('Saved'); openUser(u.id); if (location.hash.startsWith('#users')) route();
+      } else if (act === 'reset'){
+        await api(`/admin/users/${u.id}/reset-password`, { method:'POST' }); toast('Reset email sent');
+      } else if (act === 'delete'){
+        const typed = prompt(`This permanently deletes @${u.username}, their survey and their plan history.\nType the username to confirm:`);
+        if (typed !== u.username){ if (typed != null) toast('Username didn’t match — nothing deleted'); return; }
+        await api(`/admin/users/${u.id}`, { method:'DELETE' });
+        closeOverlay(); toast(`Deleted @${u.username}`); route();
+      }
+    }catch(err){ toast(err.message); }
+  };
+}
+
+// ---- waitlist
+const wState = { q:'' };
+async function renderWaitlist(seq){
+  const d = await api('/admin/waitlist?' + new URLSearchParams({ q: wState.q }));
+  if (stale(seq)) return;
+  const rows = d.signups;
+  $('secSub').textContent = `${fmt(rows.length)} sign-ups · ${fmt(rows.filter(r => r.invited_at).length)} invited · ${fmt(rows.filter(r => r.joined_user_id).length)} made an account`;
+  $('sec').innerHTML = `
+    ${d.email_enabled ? '' : notice('Email isn’t set up', 'Set SENDGRID_API_KEY and EMAIL_FROM on the API server to send invites. You can still mark people as invited.')}
+    <div class="toolbar sec"><input class="input" id="wq" type="search" placeholder="Search email or name" value="${esc(wState.q)}" aria-label="Search waitlist" />
+      <button class="btn btn-primary btn-sm" id="wInvite" disabled>Send invite</button>
+      <button class="btn btn-ghost btn-sm" id="wMark" disabled>Mark as invited</button>
+      <span class="t-meta" id="wCount"></span></div>
+    ${panel('Waitlist', table([
+      { hRaw:'<input type="checkbox" id="wAll" aria-label="Select all">', f: r => `<input type="checkbox" data-w="${r.id}" aria-label="Select ${esc(r.email)}">` },
+      { h:'Email', f: r => `<b>${esc(r.email)}</b>${r.name ? `<div class="t-meta">${esc(r.name)}</div>` : ''}` },
+      { h:'Source', f: r => esc(r.source || '—') },
+      { h:'Joined list', f: r => esc(dtime(r.created_at)) },
+      { h:'Status', f: r => r.joined_user_id ? '<span class="badge good">has an account</span>' : r.invited_at ? `<span class="badge plain">invited ${esc(ago(r.invited_at))}</span>` : '<span class="badge plain">waiting</span>' }],
+      rows, { empty:'No one on the waitlist yet.' }))}`;
+  const boxes = () => [...document.querySelectorAll('[data-w]')];
+  const picked = () => boxes().filter(b => b.checked).map(b => b.dataset.w);
+  const sync = () => { const n = picked().length; $('wInvite').disabled = !n || !d.email_enabled; $('wMark').disabled = !n;
+    $('wCount').textContent = n ? `${n} selected` : ''; };
+  $('sec').onchange = e => { if (e.target.id === 'wAll') boxes().forEach(b => b.checked = e.target.checked); sync(); };
+  let t;
+  $('wq').oninput = e => { clearTimeout(t); t = setTimeout(() => { wState.q = e.target.value; route(); }, 300); };
+  $('wMark').onclick = async () => {
+    try{ const r = await api('/admin/waitlist/invite', { method:'POST', body: JSON.stringify({ ids: picked(), mark_only: true }) });
+      toast(`Marked ${r.invited} as invited`); route(); }catch(e){ toast(e.message); }
+  };
+  $('wInvite').onclick = () => {
+    const ids = picked();
+    const box = overlay(xHead(`Invite ${ids.length} ${ids.length === 1 ? 'person' : 'people'}`) + `
+      <label class="field">Subject<input class="input" id="invSubj" value="You're in — welcome to Roamly" maxlength="150"></label>
+      <label class="field sec">Message <span class="t-meta">(optional; blank lines start new paragraphs. A “Create your account” link is added.)</span>
+        <textarea class="input" id="invMsg" rows="6" style="padding:12px 16px;min-height:140px" maxlength="4000"></textarea></label>
+      <div class="acts"><button class="btn btn-primary" id="invSend">Send ${ids.length} email${ids.length === 1 ? '' : 's'}</button><button class="btn btn-ghost" data-close>Cancel</button></div>`);
+    box.querySelector('#invSend').onclick = async e => {
+      e.target.disabled = true;
+      try{ const r = await api('/admin/waitlist/invite', { method:'POST', body: JSON.stringify({ ids, subject: $('invSubj').value, message: $('invMsg').value }) });
+        closeOverlay(); toast(`Sent ${r.invited}${r.failed.length ? `, ${r.failed.length} failed` : ''}`); route();
+      }catch(err){ e.target.disabled = false; toast(err.message); }
+    };
+  };
+}
+
+// ---- audit
+const ACTIONS = { disable:'Disabled account', enable:'Enabled account', delete_user:'Deleted account', send_reset:'Sent password reset',
+  mark_test:'Marked as test', unmark_test:'Counted in stats', invite:'Sent waitlist invites', mark_invited:'Marked invited',
+  export:'Exported CSV', grant_admin:'Made admin', revoke_admin:'Removed admin' };
+async function renderAudit(seq){
+  const rows = await api('/admin/audit?limit=200');
+  if (stale(seq)) return;
+  $('secSub').textContent = 'Every change made from this dashboard';
+  $('sec').innerHTML = panel('Recent admin actions', table([
+    { h:'When', f: r => esc(dtime(r.created_at)) },
+    { h:'Who', f: r => r.admin ? '@' + esc(r.admin) : '<span class="t-meta">script</span>' },
+    { h:'Action', f: r => esc(ACTIONS[r.action] || r.action) },
+    { h:'On', cls:'clip', f: r => esc(r.target || '') },
+    { h:'Details', cls:'clip', f: r => r.details ? `<span class="t-meta">${esc(Object.entries(r.details).map(([k, v]) => `${k}: ${Array.isArray(v) ? v.length : v}`).join(', '))}</span>` : '' }],
+    rows, { empty:'No admin actions yet.' }));
+}
+
+// ---------------------------------------------------------------- boot
+(async function boot(){
+  if (!token()){ location.replace('auth.html?redirect=admin.html'); return; }
+  try{ state.me = await api('/users/me'); }
+  catch(e){ $('app').innerHTML = `<div class="center-msg">${notice('Couldn’t reach the server', e.message, 'err')}</div>`; return; }
+  if (!state.me.is_admin){
+    $('app').innerHTML = `<div class="center-msg"><div class="empty"><div class="e-art" aria-hidden="true">🔒</div>
+      <h3>Admins only</h3><p>You're signed in as @${esc(state.me.username)}, which isn't an admin account.</p>
+      <a class="btn btn-dark" href="roamly.html">Back to Roamly</a></div></div>`;
+    return;
+  }
+  shell();
+  route();
+})();
+</script>
+</body>
+</html>

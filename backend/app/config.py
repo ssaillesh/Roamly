@@ -85,6 +85,17 @@ class Settings(BaseSettings):
     # restaurants/activities (ratings, prices, photos). Blank → Yelp/FSQ/OSM only.
     google_places_api_key: str = ""
 
+    # Admin dashboard.
+    # Google Analytics 4: the numeric property ID (Admin → Property details) and
+    # a service-account key (the whole JSON, pasted as one env var) whose email
+    # has Viewer access on the property. Blank → the dashboard's traffic section
+    # shows "connect Google Analytics" instead.
+    ga4_property_id: str = ""
+    ga4_credentials_json: str = ""
+    # Lets a Prometheus scraper read /metrics with "Authorization: Bearer <token>".
+    # Blank → /metrics is admin-only.
+    metrics_token: str = ""
+
     # Rate limiting (requests per window per client)
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60

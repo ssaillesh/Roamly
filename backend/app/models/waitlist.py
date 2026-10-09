@@ -19,3 +19,5 @@ class WaitlistSignup(Base):
     desired_username: Mapped[str | None] = mapped_column(String(60), nullable=True)
     source: Mapped[str | None] = mapped_column(String(60), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Set when an admin sends the early-access invite.
+    invited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

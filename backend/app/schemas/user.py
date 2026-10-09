@@ -12,6 +12,7 @@ class UserPublic(BaseModel):
 
 class UserProfile(UserPublic):
     email: str | None = None
+    is_admin: bool = False      # the web app shows the admin link when true
 
 
 class UserUpdate(BaseModel):

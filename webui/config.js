@@ -57,3 +57,64 @@ try {
       });
   };
 })();
+
+// ---------------------------------------------------------------------------
+// Google Analytics 4 — page views, traffic sources and the sign-up funnel
+// (shown in admin.html). Paste your Measurement ID (G-XXXXXXX) below; blank
+// turns analytics off. Nothing loads until the visitor accepts the cookie
+// banner, and the choice is remembered. Not loaded on the admin page.
+window.GA_MEASUREMENT_ID = 'G-P8639TWYYC';
+
+// window.track('sign_up') etc. Safe to call anywhere: a no-op without consent.
+window.track = function (name, params) {
+  try { if (window.gtag && window.__gaOn) window.gtag('event', name, params || {}); } catch (e) {}
+};
+
+(function () {
+  const ID = window.GA_MEASUREMENT_ID;
+  if (!ID || /\/admin(\.html)?$/.test(location.pathname)) return;
+  const KEY = 'roamly_consent';
+  let choice = null;
+  try { choice = localStorage.getItem(KEY); } catch (e) {}
+
+  function load() {
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', ID);
+    window.__gaOn = true;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(ID);
+    document.head.appendChild(s);
+  }
+
+  function remember(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
+
+  function banner() {
+    const el = document.createElement('div');
+    el.setAttribute('role', 'dialog');
+    el.setAttribute('aria-label', 'Cookie choice');
+    el.style.cssText =
+      'position:fixed;left:16px;right:16px;bottom:16px;z-index:99998;max-width:520px;margin:0 auto;' +
+      'padding:16px 18px;border-radius:20px;background:#fff;color:#17153a;' +
+      'box-shadow:0 2px 6px rgba(23,21,58,.05),0 30px 64px -26px rgba(62,40,140,.34);' +
+      'border:1px solid rgba(23,21,58,.10);font:500 14px/1.45 "Plus Jakarta Sans",system-ui,sans-serif;';
+    el.innerHTML =
+      '<div style="margin-bottom:12px">We use Google Analytics cookies to see how people find and use Roamly. ' +
+      'Okay with that?</div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
+      '<button type="button" data-no style="min-height:40px;padding:0 16px;border-radius:999px;border:1px solid ' +
+      'rgba(23,21,58,.12);background:#fff;font:inherit;font-weight:700;cursor:pointer">No thanks</button>' +
+      '<button type="button" data-yes style="min-height:40px;padding:0 16px;border-radius:999px;border:0;' +
+      'background:#17153a;color:#fff;font:inherit;font-weight:700;cursor:pointer">Accept</button></div>';
+    el.querySelector('[data-yes]').onclick = () => { remember('yes'); el.remove(); load(); };
+    el.querySelector('[data-no]').onclick = () => { remember('no'); el.remove(); };
+    document.body.appendChild(el);
+  }
+
+  if (choice === 'yes') load();
+  else if (choice !== 'no') {
+    if (document.body) banner();
+    else document.addEventListener('DOMContentLoaded', banner);
+  }
+})();

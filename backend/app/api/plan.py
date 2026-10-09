@@ -1,5 +1,5 @@
 """Chat-driven itinerary concierge. Requires a signed-in account — the LLM
-planner is a members-only feature (debug stays open for ops).
+planner is a members-only feature (debug is admin-only).
 
 With an LLM key it runs as a sharp concierge that reads the whole conversation,
 extracts what it needs, asks one focused follow-up when required, then builds a
@@ -10,17 +10,18 @@ import random
 import re
 import time
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.middleware.auth import get_current_user
+from app.middleware.auth import get_current_user, require_admin
 from app.models import User, TasteProfile
 from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
 )
-from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile
+from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
+from app.services.analytics import save_plan_log
 from app.services import events as events_svc
 from app.services import live_events
 from app.services.geocoding import geocode, geocode_place
@@ -33,7 +34,7 @@ router = APIRouter(prefix="/plan", tags=["planner"])
 
 
 @router.get("/debug")
-def debug():
+def debug(_admin: User = Depends(require_admin)):
     """Config health for the planner brain. Never returns the API keys."""
     ok, detail = llm.ping()
     return {
@@ -602,12 +603,19 @@ def _understood(prefs: dict) -> dict:
 
 
 @router.post("/chat", response_model=ChatResponse)
-def chat(req: ChatRequest, user: User = Depends(get_current_user),
+def chat(req: ChatRequest, background: BackgroundTasks, user: User = Depends(get_current_user),
          db: Session = Depends(get_db)):
     seen: dict = {}
-    resp = _chat(req, user, db, seen)
+    start = time.perf_counter()
+    with usage.request_tracker() as tracker:
+        resp = _chat(req, user, db, seen)
     if seen.get("prefs") is not None:
         resp.understood = _understood(seen["prefs"])
+    background.add_task(
+        save_plan_log, user_id=user.id, endpoint="chat",
+        user_text=_orig_user_text(req) or None, prefs=seen.get("prefs") or req.prefs,
+        lat=seen.get("lat", req.lat), lng=seen.get("lng", req.lng), resp=resp, tracker=tracker,
+        duration_ms=int((time.perf_counter() - start) * 1000))
     return resp
 
 
@@ -618,7 +626,7 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
     last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
     taste = _taste_defaults(db, user)
     lat, lng, prefs = _resolve(req, taste)
-    seen["prefs"] = prefs
+    seen.update(prefs=prefs, lat=lat, lng=lng)
     if lat is None or lng is None:
         return ChatResponse(type="message",
             message="Tell me where — enable location, or just name a city (e.g. \"in Toronto\") — plus your budget and vibe.")
@@ -682,9 +690,22 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
 
 
 @router.post("/options", response_model=OptionsResponse)
-def options(req: ChatRequest, user: User = Depends(get_current_user),
+def options(req: ChatRequest, background: BackgroundTasks, user: User = Depends(get_current_user),
             db: Session = Depends(get_db)):
     """Build-your-own: ranked, tagged candidate venues per category to pick from."""
+    start = time.perf_counter()
+    with usage.request_tracker() as tracker:
+        resp = _options(req, user, db)
+    loc = resp.location or {}
+    background.add_task(
+        save_plan_log, user_id=user.id, endpoint="options",
+        user_text=_orig_user_text(req) or None, prefs=resp.context or req.prefs,
+        lat=loc.get("lat", req.lat), lng=loc.get("lng", req.lng), resp=resp, tracker=tracker,
+        duration_ms=int((time.perf_counter() - start) * 1000))
+    return resp
+
+
+def _options(req: ChatRequest, user: User, db: Session) -> OptionsResponse:
     req = _fresh_cut(req)
     lat, lng, prefs = _resolve(req, _taste_defaults(db, user))
     if lat is None or lng is None:
@@ -734,8 +755,23 @@ def options(req: ChatRequest, user: User = Depends(get_current_user),
 
 
 @router.post("/build", response_model=ChatResponse)
-def build(req: BuildRequest, user: User = Depends(get_current_user)):
+def build(req: BuildRequest, background: BackgroundTasks, user: User = Depends(get_current_user)):
     """Assemble + sequence + narrate an itinerary from the user's picked venues."""
+    start = time.perf_counter()
+    with usage.request_tracker() as tracker:
+        resp = _build(req)
+    background.add_task(
+        save_plan_log, user_id=user.id, endpoint="build", user_text=None,
+        prefs={"vibe": req.vibe, "budget": req.budget, "party_size": req.party_size,
+               "group_type": req.group_type, "time_of_day": req.time_of_day,
+               "interests": req.interests, "dietary": req.dietary,
+               "picked": len(req.selections)},
+        lat=req.lat, lng=req.lng, resp=resp, tracker=tracker,
+        duration_ms=int((time.perf_counter() - start) * 1000))
+    return resp
+
+
+def _build(req: BuildRequest) -> ChatResponse:
     if not req.selections:
         return ChatResponse(type="message", message="Pick at least one spot to build your itinerary.")
     plan_dict = build_from_selection(

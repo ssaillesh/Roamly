@@ -17,6 +17,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 _NEW_URL = "https://places-api.foursquare.com/places/search"
 _NEW_VERSION = "2025-06-17"
@@ -39,11 +40,15 @@ def _request(url: str, params: dict, headers: dict) -> list[dict] | None:
     try:
         r = httpx.get(url, params=params, headers=headers, timeout=15.0)
         if r.status_code in (401, 403, 404):
+            usage.record("foursquare", ok=False)
             return None
         r.raise_for_status()
-        return r.json().get("results", [])
+        results = r.json().get("results", [])
     except (httpx.HTTPError, ValueError):
+        usage.record("foursquare", ok=False)
         return []
+    usage.record("foursquare", ok=True)
+    return results
 
 
 def _parse(p: dict) -> dict | None:

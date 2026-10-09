@@ -10,6 +10,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 _URL = "https://app.ticketmaster.com/discovery/v2/events.json"
 _TTL = 60 * 60 * 3        # 3h for open-ended "upcoming" searches
@@ -62,8 +63,9 @@ def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12
     if start_utc and end_utc:
         params["startDateTime"], params["endDateTime"] = _tm_time(start_utc), _tm_time(end_utc)
     try:
-        r = httpx.get(_URL, params=params, timeout=15.0)
-        r.raise_for_status()
+        with usage.counted("ticketmaster"):
+            r = httpx.get(_URL, params=params, timeout=15.0)
+            r.raise_for_status()
         data = r.json()
     except (httpx.HTTPError, ValueError):
         return []

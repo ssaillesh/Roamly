@@ -487,6 +487,7 @@
 <div class="menu hidden" id="menu" role="menu" aria-label="Account">
   <div class="who"><b data-name>Your account</b><span data-handle></span></div>
   <a role="menuitem" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg> My taste</a>
+  <a role="menuitem" href="admin.html" id="adminLink" class="hidden"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg> Admin dashboard</a>
   <button role="menuitem" id="resetBtn"><svg class="ic" aria-hidden="true"><use href="#i-rotate"/></svg> Start over</button>
   <button role="menuitem" id="signOutBtn"><svg class="ic" aria-hidden="true"><use href="#i-logout"/></svg> Sign out</button>
 </div>
@@ -1102,6 +1103,7 @@ async function buildItinerary(){
     if (res.type === 'itinerary' && res.plan){
       addMsg('assistant', esc(res.message || "Here's your itinerary:"));
       res.plan._meta = metaNow(); renderPlan(res.plan);
+      track('plan_built', { mode: 'build' });
     }
     else addMsg('assistant', esc(res.message || 'Could not build that.'));
   }catch(e){ addNotice({ title:"Couldn't build that just now", text:'Your picks are still selected — try again.', actions:[] }); }
@@ -1172,6 +1174,7 @@ function showChatResponse(res, retry, o = {}){
   const bot = res.message || '…';
   addMsgTyped(bot); messages.push({ role:'assistant', content:bot }); announce(bot);
   if (res.type === 'itinerary' || res.type === 'events') convoStart = messages.length;   // a result closes the turn
+  if (res.type === 'itinerary') track('plan_built', { mode: res.days && res.days.length ? 'trip' : 'chat' });
   if (res.type === 'itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
   else if (res.type === 'itinerary' && res.plan){
     res.plan._meta = metaNow(); renderPlan(res.plan);
@@ -1944,6 +1947,7 @@ function syncIdentity(){
     location.replace('auth.html?redirect=roamly.html'); return;
   }
   if (mr.status === 'fulfilled' && mr.value.ok){ try{ me = await mr.value.json(); }catch(e){} syncIdentity(); }
+  if (me && me.is_admin) $('adminLink').classList.remove('hidden');
   if (pr.status === 'fulfilled' && pr.value.ok){
     try{ profile = await pr.value.json(); }catch(e){}
     // Apply the profile's defaults unless the user already started changing things.

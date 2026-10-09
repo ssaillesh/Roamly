@@ -11,6 +11,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 _LAST_CALL_KEY = "geocode:last_call_ts"
 
@@ -54,8 +55,9 @@ def geocode(city: str, country: str | None) -> tuple[float, float] | None:
     headers = {"User-Agent": settings.geocode_user_agent}
     try:
         _throttle()
-        resp = httpx.get(settings.nominatim_url, params=params, headers=headers, timeout=15.0)
-        resp.raise_for_status()
+        with usage.counted("nominatim"):
+            resp = httpx.get(settings.nominatim_url, params=params, headers=headers, timeout=15.0)
+            resp.raise_for_status()
         results = resp.json()
     except (httpx.HTTPError, ValueError):
         return None
@@ -85,9 +87,10 @@ def geocode_place(name: str) -> tuple[float, float] | None:
               "addressdetails": 0, "featuretype": "settlement"}
     try:
         _throttle()
-        resp = httpx.get(settings.nominatim_url, params=params,
-                         headers={"User-Agent": settings.geocode_user_agent}, timeout=15.0)
-        resp.raise_for_status()
+        with usage.counted("nominatim"):
+            resp = httpx.get(settings.nominatim_url, params=params,
+                             headers={"User-Agent": settings.geocode_user_agent}, timeout=15.0)
+            resp.raise_for_status()
         results = resp.json()
     except (httpx.HTTPError, ValueError):
         return None
@@ -120,9 +123,10 @@ def find_place(name: str, lat: float, lng: float, radius_km: float = 10.0) -> di
               "viewbox": f"{lng - dlng},{lat + dlat},{lng + dlng},{lat - dlat}"}
     try:
         _throttle()
-        resp = httpx.get(settings.nominatim_url, params=params,
-                         headers={"User-Agent": settings.geocode_user_agent}, timeout=15.0)
-        resp.raise_for_status()
+        with usage.counted("nominatim"):
+            resp = httpx.get(settings.nominatim_url, params=params,
+                             headers={"User-Agent": settings.geocode_user_agent}, timeout=15.0)
+            resp.raise_for_status()
         results = resp.json()
     except (httpx.HTTPError, ValueError):
         return None
@@ -141,3 +145,30 @@ def find_place(name: str, lat: float, lng: float, radius_km: float = 10.0) -> di
     return out
 
 
+
+
+def reverse_area(lat: float, lng: float) -> str | None:
+    """'Neighbourhood/City, Country' for a point, for the admin "where users are"
+    view. Cached per ~1km cell for 30 days (including misses)."""
+    key = f"geocode:rev:{round(lat, 2)}:{round(lng, 2)}"
+    try:
+        cached = redis_client.get(key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return json.loads(cached)
+    params = {"lat": lat, "lon": lng, "format": "json", "zoom": 10, "addressdetails": 1}
+    try:
+        _throttle()
+        with usage.counted("nominatim"):
+            resp = httpx.get(settings.nominatim_url.rsplit("/", 1)[0] + "/reverse", params=params,
+                             headers={"User-Agent": settings.geocode_user_agent}, timeout=10.0)
+            resp.raise_for_status()
+        addr = resp.json().get("address") or {}
+    except (httpx.HTTPError, ValueError):
+        return None
+    city = (addr.get("city") or addr.get("town") or addr.get("village")
+            or addr.get("municipality") or addr.get("county") or addr.get("state"))
+    area = ", ".join(x for x in (city, addr.get("country_code", "").upper()) if x) or None
+    redis_client.setex(key, settings.geocode_cache_ttl, json.dumps(area))
+    return area

@@ -9,6 +9,7 @@ import json
 import httpx
 
 from app.config import settings
+from app.services import usage
 
 
 def available() -> bool:
@@ -47,13 +48,14 @@ def chat(messages: list[dict], *, temperature: float = 0.7,
     # NOTE: we intentionally do NOT send response_format — Gemini's OpenAI-compat
     # layer can 400 on it. We instruct JSON in the prompt and parse defensively.
     try:
-        resp = httpx.post(
-            f"{settings.llm_base_url.rstrip('/')}/chat/completions",
-            json=payload, timeout=timeout,
-            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-        )
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"]
+        with usage.counted("llm"):
+            resp = httpx.post(
+                f"{settings.llm_base_url.rstrip('/')}/chat/completions",
+                json=payload, timeout=timeout,
+                headers={"Authorization": f"Bearer {settings.llm_api_key}"},
+            )
+            resp.raise_for_status()
+            return resp.json()["choices"][0]["message"]["content"]
     except (httpx.HTTPError, KeyError, ValueError, IndexError):
         return None
 

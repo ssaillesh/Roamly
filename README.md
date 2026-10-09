@@ -25,8 +25,8 @@ planner (chat / "pick my spots" builder / options, backed by live venue data wit
 OpenStreetMap fallback, a 25-second time budget and live events), a taste profile
 (14-question optional survey whose answers become planner defaults — crew, budget, pace,
 crowds, energy, food rules, loves & hard nopes, no-alcohol), and a waitlist signup
-endpoint. No background worker: everything runs in the API process, with Redis for
-caching and rate limiting.
+endpoint, plus an admin dashboard API (`/admin/*`, see below). No background worker:
+everything runs in the API process, with Redis for caching and rate limiting.
 
 **Web UI (`webui/`, static HTML/CSS/JS, no build step):**
 - `index.html` — marketing landing page with an animated itinerary demo and a waitlist form.
@@ -48,11 +48,14 @@ caching and rate limiting.
   Views: Home · Chat · What's on · Saved (bottom nav on phones, sidebar on tablet/desktop; on
   desktop the settings are an always-open side panel). Typed messages send the bar's settings as
   `defaults`, so what you type wins, the bar fills the gaps, and "Roamly heard" shows what changed.
+- `admin.html` — the **admin dashboard** (admins only): users & retention, sign-up funnel,
+  traffic sources, where users are, planner quality, taste insights, server health, outside-API
+  usage, user management, waitlist invites, admin activity and CSV exports.
 - `roamly.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
   planner, My taste and sign-in pages.
 
 **Tests:** `./run_local.sh test` — pytest against the local Postgres + Redis (auth security,
-taste profile, planner time budget, radius, live events, session defaults).
+taste profile, planner time budget, radius, live events, session defaults, admin dashboard).
 `./run_local.sh smoke` runs a live end-to-end check against a running API.
 
 ---
@@ -102,6 +105,41 @@ else — edit that file if your API lives somewhere else. The backend deploys to
 
 ---
 
+## Admin dashboard
+
+`webui/admin.html`, backed by `/api/v1/admin/*`. To become an admin, sign up in the app,
+then run from `backend/` (locally, or in Render's shell for production):
+
+```bash
+.venv/bin/python -m scripts.make_admin you@example.com          # --remove to take it away
+```
+
+There's no API to make someone an admin. The "Admin dashboard" link then shows up in the
+planner's account menu.
+
+**What it records** (since migration `0010`; nothing before that can be filled in):
+- **Active days:** one row per user per day (`user_activity_days`), for DAU/WAU/MAU and retention.
+- **Planner requests:** every request with what was asked and the answer (`plan_logs`), kept 90 days.
+  Older days are rolled up into `daily_rollups` first.
+- **Server stats:** per-route request counts, errors and latency, saved once a minute
+  (`health_snapshots`, 90 days). Unlike Prometheus' in-memory counters, these survive Render
+  sleeping the server.
+- **Outside APIs:** daily calls per provider (`api_usage`), checked against free-tier limits
+  in `services/usage.py`.
+- **Admin actions:** every action taken in the dashboard (`admin_audit_log`).
+
+Test accounts (`@example.com` and similar, `smoke_*`) are flagged `is_test` and left out of
+the stats unless the "Test accounts" toggle is on.
+
+**Optional settings:**
+- **Google Analytics 4** (visitors, traffic sources, website funnel steps):
+  - Set `GA_MEASUREMENT_ID` in `webui/config.js`. Visitors get a cookie banner, and nothing loads until they accept.
+  - On the API, set `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_JSON`: a service-account key with Viewer access on the property.
+- **Waitlist invites and admin password resets** need `SENDGRID_API_KEY` and `EMAIL_FROM`.
+- **`METRICS_TOKEN`** lets a Prometheus scraper read `/metrics`. Otherwise `/metrics` is admin-only, and so is `/plan/debug`.
+
+---
+
 ## Project layout
 
 ```
@@ -111,13 +149,13 @@ Sway/
 │   │   ├── main.py              FastAPI app + middleware
 │   │   ├── config.py            env-driven settings
 │   │   ├── database.py          SQLAlchemy engine/session
-│   │   ├── models/              ORM models (users, taste profiles, waitlist)
+│   │   ├── models/              ORM models (users, taste profiles, waitlist, analytics)
 │   │   ├── schemas/             Pydantic request/response models
-│   │   ├── api/                 routers (auth, users, plan, waitlist)
+│   │   ├── api/                 routers (auth, users, plan, waitlist, admin)
 │   │   ├── services/            planner, venue/event sources, geocoding, weather, LLM, taste profile
-│   │   └── middleware/          JWT auth + Redis rate limiting
+│   │   └── middleware/          JWT auth, Redis rate limiting, request stats
 │   ├── alembic/                 migrations
-│   ├── scripts/                 smoke_test
+│   ├── scripts/                 smoke_test, make_admin
 │   ├── tests/                   pytest suite
 │   └── run_local.sh             native launcher
 ├── webui/
@@ -125,6 +163,7 @@ Sway/
 │   ├── auth.html             sign-in / create-account page
 │   ├── roamly.html           AI planner (home · chat · what's on · saved)
 │   ├── profile.html          My taste + taste survey
+│   ├── admin.html            admin dashboard
 │   ├── roamly.css            shared design system
 │   ├── config.js              API_BASE (single source of truth)
 │   └── vercel.json            static-site deploy (Vercel)
@@ -145,5 +184,6 @@ Sway/
 | POST | `/plan/chat` `/plan/options` `/plan/build` | AI itinerary planner (chat / picker); optional structured `prefs` |
 | GET/PUT | `/users/me/profile` · GET `/users/me/profile/questions` | taste survey (partial saves merge) |
 | POST | `/waitlist` | early-access signup |
+| GET | `/admin/overview` `/admin/planner` `/admin/health` … | admin dashboard (admins only) |
 
 Full interactive docs at `/docs`.

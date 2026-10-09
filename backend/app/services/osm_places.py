@@ -14,6 +14,7 @@ import httpx
 
 from app.config import settings
 from app.redis_client import redis_client
+from app.services import usage
 
 # Public Overpass endpoints, tried in order, each with its own timeout. The
 # canonical instance answers a whole plan's combined query in ~6-8s; the mirror
@@ -103,8 +104,10 @@ def _post(query: str) -> list | None:
                               headers={"User-Agent": settings.geocode_user_agent},
                               timeout=_TIMEOUTS.get(endpoint, 8.0))
         except httpx.HTTPError:
+            usage.record("overpass", ok=False)
             _down_until[endpoint] = time.monotonic() + _COOLDOWN
             continue
+        usage.record("overpass", ok=resp.status_code == 200)
         if resp.status_code == 429:
             _down_until[endpoint] = time.monotonic() + _COOLDOWN_BUSY
             continue

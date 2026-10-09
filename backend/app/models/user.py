@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, func
+from sqlalchemy import Boolean, String, DateTime, func, false
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,13 @@ class User(Base):
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     bio: Mapped[str | None] = mapped_column(String(300), nullable=True)
     home_city: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
+    # Admin dashboard. is_admin is only ever set by scripts/make_admin.py, never by the API.
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    is_disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    # Smoke-test/seeded accounts, left out of the admin stats (see services/analytics.looks_like_test).
+    is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=false())
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

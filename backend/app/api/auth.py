@@ -17,6 +17,7 @@ from app.services.security import (
     hash_password, verify_password, create_access_token, create_refresh_token, decode_token,
     create_reset_token,
 )
+from app.services.analytics import looks_like_test, mark_active
 from app.services.email import email_enabled, send_password_reset
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -45,10 +46,12 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         username=body.username,
         display_name=body.display_name,
         password_hash=hash_password(body.password),
+        is_test=looks_like_test(body.email, body.username),
     )
     db.add(user)
     db.commit()
     db.refresh(user)
+    mark_active(db, user)
     return _tokens(user, is_new=True)
 
 
@@ -57,6 +60,9 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     user = db.scalar(select(User).where(User.email == body.email))
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
+    if user.is_disabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been disabled")
+    mark_active(db, user)
     return _tokens(user, is_new=False)
 
 
@@ -68,6 +74,8 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     user = db.get(User, uuid.UUID(payload["sub"]))
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    if user.is_disabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been disabled")
     return _tokens(user, is_new=False)
 
 
@@ -104,6 +112,8 @@ def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
     user = db.get(User, uuid.UUID(payload["sub"]))
     if not user:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    if user.is_disabled:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been disabled")
     user.password_hash = hash_password(body.new_password)
     db.commit()
     db.refresh(user)

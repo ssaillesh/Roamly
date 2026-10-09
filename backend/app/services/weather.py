@@ -9,6 +9,7 @@ import json
 import httpx
 
 from app.redis_client import redis_client
+from app.services import usage
 
 _URL = "https://api.open-meteo.com/v1/forecast"
 _TTL = 60 * 60 * 2  # 2h — forecasts don't change minute to minute
@@ -21,12 +22,13 @@ def get_weather(lat: float, lng: float) -> dict | None:
     if cached is not None:
         return json.loads(cached) or None
     try:
-        r = httpx.get(_URL, params={
-            "latitude": lat, "longitude": lng,
-            "daily": "weathercode,temperature_2m_max,precipitation_probability_max",
-            "timezone": "auto", "forecast_days": 1,
-        }, timeout=5.0)
-        r.raise_for_status()
+        with usage.counted("open_meteo"):
+            r = httpx.get(_URL, params={
+                "latitude": lat, "longitude": lng,
+                "daily": "weathercode,temperature_2m_max,precipitation_probability_max",
+                "timezone": "auto", "forecast_days": 1,
+            }, timeout=5.0)
+            r.raise_for_status()
         d = r.json()["daily"]
         code = (d["weathercode"] or [0])[0]
         tmax = (d["temperature_2m_max"] or [None])[0]

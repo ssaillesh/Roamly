@@ -33,6 +33,8 @@ def _offline_geocode(monkeypatch):
             return None
         return _FIXTURE_COORDS.get((city.strip().lower(), (country or "").upper()))
     monkeypatch.setattr(geocoding, "geocode", fake_geocode)
+    # Plan logging names the area around a plan; keep that offline too.
+    monkeypatch.setattr(geocoding, "reverse_area", lambda lat, lng: None)
     yield
 
 

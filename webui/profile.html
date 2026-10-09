@@ -305,6 +305,7 @@ async function finish(){
     $('err').textContent = 'One answer didn’t save — pick it again.';
     return;
   }
+  track('survey_complete');
   const a = profile.archetype || { emoji:'🧭', title:'Explorer' };
   $('main').innerHTML = `<div class="page"><div class="result">
       <div class="r-art" aria-hidden="true">${esc(a.emoji)}</div>
