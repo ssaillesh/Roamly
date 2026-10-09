@@ -169,8 +169,12 @@ def _live_status(db: Session) -> dict:
         return " and ".join(n for n in names if not getattr(settings, n.lower())) + \
             " not set on the API service"
 
+    ai = llm.health()
+    out["llm"] = ai
     out["why_off"] = {k: v for k, v in {
-        "llm": None if llm.available() else missing("LLM_API_KEY") + ": plans use the rule-based planner",
+        "llm": (missing("LLM_API_KEY") + ": plans use the rule-based planner" if not llm.available()
+                else f"on, but failing ({ai['model']}): {ai['last_error']['error']}" if ai["failing"]
+                else None),
         "yelp": None if yelp.available() else "switched off in code: " + usage.DISABLED["yelp"],
         "foursquare": None if foursquare.available() else "switched off in code: " + usage.DISABLED["foursquare"],
         "google_places": None if google_places.available() else "switched off in code: "
@@ -607,6 +611,7 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
             "period_calls": sum(r.calls for r in p_calls),
             "period_errors": sum(r.errors for r in p_calls),
             "quota": q, "status": status, "note": q["note"] if q else _KEYLESS.get(p),
+            "error": (llm.health()["last_error"] or {}).get("error") if p == "llm" and llm.health()["failing"] else None,
             "est_cost_month": cost,
         })
     series = defaultdict(dict)

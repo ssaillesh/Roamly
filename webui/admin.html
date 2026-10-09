@@ -402,8 +402,10 @@ async function renderOverview(seq){
   const st = o.status, err = o.error_rate_24h;
   const errBadge = err == null ? '<span class="badge plain">no traffic</span>'
     : err >= .05 ? `<span class="badge crit">High</span>` : err >= .01 ? `<span class="badge warn">Elevated</span>` : `<span class="badge good">Healthy</span>`;
-  const conf = Object.entries(st.configured).map(([k, v]) =>
-    `<span class="badge ${v ? 'good' : 'plain'}">${esc(k.replace('_', ' '))}${v ? '' : ': off'}</span>`).join('');
+  const conf = Object.entries(st.configured).map(([k, v]) => {
+    const failing = k === 'llm' && v && st.llm && st.llm.failing;
+    return `<span class="badge ${failing ? 'crit' : v ? 'good' : 'plain'}">${esc(k.replace('_', ' '))}${failing ? ': failing' : v ? '' : ': off'}</span>`;
+  }).join('');
   const why = Object.entries(st.why_off || {}).map(([k, v]) =>
     `<li><b>${esc(k.replace('_', ' '))}</b>: ${esc(v)}</li>`).join('');
   $('secSub').textContent = state.includeTest ? 'Including test accounts and admins' : `Real accounts only · ${fmt(o.test_accounts)} test accounts hidden`;
@@ -723,8 +725,9 @@ function guardCell(r){
   if (r.status === 'never_free') return `<span class="badge warn">blocked</span><div class="t-meta">${r.configured ? 'never called: no free tier' : 'no free tier'}${q.blocked ? ` · ${fmt(q.blocked)} turned away` : ''}</div>`;
   const used = q.used ?? 0, pctUsed = q.cap ? used / q.cap : 0;
   const cls = r.status === 'capped' ? 'crit' : r.status === 'near' ? 'warn' : '';
+  const tok = q.tokens_cap ? `<div class="t-meta">${q.tokens_used == null ? '?' : fmt(q.tokens_used)} / ${fmt(q.tokens_cap)} tokens today</div>` : '';
   return `<div style="display:flex;gap:8px;align-items:center"><div class="meter ${cls}" style="flex:1"><span style="width:${Math.min(100, pctUsed * 100).toFixed(1)}%"></span></div>
-    <span class="t-meta" style="white-space:nowrap">${q.used == null ? '?' : fmt(used)} / ${fmt(q.cap)} ${PER[q.period]}</span></div>
+    <span class="t-meta" style="white-space:nowrap">${q.used == null ? '?' : fmt(used)} / ${fmt(q.cap)} ${PER[q.period]}</span></div>${tok}
     ${r.status === 'capped' ? `<div class="t-meta">Paused until the ${q.period === 'day' ? 'day' : 'month'} resets${q.blocked ? ` · ${fmt(q.blocked)} turned away` : ''}</div>` : ''}`;
 }
 async function renderApis(seq){
@@ -738,7 +741,7 @@ async function renderApis(seq){
       : notice('Free-tier blocker is OFF', 'FREE_TIER_ONLY is set to false on the API, so services can be called past their free allowance and may bill. Remove that setting to turn the blocker back on.', 'err')}
     ${capped.length ? `<div class="sec">${notice('At or near a free limit', capped.map(p => `${PROVIDER[p.provider] || p.provider}: ${fmt(p.quota.used)} of ${fmt(p.quota.cap)} ${PER[p.quota.period]}`).join(' · '))}</div>` : ''}
     <div class="sec">${panel('Usage and free limits', table([
-      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? ` <span class="t-meta">${esc(a.llm_label)}</span>` : ''}<div class="t-meta" style="max-width:360px;white-space:normal">${esc(r.note || '')}</div>` },
+      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? ` <span class="t-meta">${esc(a.llm_label)}</span>` : ''}<div class="t-meta" style="max-width:360px;white-space:normal">${esc(r.note || '')}</div>${r.error ? `<div style="max-width:360px;white-space:normal;margin-top:4px"><span class="badge crit">failing</span> <span class="t-meta">${esc(r.error)}</span></div>` : ''}` },
       { h:'Set up', f: r => r.configured ? '<span class="badge good">on</span>' : '<span class="badge plain">off</span>' },
       { h:'Free-tier guard', f: guardCell },
       { h:'Today', n:1, f: r => fmt(r.today) + (r.today_errors ? ` <span class="badge crit">${fmt(r.today_errors)} failed</span>` : '') },

@@ -38,8 +38,8 @@ log = logging.getLogger(__name__)
 # when Google Maps Platform resets its free monthly usage.
 #   provider:       (period,  free,  cap,  note shown on the dashboard)
 FREE_TIER = {
-    "llm":           ("day",   1000,  950, "Groq free tier: 1,000 requests a day. Over it Groq refuses "
-                                           "(429); it only bills if the account is upgraded."),
+    "llm":           ("day",   1000,  950, "Groq free tier: 1,000 requests and 200,000 tokens a day. "
+                                           "Over it Groq refuses (429); it only bills if the account is upgraded."),
     "google_places": ("month", 1000,  900, "Text Search Enterprise (Roamly asks for rating and price): "
                                            "1,000 free a month, then $35 per 1,000."),
     "foursquare":    ("month",    0,    0, "Roamly asks for rating, price and popularity, which are "
@@ -51,6 +51,10 @@ FREE_TIER = {
     "ticketmaster":  ("day",   5000, 4900, "Free: 5,000 calls a day (over it they refuse; never billed)."),
     "open_meteo":    ("day",  10000, 9000, "Free for non-commercial use: 10,000 calls a day."),
 }
+# Daily token allowances, checked alongside the request caps (Groq's free tier
+# runs out of tokens long before requests: ~3k tokens per plan → ~60 plans a day).
+#   provider: (free tokens a day, Roamly stops at)
+TOKEN_CAPS = {"llm": (200_000, 190_000)}
 # Estimated $ per call past the free allowance, for the dashboard's cost column.
 COST_PER_CALL = {"google_places": 0.035, "foursquare": 0.01875}
 
@@ -157,6 +161,11 @@ def allow(provider: str) -> bool:
         return False
     if not settings.free_tier_only or provider not in FREE_TIER:
         return True
+    if provider in TOKEN_CAPS:
+        used = tokens_used(provider)
+        if used is None or used >= TOKEN_CAPS[provider][1]:
+            log.warning("free-tier blocker: %s daily tokens used up (or uncountable)", provider)
+            return False
     period, _free, cap, _note = FREE_TIER[provider]
     suffix, ttl, since = _period_key(period)
     key = f"quota:{provider}:{suffix}"
@@ -177,6 +186,30 @@ def allow(provider: str) -> bool:
     return True
 
 
+def _token_key(provider: str) -> str:
+    return f"quota_tokens:{provider}:{_period_key('day')[0]}"
+
+
+def record_tokens(provider: str, n: int) -> None:
+    """Add a reply's token count to today's total. Never raises."""
+    if not n:
+        return
+    try:
+        key = _token_key(provider)
+        redis_client.incrby(key, int(n))
+        redis_client.expire(key, 2 * 86400)
+    except Exception:
+        log.warning("couldn't record %s tokens", provider)
+
+
+def tokens_used(provider: str) -> int | None:
+    """Tokens used today, or None if they can't be read."""
+    try:
+        return int(redis_client.get(_token_key(provider)) or 0)
+    except Exception:
+        return None
+
+
 def quota_status() -> dict[str, dict]:
     """Per provider: the cap, how much of it is used this period, and how many
     calls the blocker has turned away."""
@@ -192,4 +225,6 @@ def quota_status() -> dict[str, dict]:
             "used": None if n is None else min(n, cap), "blocked": None if n is None else max(0, n - cap),
             "enforced": settings.free_tier_only, "disabled": provider in DISABLED,
         }
+        if provider in TOKEN_CAPS:
+            out[provider].update(tokens_used=tokens_used(provider), tokens_cap=TOKEN_CAPS[provider][1])
     return out

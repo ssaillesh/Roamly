@@ -58,11 +58,13 @@ class Settings(BaseSettings):
     # LLM via any OpenAI-compatible endpoint. Works with Groq or Google Gemini's
     # OpenAI-compatible API (both free-tier). Leave llm_api_key blank to run the
     # deterministic rule-based planner (no LLM, still functional).
-    #   Groq:   base=https://api.groq.com/openai/v1        model=llama-3.3-70b-versatile
+    #   Groq:   base=https://api.groq.com/openai/v1        model=openai/gpt-oss-120b
     #   Gemini: base=https://generativelanguage.googleapis.com/v1beta/openai  model=gemini-2.0-flash
+    # Groq retired llama-3.3-70b-versatile on 2026-08-16 (calls to it now 404);
+    # check console.groq.com/docs/deprecations if every AI call starts failing.
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = ""
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-120b"
 
     # Yelp Fusion (free tier: no card, ~500 calls/day). Blank → OSM only.
     yelp_api_key: str = ""
