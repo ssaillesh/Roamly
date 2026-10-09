@@ -179,7 +179,8 @@ def test_chat_reports_what_it_understood(client, monkeypatch):
 
 
 def test_stated_budget_beats_the_fancier_bump(client, monkeypatch):
-    """'$60 fancy date' means $60 — only a follow-up 'make it fancier' raises it."""
+    """'$60 fancy date' means $60 — only a follow-up 'make it fancier' raises it,
+    by the same +50% step as the page's Fancier button (no hidden $250 floor)."""
     _, token = make_user(client, "fancy")
     monkeypatch.setattr(plan_api.llm, "available", lambda: False)
     seen = {}
@@ -196,4 +197,4 @@ def test_stated_budget_beats_the_fancier_bump(client, monkeypatch):
     client.post("/api/v1/plan/chat", headers=h, json={"lat": 43.65, "lng": -79.38, "messages": [
         {"role": "user", "content": "$60 chill date night"}, {"role": "assistant", "content": "Here you go"},
         {"role": "user", "content": "make it fancier"}]})
-    assert seen["budget"] >= 250 and seen["vibe"] == "extravagant"
+    assert seen["budget"] == 90 and seen["vibe"] == "extravagant"

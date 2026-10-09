@@ -7,6 +7,7 @@ COPY profile.html /srv/profile.html
 COPY admin.html /srv/admin.html
 COPY config.js /srv/config.js
 COPY roamly.css /srv/roamly.css
+COPY hero-toronto.jpg /srv/hero-toronto.jpg
 COPY Caddyfile /etc/caddy/Caddyfile
 
 # Caddy reads $PORT from the env (Railway injects it); see Caddyfile.

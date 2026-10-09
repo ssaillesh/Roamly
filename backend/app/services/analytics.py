@@ -75,7 +75,7 @@ def _stops(resp) -> int:
 
 def save_plan_log(*, user_id, endpoint: str, user_text: str | None, prefs: dict | None,
                   lat: float | None, lng: float | None, resp, tracker: dict,
-                  duration_ms: int) -> None:
+                  duration_ms: int, session_id: str | None = None, intent: str | None = None) -> None:
     """Write one plan_logs row. Runs as a background task after the response
     has been sent, so it can't slow down or break planning."""
     try:
@@ -90,6 +90,7 @@ def save_plan_log(*, user_id, endpoint: str, user_text: str | None, prefs: dict 
         with SessionLocal() as db:
             db.add(PlanLog(
                 user_id=user_id, endpoint=endpoint, user_text=(user_text or None),
+                session_id=session_id, intent=intent or getattr(resp, "intent", None),
                 prefs=_jsonable(prefs), lat=lat, lng=lng, area=area, response_type=rtype,
                 stops=stops,
                 # Searched (a location was known) but came back empty — not a

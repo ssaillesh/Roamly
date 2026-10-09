@@ -21,7 +21,9 @@ from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
+from app.services import plan_intent
 from app.services.analytics import save_plan_log
+from app.services.plan_edit import EditContext, apply_edits
 from app.services import events as events_svc
 from app.services import live_events
 from app.services.geocoding import geocode, geocode_place
@@ -61,63 +63,21 @@ _VIBE_KEYWORDS = {
     "night_out": ["night out", "party", "bars", "clubbing", "nightlife"],
 }
 
-# The concierge's brain. Tuned to this app: sharp, efficient, gathers the four
-# signals that matter, and only asks when it truly needs to.
-SYSTEM = """You are the planning brain for a local outing concierge app.
-Persona: a sharp, polished concierge — efficient and tasteful, minimal fluff, no rambling.
-Your job: read the whole conversation and output ONLY JSON (no prose) with these keys:
-  budget: the dollar number the user stated (a range like "50-100" → use the higher end), or null
-  budget_per_person: true if that number is per-person ("$100 each", or a modest budget for a group of friends); else false
-  vibe: one of chill|romantic|adventurous|extravagant|night_out, or null
-  party_size: integer (default 2)
-  days: integer (1 unless they mention a weekend/multi-day trip)
-  time_of_day: morning|afternoon|evening|night or null
-  transport: walk|transit|car or null
-  group_type: date|friends|family|solo or null
-  dietary: short string of food prefs/restrictions, or ""
-  location: a city/neighbourhood the user names to plan in (e.g. "Toronto", "Kensington Market"), or null
-  interests: short string of specific things they want (e.g. "aquarium, hookah, rec room"), or ""
-  avoid: short string of things they explicitly do NOT want (e.g. "parks, museums, clubbing"), or "".
-    Treat "no X", "not X", "don't want X", "skip X", "anything but X" as avoid — and NEVER
-    leave a rejected thing in interests.
-  requested_venues: array of specific venues/places the user asks to include by NAME —
-    proper nouns only (e.g. "end the night at Celeste's" → ["Celeste's"], "can we hit
-    The Rec Room" → ["The Rec Room"]). Generic types ("a rooftop bar", "korean bbq")
-    belong in interests, NOT here. [] if none.
-  ready: true ONLY if budget AND vibe are known
-  question: if not ready, ONE concise concierge-style question to get the missing essentials
-  quick_replies: array of 2-5 short tappable answers for that question
-IMPORTANT: if the latest message asks for a NEW or SEPARATE plan (a "plan B", a plan for
-another group / different people, "start over", a different day), extract preferences from
-THAT request alone — do not carry over budget, vibe, group or interests from earlier plans
-unless the user explicitly says "same as before". Ask again for anything now missing.
-Planning is optimised for stops close together and best value — so a
-walkable, budget-fitting plan. Prefer to gather time_of_day, transport, group_type and
-dietary when natural, but NEVER block a plan on them: if budget and vibe are known,
-set ready=true and leave the rest null. Ask at most what's essential, in one question."""
+def _last_msg(req) -> str:
+    return req.messages[-1].content.lower() if req.messages else ""
 
 
-# "Plan B" / new-plan detection: when the guest pivots to a separate plan (another
-# group, a second itinerary), drop the old conversation so plan A's budget/vibe/group
-# don't bleed into plan B. The last message becomes the whole context.
-_FRESH_RE = re.compile(
-    r"\b(plan b|new plan|fresh plan|start over|from scratch|second (plan|itinerary)"
-    r"|another (plan|itinerary|one for)|(plan|itinerary) for (another|a different|my other)"
-    r"|different (group|crew|people|friends))\b")
+def _turn(req):
+    """The current request: the messages since the last plan/events answer."""
+    return req.messages[req.turn_start:] if req.turn_start < len(req.messages) else req.messages[-1:]
 
 
-def _fresh_cut(req: ChatRequest) -> ChatRequest:
-    if len(req.messages) > 1 and _FRESH_RE.search(req.messages[-1].content.lower()):
-        return req.model_copy(update={"messages": [req.messages[-1]]})
-    return req
-
-
-def _joined_user_text(req):
-    return " ".join(m.content for m in req.messages if m.role == "user").lower()
+def _turn_text(req):
+    return " ".join(m.content for m in _turn(req) if m.role == "user").lower()
 
 
 def _orig_user_text(req):
-    return " ".join(m.content for m in req.messages if m.role == "user")
+    return " ".join(m.content for m in _turn(req) if m.role == "user")
 
 
 def _extract_location(orig_text):
@@ -146,7 +106,7 @@ def _guess_location_coords(req):
     straight out of the messages (newest first) and geocode them, restricted to
     real settlements. Handles a bare "Miami" or a lowercase "waterloo"."""
     attempts = 0
-    for m in reversed(req.messages):
+    for m in reversed(_turn(req)):
         if m.role != "user" or attempts >= 4:
             continue
         text = m.content
@@ -230,8 +190,34 @@ def _extract_avoid(text):
     return ", ".join(dict.fromkeys(hits))
 
 
+_NUM_WORDS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8,
+              "nine": 9, "ten": 10, "a couple": 2, "couple of": 2}
+_PARTY_RE = re.compile(
+    r"\b(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\s+(?:of us|people|persons|ppl|adults"
+    r"|friends|guys|girls|buddies|kids|of my friends)\b"
+    r"|\bme and (\d{1,2}|two|three|four|five|six|seven|eight|nine) (?:friends|others|buddies|people)\b"
+    r"|\b(?:for|party of|group of) (\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\b(?!\s*(?:\$|dollars|bucks|km|mi|hours?|pm|am))")
+
+
+def _party_size(text):
+    """'4 friends' → 4, 'me and 3 friends' → 4, 'for six' → 6; None if not said."""
+    m = _PARTY_RE.search(text)
+    if not m:
+        return None
+    raw = next(g for g in m.groups() if g)
+    n = int(raw) if raw.isdigit() else _NUM_WORDS.get(raw)
+    if n and m.group(2):          # "me and 3 friends" counts you too
+        n += 1
+    elif n and re.search(r"\b(?:with|and) (?:the |our |my )?(?:\w+ )?kids\b", text) and "kids" in m.group(0):
+        n += 2                    # "family with two kids" = the kids plus two adults
+    return n if n and 1 <= n <= 20 else None
+
+
 def _heuristic_extract(text):
     out = {"days": _extract_days(text)}
+    n = _party_size(text)
+    if n:
+        out["party_size"] = n
     rng = re.search(r"\$?\s*(\d{2,4})\s*(?:-|to)\s*\$?\s*(\d{2,4})", text)   # "50-100"
     if rng:
         out["budget"] = float(max(int(rng.group(1)), int(rng.group(2))))
@@ -261,6 +247,7 @@ def _heuristic_extract(text):
         out["group_type"] = "family"
     elif "friends" in text:
         out["group_type"] = "friends"
+        out.setdefault("party_size", 4)
     elif any(w in text for w in ["date", "couple", "for two", "partner"]):
         out["group_type"], out["party_size"] = "date", out.get("party_size", 2)
     for diet in ["vegan", "vegetarian", "halal", "kosher", "gluten-free", "gluten free", "pescatarian"]:
@@ -270,13 +257,6 @@ def _heuristic_extract(text):
     if any(w in text for w in ["no alcohol", "sober", "non-alcoholic", "no drinks"]):
         out["group_type"] = out.get("group_type") or "family"  # suppresses bars
     return out
-
-
-def _llm_extract(req):
-    convo = "\n".join(f"{m.role}: {m.content}" for m in req.messages)
-    # Bounded: a slow model must not eat the page's 60s budget before planning starts.
-    return llm.chat_json([{"role": "system", "content": SYSTEM},
-                          {"role": "user", "content": convo}], timeout=15.0)
 
 
 def _clean(prefs):
@@ -292,24 +272,45 @@ def _clean(prefs):
     return keep
 
 
-def _needs(prefs):
-    if not prefs.get("budget"):
-        return ChatResponse(type="question",
-            message="Certainly. What's the budget for the outing?",
-            quick_replies=["$50", "$100", "$200", "No limit"])
-    if not prefs.get("vibe"):
-        return ChatResponse(type="question",
-            message="And the mood you're after?",
-            quick_replies=[VIBE_LABELS[v] for v in ["chill", "romantic", "adventurous", "extravagant", "night_out"]])
-    return None
-
-
 def _nothing_found(generic: str, ran_out_of_time: bool = False) -> str:
     """Don't blame the budget/vibe when the venue search itself is down or slow."""
     if ran_out_of_time or osm_places.degraded():
         return ("The venue search I use is overloaded right now, so I couldn't pull places. "
                 "Give it a minute and try again.")
     return generic
+
+
+_NOTHING = ("I couldn't find enough places near there for that. Want me to search a wider area, "
+            "or loosen something (like what to avoid)?")
+_PER_PERSON_RE = re.compile(r"\b(each|per person|per head|a head|pp|/ ?person|apiece)\b")
+_TOTAL_RE = re.compile(r"\b(total|in total|altogether|all together|all in|for (?:all|everyone|the group|us all))\b")
+_AMOUNT_RE = re.compile(r"\$\s*\d|\b\d{2,5}\s*(?:dollars|bucks|each|pp)\b")
+
+
+def _money(v) -> float | None:
+    """A budget from the router: 80, "80", "$80", "50-100" (→ 100). None if absent."""
+    if isinstance(v, (int, float)):
+        return float(v) if v > 0 else None
+    nums = re.findall(r"\d+(?:\.\d+)?", str(v or ""))
+    return max(float(n) for n in nums) if nums else None
+
+
+def _from_router(raw: dict) -> dict:
+    """Router prefs → the shape _resolve works with (unknown/bad values dropped)."""
+    out = _structured({k: v for k, v in raw.items() if k not in ("budget",)})
+    if raw.get("budget") is not None and _money(raw["budget"]):
+        out["budget"] = min(_money(raw["budget"]), 10000.0)
+    for k in ("budget_scope",):
+        if raw.get(k) in ("total", "per_person"):
+            out[k] = raw[k]
+    if isinstance(raw.get("requested_venues"), list):
+        out["requested_venues"] = [str(v)[:80] for v in raw["requested_venues"] if v][:3]
+    try:
+        if raw.get("days"):
+            out["days"] = max(1, min(int(raw["days"]), 5))
+    except (TypeError, ValueError):
+        pass
+    return out
 
 
 def _taste_defaults(db: Session, user: User) -> dict:
@@ -390,6 +391,9 @@ def _apply_session_early(prefs, session):
     for k in ("time_of_day", "transport", "interests", "dietary"):
         if not prefs.get(k) and session.get(k):
             prefs[k] = session[k]
+    # Things ruled out earlier ("no bars") keep applying on later messages.
+    if session.get("avoid"):
+        prefs["avoid"] = ", ".join(dict.fromkeys(filter(None, [prefs.get("avoid"), session["avoid"]])))
 
 
 def _apply_taste_early(prefs, taste):
@@ -434,18 +438,23 @@ def _apply_taste_late(prefs, taste):
         prefs.setdefault("target_stops", taste["target_stops"])
 
 
-def _resolve(req: ChatRequest, taste: dict | None = None):
+def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None = None):
     """Shared: extract prefs + resolve the location. Returns (lat, lng, prefs).
-    Anything the request states wins; the taste profile fills the gaps."""
+    Anything the request states wins; the taste profile fills the gaps.
+    `extracted` is the router's reading of the conversation (None → keywords)."""
     structured = req.prefs is not None
     # Chip-sent prefs skip the LLM entirely and never run text heuristics.
-    text = "" if structured else _joined_user_text(req)
+    text = "" if structured else _turn_text(req)
     # Typed requests carry the page's current settings; they fill the gaps only.
     session = _structured(req.defaults) if (req.defaults and not structured) else {}
     if structured:
         prefs = _structured(req.prefs)
+    elif extracted is not None:
+        prefs = _from_router(extracted)
     else:
-        prefs = (_llm_extract(req) if llm.available() else None) or _heuristic_extract(text)
+        prefs = _heuristic_extract(text)
+    # Was a budget actually said in this request (vs. coming from the bar/profile)?
+    prefs["_budget_stated"] = bool(prefs.get("budget")) and not structured
     _apply_session_early(prefs, session)
     _apply_taste_early(prefs, taste)
 
@@ -484,6 +493,7 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
 
     if not prefs.get("budget") and any(w in text for w in ["no limit", "no object", "unlimited"]):
         prefs["budget"] = 500
+        prefs.setdefault("_assumed", []).append("no limit → a $500 budget")
     group_kw = any(w in text for w in ["boys", "guys", "bros", "the crew", "squad", "group of",
                                         "the group", "lads", "bachelor", "stag", "bachelorette",
                                         "buddies", "girls night", "girls trip"])
@@ -491,10 +501,14 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
         prefs["group_type"] = "friends"        # a boys'/girls' night is NOT a date
         if not prefs.get("party_size"):
             prefs["party_size"] = 4
-    per_person = (bool(prefs.get("budget_per_person"))
-                  or bool(re.search(r"\b(each|per person|per head|a head|pp|/ ?person)\b", text))
-                  or group_kw or prefs.get("group_type") == "friends")
-    if prefs.get("budget") and per_person and not structured:   # chip budgets are already totals
+    # A stated budget is a TOTAL unless they said per person. When a group's wording
+    # doesn't say, _budget_scope_question asks once (no hidden multiplying).
+    scope = prefs.pop("budget_scope", None)
+    if not scope and not structured:
+        scope = ("per_person" if _PER_PERSON_RE.search(text) else
+                 "total" if _TOTAL_RE.search(text) else None)
+    prefs["_scope"] = scope
+    if prefs.get("_budget_stated") and scope == "per_person":
         prefs["budget"] = float(prefs["budget"]) * int(prefs.get("party_size") or 2)
     if not prefs.get("budget") and session.get("budget"):
         prefs["budget"] = session["budget"]          # the bar's budget is a total — never re-scaled
@@ -509,28 +523,31 @@ def _resolve(req: ChatRequest, taste: dict | None = None):
             prefs["radius"] = r
         elif session.get("radius"):
             prefs["radius"] = session["radius"]
+    if not structured and re.search(r"\b(wider|widen|further|farther|bigger area|more area)\b", _last_msg(req)):
+        prefs["radius"] = _radius_m(2 * (prefs.get("radius") or 7000) / 1000)
+        prefs.setdefault("_assumed", []).append(f"searching within {prefs['radius'] / 1000:g} km")
     if not prefs.get("days"):
         prefs["days"] = _extract_days(text)
     if not prefs.get("time_of_day") and any(k in text for k in
             ["full day", "all day", "whole day", "entire day", "day trip", "the whole thing"]):
         prefs["time_of_day"] = "morning"
 
-    # Deterministic "make it fancier/cheaper" tier shifts.
+    # "Make it fancier/cheaper" moves the budget by a stated step (the same steps as
+    # the page's buttons), from the budget in play. An amount in the message wins.
     last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
+    base = float(prefs.get("budget") or (req.current_plan or {}).get("budget") or 100)
     if any(w in last for w in ["fancier", "fancy", "nicer", "upscale", "classier", "classy",
                                "bougie", "boujee", "high end", "high-end", "luxury", "luxurious",
                                "more expensive", "splurge", "baller", "treat ourselves", "treat myself"]):
         prefs["vibe"] = "extravagant"
-        # Bump the budget only for a "make it fancier" follow-up. When the same
-        # message states an amount ("$60 fancy date"), that amount is the budget.
-        if not re.search(r"\$\s*\d|\b\d{2,5}\s*(?:dollars|bucks|each|pp)\b", last):
-            b = float(prefs.get("budget") or 0)
-            prefs["budget"] = max(b * 1.6, b, 250)
-        if any(w in last for w in ["no object", "no limit", "unlimited", "sky is the limit"]):
-            prefs["budget"] = max(prefs["budget"], 600)
-    elif any(w in last for w in ["cheaper", "cheap", "budget friendly", "more affordable",
-                                 "affordable", "save money", "less expensive", "cost less", "on a budget"]):
-        prefs["vibe"] = "chill"
+        if not _AMOUNT_RE.search(last) and re.search(r"\b(make|go|bit|more|little|something)\b", last):
+            prefs["budget"] = round(base * 1.5 / 5) * 5
+            prefs.setdefault("_assumed", []).append(f"fancier → ${prefs['budget']:g} budget")
+    elif any(w in last for w in ["cheaper", "budget friendly", "more affordable", "save money",
+                                 "less expensive", "cost less"]):
+        if not _AMOUNT_RE.search(last):
+            prefs["budget"] = max(20, round(base * 0.65 / 5) * 5)
+            prefs.setdefault("_assumed", []).append(f"cheaper → ${prefs['budget']:g} budget")
     if not prefs.get("vibe") and session.get("vibe"):       # after surprise, so "surprise me" still surprises
         prefs["vibe"] = session["vibe"]
     _apply_taste_late(prefs, taste)
@@ -597,8 +614,9 @@ def _understood(prefs: dict) -> dict:
         out["radius_km"] = round(prefs["radius"] / 1000, 1)
     if isinstance(prefs.get("location"), str) and prefs["location"].strip():
         out["location"] = prefs["location"].strip()[:100]
-    if isinstance(prefs.get("interests"), str) and prefs["interests"].strip():
-        out["interests"] = prefs["interests"].strip()[:120]   # "sushi" shows in the bar and survives a re-plan
+    for k, n in (("interests", 120), ("avoid", 120), ("dietary", 60)):
+        if isinstance(prefs.get(k), str) and prefs[k].strip():
+            out[k] = prefs[k].strip()[:n]    # "sushi" / "no bars" ride along on the next message
     return out
 
 
@@ -615,33 +633,60 @@ def chat(req: ChatRequest, background: BackgroundTasks, user: User = Depends(get
         save_plan_log, user_id=user.id, endpoint="chat",
         user_text=_orig_user_text(req) or None, prefs=seen.get("prefs") or req.prefs,
         lat=seen.get("lat", req.lat), lng=seen.get("lng", req.lng), resp=resp, tracker=tracker,
-        duration_ms=int((time.perf_counter() - start) * 1000))
+        duration_ms=int((time.perf_counter() - start) * 1000),
+        session_id=req.session_id, intent=seen.get("intent") or resp.intent)
     return resp
 
 
 def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse:
-    req = _fresh_cut(req)
     structured = req.prefs is not None
-    text = "" if structured else _joined_user_text(req)
+    text = "" if structured else _turn_text(req)
     last = "" if structured else (req.messages[-1].content.lower() if req.messages else "")
     taste = _taste_defaults(db, user)
-    lat, lng, prefs = _resolve(req, taste)
-    seen.update(prefs=prefs, lat=lat, lng=lng)
-    if lat is None or lng is None:
-        return ChatResponse(type="message",
-            message="Tell me where — enable location, or just name a city (e.g. \"in Toronto\") — plus your budget and vibe.")
 
-    window = _events_window(req, last)
+    routed = None
+    current = _valid_plan(req.current_plan)      # the plan on screen, if the page sent a usable one
+    if not structured:
+        routed = (plan_intent.route([m.model_dump() for m in req.messages], current, req.defaults)
+                  or plan_intent.route_rules(text, current, events=bool(_events_window(req, last))))
+        seen["intent"] = routed["intent"]
+        if routed["intent"] in ("ask_about_plan", "chitchat") and routed.get("answer"):
+            return ChatResponse(type="message", message=routed["answer"][:600], intent=routed["intent"])
+
+    extracted = routed["prefs"] if routed and routed["source"] == "llm" else None
+    lat, lng, prefs = _resolve(req, taste, extracted)
+    seen.update(prefs=prefs, lat=lat, lng=lng)
+
+    if routed and routed["intent"] == "edit_plan" and current:
+        edited = _edit(current, routed["ops"], prefs, seen, req.seed)
+        if edited:
+            return edited
+
+    if lat is None or lng is None:
+        if "location" in req.asked:
+            msg = ("Tell me where to plan — I still don't have a place. Turn on live location, "
+                   "or type a neighbourhood or city (e.g. \"Kensington Market\").")
+        else:
+            msg = "Tell me where — turn on live location, or just name a place (e.g. \"in Toronto\")."
+        return ChatResponse(type="message", message=msg, ask="location")
+
+    window = _events_window(req, last) or (
+        ("weekend" if "weekend" in last else "tonight" if "tonight" in last else "now")
+        if routed and routed["intent"] == "events" else None)
     if window:
         radius_km = (prefs["radius"] / 1000) if prefs.get("radius") else taste.get("radius_km", 10)
-        return _events_reply(lat, lng, window, radius_km, req.tz, prefs)
+        resp = _events_reply(lat, lng, window, radius_km, req.tz, prefs)
+        resp.intent = "events"
+        return resp
 
-    missing = _needs(prefs)
-    if missing:
-        if prefs.get("question"):
-            return ChatResponse(type="question", message=prefs["question"],
-                                quick_replies=prefs.get("quick_replies") or missing.quick_replies)
-        return missing
+    q = _budget_scope_question(prefs, req.asked)
+    if q:
+        return q
+    if not prefs.get("budget"):                    # never block on it: assume, and say so
+        prefs["budget"] = 100.0
+        prefs.setdefault("_assumed", []).append("a $100 budget")
+    if not prefs.get("vibe"):
+        prefs["vibe"] = "chill"
 
     opts = _clean(prefs)
     days = int(opts.pop("days", 1) or 1)
@@ -664,18 +709,21 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
     if days > 1:
         trip = [Plan(**d) for d in build_trip(days=days, lat=lat, lng=lng, budget=budget, **opts) if d["stops"]]
         if not trip:
-            return ChatResponse(type="message", message=_nothing_found(
-                "I couldn't source enough for that trip nearby. A larger budget or different vibe?"))
+            return ChatResponse(type="message", intent="new_plan", message=_nothing_found(_NOTHING),
+                                quick_replies=["Search a wider area", "Something different"])
         title = f"Your {len(trip)}-day {opts.get('vibe','').replace('_',' ')} trip".strip()
-        return ChatResponse(type="itinerary", message=f"{title} — arranged day by day.", days=trip, title=title)
+        return ChatResponse(type="itinerary", message=f"{title} — arranged day by day.", days=trip, title=title,
+                            intent="new_plan")
 
     plan_dict = build_plan(lat=lat, lng=lng, budget=budget, **opts)
     if not plan_dict["stops"]:
-        return ChatResponse(type="message", message=_nothing_found(
-            "I couldn't source enough open spots nearby for that. A larger budget or different vibe?",
-            ran_out_of_time=bool(plan_dict.get("skipped"))))
+        return ChatResponse(type="message", intent="new_plan", message=_nothing_found(
+            _NOTHING, ran_out_of_time=bool(plan_dict.get("skipped"))),
+            quick_replies=["Search a wider area", "Something different"])
     plan = Plan(**plan_dict)
     msg = plan.intro or "Your plan:"
+    if prefs.get("_assumed"):
+        msg += f" (Assumed {', '.join(prefs['_assumed'])} — change it anytime.)"
     # Be honest about requested places we couldn't confirm exist nearby —
     # better than silently dropping them (or worse, inventing them).
     skipped = plan_dict.get("skipped") or []
@@ -686,7 +734,56 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
     if missing:
         msg += (f" (I looked for {', '.join(missing)} but couldn't verify "
                 f"{'it' if len(missing) == 1 else 'them'} nearby, so it's not included.)")
-    return ChatResponse(type="itinerary", message=msg, plan=plan)
+    return ChatResponse(type="itinerary", message=msg, plan=plan, intent="new_plan")
+
+
+def _budget_scope_question(prefs: dict, asked: list[str]) -> ChatResponse | None:
+    """For a group of 3+, "$100" could mean the total or each. Ask once; if the
+    answer still doesn't say, treat it as the total and say so."""
+    n = int(prefs.get("party_size") or 2)
+    if not prefs.get("_budget_stated") or prefs.get("_scope") or n < 3:
+        return None
+    b = float(prefs["budget"])
+    if "budget_scope" in asked:
+        prefs.setdefault("_assumed", []).append(f"${b:g} is the total for all {n}")
+        return None
+    return ChatResponse(type="question", ask="budget_scope", intent="new_plan",
+                        message=f"Is ${b:g} the total for all {n} of you, or per person?",
+                        quick_replies=[f"${b:g} total", f"${b:g} each"])
+
+
+def _valid_plan(raw) -> dict | None:
+    """The plan the page sent back, validated (it's client input); None if unusable."""
+    if not isinstance(raw, dict):
+        return None
+    try:
+        plan = Plan(**raw).model_dump()
+    except Exception:
+        return None
+    return plan if plan["stops"] else None
+
+
+def _edit(current: dict, ops: list[dict], prefs: dict, seen: dict, seed=None) -> ChatResponse | None:
+    """Change only the stops a follow-up names; the rest stay exactly as shown."""
+    seen.update(lat=current["center"]["lat"], lng=current["center"]["lng"])
+    ctx = EditContext(
+        vibe=prefs.get("vibe") or current["vibe"], party_size=int(current["party_size"] or 2),
+        transport=prefs.get("transport") or "any", group_type=prefs.get("group_type"),
+        dietary=prefs.get("dietary") or "", interests="", avoid=prefs.get("avoid") or "",
+        no_alcohol=bool(prefs.get("no_alcohol")), radius=prefs.get("radius"),
+        taste={"likes": prefs.get("likes", ""), "crowd_pref": prefs.get("crowd_pref") or 0.0,
+               "energy": prefs.get("energy")},
+        seed=seed)
+    plan, changed, problems = apply_edits(current, ops, ctx)
+    message = " ".join(changed + problems) or "I left the plan as it was."
+    if not changed:
+        return ChatResponse(type="message", message=message, intent="edit_plan")
+    if not plan["stops"]:
+        return ChatResponse(type="message", intent="edit_plan",
+                            message="That would leave nothing in the plan — tell me what to put in instead.")
+    if not problems:
+        message += " Everything else stays the same."
+    return ChatResponse(type="itinerary", message=message, plan=Plan(**plan), intent="edit_plan")
 
 
 @router.post("/options", response_model=OptionsResponse)
@@ -698,7 +795,7 @@ def options(req: ChatRequest, background: BackgroundTasks, user: User = Depends(
         resp = _options(req, user, db)
     loc = resp.location or {}
     background.add_task(
-        save_plan_log, user_id=user.id, endpoint="options",
+        save_plan_log, user_id=user.id, endpoint="options", session_id=req.session_id,
         user_text=_orig_user_text(req) or None, prefs=resp.context or req.prefs,
         lat=loc.get("lat", req.lat), lng=loc.get("lng", req.lng), resp=resp, tracker=tracker,
         duration_ms=int((time.perf_counter() - start) * 1000))
@@ -706,7 +803,6 @@ def options(req: ChatRequest, background: BackgroundTasks, user: User = Depends(
 
 
 def _options(req: ChatRequest, user: User, db: Session) -> OptionsResponse:
-    req = _fresh_cut(req)
     lat, lng, prefs = _resolve(req, _taste_defaults(db, user))
     if lat is None or lng is None:
         return OptionsResponse(ok=False,
@@ -761,7 +857,7 @@ def build(req: BuildRequest, background: BackgroundTasks, user: User = Depends(g
     with usage.request_tracker() as tracker:
         resp = _build(req)
     background.add_task(
-        save_plan_log, user_id=user.id, endpoint="build", user_text=None,
+        save_plan_log, user_id=user.id, endpoint="build", user_text=None, session_id=req.session_id,
         prefs={"vibe": req.vibe, "budget": req.budget, "party_size": req.party_size,
                "group_type": req.group_type, "time_of_day": req.time_of_day,
                "interests": req.interests, "dietary": req.dietary,

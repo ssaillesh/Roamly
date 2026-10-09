@@ -87,6 +87,16 @@ class ChatRequest(BaseModel):
     # The browser's IANA time zone (e.g. "America/Toronto") for "tonight" and
     # "this weekend" windows.
     tz: str | None = None
+    # One id per conversation on the page, so the admin dashboard can group turns.
+    session_id: str | None = Field(default=None, max_length=64)
+    # The plan on screen, so "swap the bar" edits it instead of starting over.
+    current_plan: dict | None = None
+    # `messages` is the whole conversation; messages[turn_start:] is the current
+    # request (everything since the last plan/events answer). The keyword fallback
+    # reads only the current request; the LLM reads it all.
+    turn_start: int = Field(default=0, ge=0)
+    # Questions already asked in this conversation (ChatResponse.ask) — never re-asked.
+    asked: list[str] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):
@@ -104,6 +114,8 @@ class ChatResponse(BaseModel):
     understood: dict | None = None
     window: str | None = None                          # now | tonight | weekend
     title: str | None = None
+    ask: str | None = None        # which question this is ("location", "budget_scope"); sent back in `asked`
+    intent: str | None = None     # new_plan | edit_plan | events | ask_about_plan | chitchat
 
 
 # ---- picker (build-your-own itinerary) ----
@@ -145,6 +157,7 @@ class OptionsResponse(BaseModel):
 
 class BuildRequest(BaseModel):
     selections: list[dict]            # picked Option/event dicts (flexible shape)
+    session_id: str | None = Field(default=None, max_length=64)
     lat: float
     lng: float
     party_size: int = 2

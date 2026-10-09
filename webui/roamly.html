@@ -511,8 +511,11 @@ let maps = [];               // drawn route maps — re-fitted when the chat is 
 let me = null;               // {display_name, username}
 let lastUserEl = null;
 let lastAskText = '';         // what the user last asked (for Home's "pick up where you left off")
-let convoStart = 0;          // typed turns send only the messages since the last plan/events result
-const seenVenues = new Set();   // venues already suggested — sent as `exclude` so re-rolls never repeat
+let convoStart = 0;          // where the current request starts (after the last plan/events result)
+let askedKeys = [];          // questions Roamly already asked this conversation — never asked twice
+const newSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, '');
+let sessionId = newSessionId();   // groups this conversation's turns in the admin dashboard
+const seenVenues = new Set();   // venues already suggested — only "Try another" avoids them
 const wideMq = matchMedia('(min-width:1120px)');
 const wide = () => wideMq.matches;
 
@@ -1097,7 +1100,7 @@ async function buildItinerary(){
   try{
     const res = await apiFetch(`${API}/plan/build`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ selections:sels, lat:loc.lat, lng:loc.lng, party_size:c.party_size || 2,
+      body: JSON.stringify({ selections:sels, session_id: sessionId, lat:loc.lat, lng:loc.lng, party_size:c.party_size || 2,
         budget:c.budget || 0, vibe:c.vibe || 'romantic', interests:c.interests || '', group_type:c.group_type || null,
         time_of_day:c.time_of_day || null, dietary:c.dietary || '' }) }).then(r => r.json());
     if (res.type === 'itinerary' && res.plan){
@@ -1114,7 +1117,7 @@ async function fetchOptions(prefs){
   try{
     const r = await apiFetch(`${API}/plan/options`, {
       method:'POST', headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages:[], prefs, lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng })
+      body: JSON.stringify({ messages:[], prefs, lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng, session_id: sessionId })
     });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
     const res = await r.json();
@@ -1147,15 +1150,28 @@ function send(text, display, o = {}){
   typing(true, 'chat');
   requestChat(o);
 }
+/* What every typed turn sends: the whole conversation (the server's router reads it
+   all; turn_start marks the current request), the plan on screen so "swap the bar"
+   edits it, the questions already asked, and the bar to fill what the message omits. */
+function chatBody(extra = {}){
+  const keep = 20, from = Math.max(0, messages.length - keep);
+  return { messages: messages.slice(from), turn_start: Math.max(0, convoStart - from),
+           current_plan: planOnScreen(), asked: askedKeys, session_id: sessionId,
+           defaults: readyPrefs(), tz: USER_TZ, seed: Math.floor(Math.random() * 1e9), ...extra };
+}
+function planOnScreen(){
+  if (!lastItin || !lastItin.plan) return null;          // trips aren't edited stop by stop
+  const { _meta, events, ...plan } = lastItin.plan;
+  return plan;
+}
 async function requestChat(o = {}){
   busy = true; $('send').disabled = true;
   const again = () => requestChat(o);
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages: messages.slice(convoStart), lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng, tz: USER_TZ,
-        defaults: readyPrefs(),                        // the bar fills whatever the message doesn't say
-        exclude:[...seenVenues], seed: Math.floor(Math.random() * 1e9), surprise: !!o.surprise }) });
+      body: JSON.stringify(chatBody({ lat:userLoc && userLoc.lat, lng:userLoc && userLoc.lng,
+        surprise: !!o.surprise })) });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
     const res = await r.json();
     busy = false;
@@ -1174,6 +1190,7 @@ function showChatResponse(res, retry, o = {}){
   const bot = res.message || '…';
   addMsgTyped(bot); messages.push({ role:'assistant', content:bot }); announce(bot);
   if (res.type === 'itinerary' || res.type === 'events') convoStart = messages.length;   // a result closes the turn
+  if (res.ask && !askedKeys.includes(res.ask)) askedKeys.push(res.ask);
   if (res.type === 'itinerary') track('plan_built', { mode: res.days && res.days.length ? 'trip' : 'chat' });
   if (res.type === 'itinerary' && res.days && res.days.length) renderTrip(res.days, res.title);
   else if (res.type === 'itinerary' && res.plan){
@@ -1245,7 +1262,7 @@ function readySummary(){
 function defaultsFrom(p){
   const d = (p && p.defaults) || {};
   const st = { group_type: d.group_type || 'date', vibe: d.vibe || 'chill', time_of_day: d.time_of_day || 'evening',
-               transport: d.transport || 'transit', location: '', interests: '' };
+               transport: d.transport || 'transit', location: '', interests: '', avoid: '', dietary: '' };
   st.party_size = d.party_size || PARTY[st.group_type] || 2;
   st.budget = Math.round(d.budget || 100);
   st.radius_km = clamp(d.radius_km || TRANSPORT_KM[st.transport] || 7, RADIUS_MIN, RADIUS_MAX);
@@ -1479,6 +1496,8 @@ function applyUnderstood(u, showHeard){
   if (u.radius_km){ ready.radius_km = clamp(u.radius_km, RADIUS_MIN, RADIUS_MAX); radiusTouched = true; }
   if (u.location){ ready.location = u.location; needWhere = false; }
   if (typeof u.interests === 'string') ready.interests = u.interests;
+  if (typeof u.avoid === 'string') ready.avoid = u.avoid;            // "no bars" keeps applying
+  if (typeof u.dietary === 'string') ready.dietary = u.dietary;
   if (wide()) renderSheet();
   renderCtx();
   if (showHeard){
@@ -1495,7 +1514,8 @@ function addHeard(keys){
 }
 
 function startOver(){
-  thread.innerHTML = ''; messages = []; convoStart = 0; seenVenues.clear(); lastItin = null; lastMore = null; maps = [];
+  thread.innerHTML = ''; messages = []; convoStart = 0; askedKeys = []; sessionId = newSessionId();
+  seenVenues.clear(); lastItin = null; lastMore = null; maps = [];
   lastUserEl = null; lastAskText = '';
   ready = defaultsFrom(profile); budgetTouched = radiusTouched = needWhere = edited = false; pending = null;
   renderCtx(); if (wide()) renderSheet();
@@ -1576,6 +1596,8 @@ function readyPrefs(){
                   radius_km: ready.radius_km };
   if (ready.location) prefs.location = ready.location;
   if (ready.interests) prefs.interests = ready.interests;
+  if (ready.avoid) prefs.avoid = ready.avoid;
+  if (ready.dietary) prefs.dietary = ready.dietary;
   return prefs;
 }
 
@@ -1600,8 +1622,8 @@ async function runPlan(prefs, o = {}){
   try{
     const r = await apiFetch(`${API}/plan/chat`, { method:'POST',
       headers:{'Content-Type':'application/json', ...authHeaders()},
-      body: JSON.stringify({ messages:[], prefs, lat:at && at.lat, lng:at && at.lng, tz: USER_TZ,
-        exclude: o.keepVenues ? [] : [...seenVenues], seed: Math.floor(Math.random() * 1e9), surprise: !!o.surprise }) });
+      body: JSON.stringify({ messages:[], prefs, lat:at && at.lat, lng:at && at.lng, tz: USER_TZ, session_id: sessionId,
+        exclude: o.keepVenues ? [] : [...seenVenues].slice(-15), seed: Math.floor(Math.random() * 1e9), surprise: !!o.surprise }) });
     if (r.status === 401){ typing(false); requireSignIn(); return; }
     const res = await r.json();
     if (o.withEvent && res.type === 'itinerary' && res.plan){
@@ -1957,6 +1979,12 @@ function syncIdentity(){
     }
     renderCtx(); if (wide()) renderSheet();
     if (view === 'home') renderHome(false);
+  }
+  // Arrived from the landing page's search box: plan it straight away, once.
+  const heroQ = new URLSearchParams(location.search).get('q');
+  if (heroQ){
+    history.replaceState(history.state, '', location.pathname + location.hash);
+    send(heroQ.slice(0, 300));
   }
 })();
 </script>

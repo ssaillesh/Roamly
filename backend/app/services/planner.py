@@ -323,6 +323,58 @@ def verify_requested_venue(name: str, lat: float, lng: float, radius: int = 8000
     return None
 
 
+def route_for(slot_key, *, interests="", dietary="", group_type=None, vibe=DEFAULT_VIBE,
+              bad_weather=False, no_alcohol=False):
+    """(term_override, cat_override) for a slot's search: group-aware fun for
+    activities, cuisine for meals, stated interests routed to the slot they fit."""
+    term_override = cat_override = None
+    cz = cuisine_term(interests, dietary)
+    if slot_key == "activity":
+        cat_override = INDOOR_ACTIVITIES if bad_weather else activity_categories(group_type, vibe, interests)
+        if interests and not cz:
+            term_override = interests          # e.g. "escape room"
+    elif slot_key in ("dinner", "lunch") and cz:
+        term_override = cz                     # e.g. "korean bbq"
+    elif slot_key not in ("dinner", "lunch"):
+        # hookah/rooftop shape the leisure stop, gelato the dessert stop, beach the scenic stop
+        t = interest_term_for(slot_key, interests)
+        if t:
+            term_override = "nightclub" if t in ("clubbing", "club", "dance", "dj", "rave") else t
+    if no_alcohol and slot_key == "leisure":
+        cat_override = NO_ALCOHOL_LEISURE      # shows, games, music — not a bar
+        if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
+            term_override = None
+    return term_override, cat_override
+
+
+def allowed(c, avoid="", no_alcohol=False) -> bool:
+    """False for a candidate the user ruled out ("no bars") or, for a no-alcohol
+    profile, a venue that exists to serve alcohol."""
+    return not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))
+
+
+def stop_from(pick, slot_key, **extra) -> dict:
+    """A plan stop from a chosen candidate."""
+    slot = SLOT_SPECS[slot_key]
+    return {
+        "slot": slot_key, "label": slot["label"], "icon": slot["icon"],
+        "name": pick["name"], "lat": pick["lat"], "lng": pick["lng"],
+        "rating": pick.get("rating"), "price": pick.get("price"),
+        "address": pick.get("address"), "image": pick.get("image"),
+        "url": pick.get("url"), "source": pick.get("source"),
+        "est_cost": _est_cost(pick, slot), "categories": pick.get("categories") or [],
+        # arousal (energy) drives the narration's emotional arc downstream.
+        "arousal": experience.arousal_for(pick.get("categories")),
+        **extra,
+    }
+
+
+def route_km(stops) -> float:
+    """Total distance hopping stop to stop, in km."""
+    return round(sum(_haversine_km(a["lat"], a["lng"], b["lat"], b["lng"])
+                     for a, b in zip(stops, stops[1:])), 1)
+
+
 def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, cat_override=None):
     slot = SLOT_SPECS[slot_key]
     term = slot["yelp"].get("term")
@@ -513,30 +565,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     fancy = vibe == "extravagant"       # bias picks toward pricier/upscale venues
 
     def route(slot_key):
-        """(term_override, cat_override) for a slot: group-aware fun for
-        activities, cuisine for meals, stated interests to the slot they fit."""
-        term_override = cat_override = None
-        cz = cuisine_term(interests, dietary)
-        if slot_key == "activity":
-            cat_override = INDOOR_ACTIVITIES if bad_weather else activity_categories(group_type, vibe, interests)
-            if interests and not cz:
-                term_override = interests          # e.g. "escape room"
-        elif slot_key in ("dinner", "lunch") and cz:
-            term_override = cz                     # e.g. "korean bbq"
-        elif slot_key not in ("dinner", "lunch"):
-            # route each stated interest to the slot it belongs to — hookah/rooftop
-            # shape the leisure stop, gelato the dessert stop, beach the scenic stop.
-            t = interest_term_for(slot_key, interests)
-            if t:
-                term_override = "nightclub" if t in ("clubbing", "club", "dance", "dj", "rave") else t
-        if no_alcohol and slot_key == "leisure":
-            cat_override = NO_ALCOHOL_LEISURE      # shows, games, music — not a bar
-            if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
-                term_override = None
-        return term_override, cat_override
+        return route_for(slot_key, interests=interests, dietary=dietary, group_type=group_type,
+                         vibe=vibe, bad_weather=bad_weather, no_alcohol=no_alcohol)
 
     def keep(c):
-        return not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))
+        return allowed(c, avoid, no_alcohol)
 
     # Gather every slot's candidates (and live events) concurrently, from the
     # centre at the full radius — one parallel wave instead of a slow network
@@ -577,16 +610,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         used.add(pick["name"].lower())
         if chain:
             anchor = (pick["lat"], pick["lng"])
-        stops.append({
-            "slot": slot_key, "label": slot["label"], "icon": slot["icon"],
-            "name": pick["name"], "lat": pick["lat"], "lng": pick["lng"],
-            "rating": pick.get("rating"), "price": pick.get("price"),
-            "address": pick.get("address"), "image": pick.get("image"),
-            "url": pick.get("url"), "source": pick.get("source"),
-            "est_cost": _est_cost(pick, slot), "categories": pick.get("categories") or [],
-            # arousal (energy) drives the narration's emotional arc downstream.
-            "arousal": experience.arousal_for(pick.get("categories")),
-        })
+        stops.append(stop_from(pick, slot_key))
 
     # Venues the user asked for BY NAME: research each against the same verified
     # sources the planner trusts (Yelp/Foursquare). Confirmed-real ones join the
@@ -607,17 +631,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             continue
         used.add(pick["name"].lower())
         slot_key = _slot_for_categories(pick.get("categories"))
-        slot = SLOT_SPECS[slot_key]
-        stop = {
-            "slot": slot_key, "label": slot["label"], "icon": slot["icon"],
-            "name": pick["name"], "lat": pick["lat"], "lng": pick["lng"],
-            "rating": pick.get("rating"), "price": pick.get("price"),
-            "address": pick.get("address"), "image": pick.get("image"),
-            "url": pick.get("url"), "source": pick.get("source"),
-            "est_cost": _est_cost(pick, slot), "categories": pick.get("categories") or [],
-            "arousal": experience.arousal_for(pick.get("categories")),
-            "requested": True,                  # user asked for it — never trim it
-        }
+        stop = stop_from(pick, slot_key, requested=True)   # user asked for it — never trim it
         pos = next((i for i, s in enumerate(stops)
                     if SLOT_ORDER.get(s["slot"], 9) > SLOT_ORDER.get(slot_key, 9)),
                    len(stops))
@@ -637,10 +651,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             break
         stops.remove(min(droppable, key=lambda s: DROP_ORDER.get(s["slot"], 5)))
 
-    # how spread out the plan ended up (for the UI / narration)
-    spread = 0.0
-    for a, b in zip(stops, stops[1:]):
-        spread += _haversine_km(a["lat"], a["lng"], b["lat"], b["lng"])
+    spread = route_km(stops)   # how spread out the plan ended up (for the UI / narration)
 
     # Live events happening near here (concerts, games, comedy) — surfaced as
     # options the guest can build around, not forced into the fixed stops.
@@ -649,7 +660,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     plan = {
         "vibe": vibe, "budget": budget, "party_size": party_size, "currency": "USD",
         "estimated_cost": total(), "center": {"lat": lat, "lng": lng},
-        "walk_km": round(spread, 1), "stops": stops,
+        "walk_km": spread, "stops": stops,
         "weather": (wx["summary"] if wx else None),
         "events": events,
         # names the user asked for that no verified source could confirm nearby
@@ -702,25 +713,11 @@ def gather_options(slot_key, *, lat, lng, vibe=DEFAULT_VIBE, group_type=None,
     """Ranked, tagged candidate venues for one category — the picker's menu."""
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
     price_pref = VIBE_PLANS.get(vibe, VIBE_PLANS[DEFAULT_VIBE])["price"]
-    term_override = cat_override = None
-    cz = cuisine_term(interests, dietary)
-    if slot_key == "activity":
-        cat_override = activity_categories(group_type, vibe, interests)
-        if interests and not cz:
-            term_override = interests
-    elif slot_key in ("dinner", "lunch") and cz:
-        term_override = cz
-    elif slot_key not in ("dinner", "lunch"):
-        t = interest_term_for(slot_key, interests)
-        if t:
-            term_override = "nightclub" if t in ("clubbing", "club", "dance", "dj", "rave") else t
-    if no_alcohol and slot_key == "leisure":
-        cat_override = NO_ALCOHOL_LEISURE
-        if term_override in _ALCOHOL_TERMS or term_override == "nightclub":
-            term_override = None
+    term_override, cat_override = route_for(slot_key, interests=interests, dietary=dietary,
+                                            group_type=group_type, vibe=vibe, no_alcohol=no_alcohol)
     radius = radius or int(tconf["radius"] * (radius_scale or 1.0))   # an explicit radius wins
     cands = [c for c in _gather((lat, lng), slot_key, price_pref, radius, dietary, term_override, cat_override)
-             if not avoid_match(c, avoid) and not (no_alcohol and _is_alcohol_venue(c))]
+             if allowed(c, avoid, no_alcohol)]
     apply_fun = slot_key in ("activity", "leisure")
     fancy = vibe == "extravagant"
     ranked = sorted((c for c in cands if c.get("name")),
@@ -880,5 +877,6 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
 
 def _template_intro(plan):
     n = len(plan["stops"])
-    return (f"A {plan['vibe']} plan — {n} stop{'s' if n != 1 else ''}, "
+    vibe = str(plan["vibe"]).replace("_", " ")
+    return (f"{'An' if vibe[:1] in 'aeiou' else 'A'} {vibe} plan — {n} stop{'s' if n != 1 else ''}, "
             f"about ${plan['estimated_cost']} for {plan['party_size']}.")

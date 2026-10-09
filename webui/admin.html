@@ -580,6 +580,14 @@ async function renderPlanner(seq){
         { h:'Type', f: r => esc(r[0]) }, { h:'Typical', n:1, f: r => ms(r[1].p50) }, { h:'p95', n:1, f: r => ms(r[1].p95) }],
         Object.entries(p.latency)), 'Raw requests only (last 90 days)')}
     </div>
+    <div class="grid g-2 sec">
+      ${panel('Conversations', `<div class="grid g-tiles" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+        ${tile('Conversations', fmt(p.sessions.count), p.sessions.avg_turns ? `${p.sessions.avg_turns} turns on average` : '')}
+        ${tile('Asked the same thing twice', fmt(p.sessions.repeated_question), p.sessions.repeated_question ? '<span class="badge warn">look at these</span>' : '<span class="badge good">none</span>')}
+        ${tile('Edits to a plan', fmt(p.sessions.edits), p.sessions.edits ? `${pct(p.sessions.edits_applied / p.sessions.edits, 0)} applied` : '')}
+      </div>`, 'Grouped by the conversation they happened in')}
+      ${panel('What people asked for', barList(p.sessions.intents), 'New plan, edit the plan, what\'s on, a question… (chips = tapped settings)')}
+    </div>
     <div class="grid g-3 sec">${Object.keys(LBL).map(k => panel(LBL[k], barList(bd[k]))).join('')}</div>
     <div class="sec">${panel('Latest requests', table([
       { h:'When', f: r => `<span title="${esc(dtime(r.created_at))}">${esc(ago(r.created_at))}</span>` },

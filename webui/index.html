@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 <title>Roamly — your night, planned</title>
 <meta name="description" content="Tell Roamly your budget and your vibe — get a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
-<meta name="theme-color" content="#fbf8f4" />
+<meta name="theme-color" content="#140e28" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
@@ -42,17 +42,26 @@
 
   /* ---- nav: slim, near-solid (a backdrop blur here re-blurs the animated
      aurora every frame, which lagged the whole browser on low-memory Macs) ---- */
-  header{position:sticky; top:0; z-index:40;
-    background:rgba(251,248,244,.94);
-    border-bottom:1px solid var(--hair);}
-  .nav{display:flex; align-items:center; gap:28px; height:52px; max-width:var(--maxw); margin:0 auto; padding:0 28px;
-    font-size:13.5px; color:var(--ink2);}
-  .logo{font-weight:750; font-size:16.5px; letter-spacing:-.02em; color:var(--ink);}
-  .nav .links{margin-left:auto; display:flex; align-items:center; gap:24px;}
-  .nav .links a{transition:color .2s;}
-  .nav .links a:hover{color:var(--ink);}
-  .nav .cta{background:var(--ink); color:#fff; padding:7px 16px; border-radius:999px; font-weight:600;}
-  .nav .cta:hover{color:#fff; opacity:.85;}
+  /* Sits on the hero photo (white, transparent); turns solid cream once the
+     page scrolls past it (.solid, toggled in the script). */
+  header{position:fixed; top:0; left:0; right:0; z-index:40; background:transparent;
+    border-bottom:1px solid transparent; transition:background .3s, border-color .3s;}
+  header.solid{background:rgba(20,14,40,.88); border-bottom-color:rgba(255,255,255,.08);}
+  .nav{display:flex; align-items:center; gap:28px; height:76px; max-width:1280px; margin:0 auto; padding:0 40px;
+    font-size:14.5px; color:rgba(255,255,255,.88);}
+  header.solid .nav{height:60px;}
+  .logo{font-weight:650; font-size:19px; letter-spacing:-.02em; color:#fff; display:flex; align-items:center; gap:9px;}
+  .nav .links{margin:0 auto; display:flex; align-items:center; gap:36px;}
+  .nav .links a{position:relative; padding:6px 0; transition:color .2s;}
+  .nav .links a:hover{color:#fff;}
+  .nav .links a.on::after{content:''; position:absolute; left:-4px; right:-4px; bottom:-8px; height:2px;
+    border-radius:2px; background:currentColor;}
+  .acts{display:flex; align-items:center; gap:18px;}
+  .signin{color:rgba(255,255,255,.88); font-weight:600;}
+  .signin:hover{color:#fff;}
+  .nav .cta{background:#fff; color:var(--ink); padding:10px 22px; border-radius:999px; font-weight:650;
+    box-shadow:0 8px 20px -10px rgba(20,14,40,.5); transition:transform .2s var(--ease), box-shadow .2s;}
+  .nav .cta:hover{transform:translateY(-1px); box-shadow:0 12px 24px -10px rgba(20,14,40,.6);}
 
   /* ---- buttons ---- */
   .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -68,12 +77,55 @@
   /* ---- hero: apple-scale type, notebooklm soft aurora ----
      Static on purpose: animating this huge blurred layer made the compositor
      redraw the whole viewport 60x/s while idle, lagging the entire browser. */
-  .hero{position:relative; text-align:center; padding:130px 0 90px; overflow:hidden;}
-  .aurora{position:absolute; inset:-40% -20% auto; height:130%; z-index:-1; filter:blur(70px); opacity:.5;
+  /* ---- photo hero: Toronto at sunset, full screen ---- */
+  .hero{position:relative; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
+    padding:0; overflow:hidden; color:#fff; isolation:isolate;
+    background:#3a2d5c url("hero-toronto.jpg") center 60% / cover no-repeat;}
+  /* Shade the left (behind the text) and the bottom (behind the feature strip)
+     just enough for white type to stay readable on the bright sky. */
+  .hero::before{content:''; position:absolute; inset:0; z-index:-1;
     background:
-      radial-gradient(38% 45% at 28% 38%, rgba(255,90,95,.5), transparent 70%),
-      radial-gradient(40% 48% at 72% 32%, rgba(124,92,255,.5), transparent 70%),
-      radial-gradient(30% 40% at 52% 68%, rgba(255,61,154,.35), transparent 70%);}
+      linear-gradient(90deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.28) 38%, rgba(28,20,58,0) 62%),
+      linear-gradient(180deg, rgba(28,20,58,.35) 0%, rgba(28,20,58,0) 18%, rgba(28,20,58,0) 62%, rgba(20,14,40,.72) 100%);}
+  .hero-in{flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;
+    max-width:1280px; margin:0 auto; padding:120px 40px 40px;}
+  .hero h1{font-size:clamp(40px,5.4vw,72px); font-weight:600; letter-spacing:-.035em; line-height:1.06;
+    margin:0 0 22px; max-width:11em; text-shadow:0 2px 24px rgba(20,14,40,.25);}
+  .hero .lead{font-size:clamp(16px,1.35vw,18.5px); color:rgba(255,255,255,.9); line-height:1.6; font-weight:450;
+    max-width:520px; margin:0 0 30px; text-shadow:0 1px 12px rgba(20,14,40,.3);}
+  /* "swipe or tap to get started": drag the knob to the end, or tap/Enter anywhere on it */
+  .slide{position:relative; width:100%; max-width:440px; height:64px; border-radius:999px; cursor:pointer;
+    background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45); user-select:none; touch-action:pan-y;
+    box-shadow:0 18px 40px -16px rgba(20,14,40,.45); overflow:hidden;}
+  .slide:focus-visible{outline:3px solid rgba(255,255,255,.7); outline-offset:3px;}
+  .slide::before{content:''; position:absolute; inset:0; width:var(--fill,0px); border-radius:999px;
+    background:rgba(255,255,255,.28);}
+  .slide-knob{position:absolute; top:6px; left:6px; width:52px; height:52px; border-radius:50%; display:grid;
+    place-items:center; background:#fff; color:var(--ink); box-shadow:0 6px 16px -6px rgba(20,14,40,.5);
+    transform:translateX(var(--x,0px)); transition:transform .35s var(--ease); z-index:1;}
+  .slide.dragging .slide-knob{transition:none;}
+  .slide-text{position:absolute; inset:0; display:grid; place-items:center; padding-left:52px; font-weight:600;
+    font-size:15.5px; letter-spacing:.01em; color:#fff; pointer-events:none;
+    background:linear-gradient(90deg,rgba(255,255,255,.55) 0%,#fff 45%,rgba(255,255,255,.55) 90%) 0 0/200% 100%;
+    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    animation:shine 2.8s linear 3;}
+  @keyframes shine{to{background-position:-200% 0;}}
+  .slide:hover .slide-knob{transform:translateX(calc(var(--x,0px) + 6px));}
+  @media(prefers-reduced-motion:reduce){.slide-text{animation:none;}}
+  .moods{display:flex; flex-wrap:wrap; gap:10px; margin-top:18px;}
+  .moods button{display:inline-flex; align-items:center; gap:7px; min-height:40px; padding:0 16px; border-radius:999px;
+    border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.16); color:#fff; font:inherit;
+    font-size:13.5px; font-weight:550; cursor:pointer; transition:background .2s;}
+  .moods button:hover{background:rgba(255,255,255,.3);}
+  .hero-feats{display:grid; grid-template-columns:repeat(4,1fr); width:100%; max-width:1280px; margin:0 auto;
+    padding:0 40px 34px;}
+  .hero-feats div{text-align:center; padding:4px 16px; border-left:1px solid rgba(255,255,255,.22);}
+  .hero-feats div:first-child{border-left:0;}
+  .hero-feats svg{display:block; margin:0 auto 8px;}
+  .hero-feats b{display:block; font-size:15px; font-weight:650;}
+  .hero-feats span{font-size:13px; color:rgba(255,255,255,.78);}
+  .demo-sec{padding:100px 0 40px;}
+  .demo-sec .stage{margin-top:40px;}
   .eyebrow{font-size:14px; font-weight:600; color:var(--accent2); letter-spacing:.01em; margin-bottom:18px;}
   h1{font-size:clamp(52px,9vw,104px); line-height:1.02; letter-spacing:-.045em; font-weight:750; margin:0 0 22px;}
   .lead{font-size:clamp(19px,2.4vw,25px); line-height:1.4; color:var(--ink2); font-weight:450;
@@ -159,7 +211,10 @@
   /* ---- responsive: tablet ---- */
   @media(max-width:1024px){
     section{padding:96px 0;}
-    .hero{padding:96px 0 72px;}
+    .hero{padding:0;}
+    .hero-in{padding:110px 28px 32px;}
+    .hero-feats{padding:0 16px 28px;}
+    .nav .links{gap:24px;}
     .bento,.steps{margin-top:48px;}
     .wl{margin:96px 16px; padding:80px 24px;}
   }
@@ -170,10 +225,20 @@
     .nav{padding:0 20px; gap:16px;}
     .nav .links{gap:14px;}
     .nav .links a:not(.cta){display:none;}   /* keep logo + primary CTA */
+    .acts{gap:12px; margin-left:auto;} .nav .cta{padding:8px 16px;}
     section{padding:72px 0;}
-    .hero{padding:64px 0 56px;}
-    h1{font-size:clamp(44px,13vw,60px);}
-    .lead{font-size:17px;}
+    .hero{padding:0; background-position:72% center;}
+    .hero::before{background:
+      linear-gradient(180deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.25) 45%, rgba(28,20,58,.15) 60%, rgba(20,14,40,.78) 100%);}
+    .nav{height:64px;}
+    .hero-in{padding:96px 20px 24px; justify-content:flex-start;}
+    .hero h1{font-size:clamp(34px,9.5vw,44px);}
+    .slide{height:60px;} .slide-knob{width:48px; height:48px;}
+    .moods{gap:8px;}
+    .moods button{min-height:36px; padding:0 13px; font-size:13px;}
+    .hero-feats{grid-template-columns:1fr 1fr; gap:18px 0; padding:0 8px 24px;}
+    .hero-feats div:nth-child(3){border-left:0;}
+    .demo-sec{padding:72px 0 24px;}
     .cta-row .btn{width:100%; max-width:340px;}
     .stage{margin-top:48px; padding:18px 16px 16px; min-height:280px; border-radius:24px;}
     .bubble{font-size:14px;}
@@ -190,117 +255,213 @@
   /* very small phones */
   @media(max-width:380px){
     h1{font-size:40px;}
+    .hero h1{font-size:32px;}
     .stage{padding:14px 12px;}
     .stop .cat{flex-basis:100%; padding-left:2px;}
   }
 
   /* short landscape phones: trim vertical rhythm */
   @media(max-height:480px) and (orientation:landscape){
-    .hero{padding:48px 0 40px;}
+    .hero-in{padding-top:84px;}
     section{padding:56px 0;}
+  }
+
+  /* ==== below the photo: one continuous dusk, picking up the hero's bottom edge ==== */
+  body{background:#140e28;}
+  .dusk{color:#fff; background:linear-gradient(180deg,#140e28 0%,#1d1540 22%,#2c1d55 48%,#4a2763 72%,#7a3a6e 88%,#c0686f 100%);}
+  .dusk section{padding:110px 0;}
+  .dusk .kicker{color:#f7b58f; letter-spacing:.02em;}
+  .dusk h2{color:#fff; font-weight:600; letter-spacing:-.03em; font-size:clamp(34px,4.6vw,56px);}
+  .stats{padding:56px 0 0 !important;}
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); text-align:center;}
+  .stat-row div{padding:6px 12px; border-left:1px solid rgba(255,255,255,.14);}
+  .stat-row div:first-child{border-left:0;}
+  .stat-row b{display:block; font-size:clamp(30px,3.6vw,44px); font-weight:600; letter-spacing:-.03em;
+    background:linear-gradient(180deg,#fff 30%,#f7c3a6); -webkit-background-clip:text; background-clip:text; color:transparent;}
+  .stat-row span{font-size:14px; color:rgba(255,255,255,.66);}
+  .dusk .demo-sec{padding-top:110px;}
+  .dusk .stage{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
+    box-shadow:0 40px 80px -40px rgba(0,0,0,.6); color:#fff;}
+  .dusk .stage .bar i{background:rgba(255,255,255,.18);}
+  .dusk .bubble{background:rgba(255,255,255,.1); color:#fff;}
+  .dusk .msg.me .bubble{background:#fff; color:var(--ink);}
+  .dusk .stops{border-top-color:rgba(255,255,255,.12);}
+  .dusk .stop .time{background:linear-gradient(120deg,#8a63f2,#e0789a);}
+  .dusk .stop .cat{color:rgba(255,255,255,.6);}
+  .dusk .dots span{background:rgba(255,255,255,.7);}
+  .feat-list{list-style:none; margin:64px auto 0; padding:0; max-width:900px;
+    display:grid; grid-template-columns:repeat(3,1fr); gap:52px 32px; text-align:center;}
+  .feat-list svg{color:#f7b58f; margin-bottom:12px;}
+  .feat-list h3{margin:0 0 4px; font-size:18px; font-weight:600; letter-spacing:-.01em;}
+  .feat-list p{margin:0; font-size:14.5px; color:rgba(255,255,255,.66);}
+  .dusk .wl{background:none; margin:0; border-radius:0; padding:110px 0 90px;}
+  .dusk .wl-box input{background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.35); color:#fff;}
+  .dusk .wl-box input::placeholder{color:rgba(255,255,255,.65);}
+  .dusk .wl-box input:focus{border-color:#fff;}
+  .dusk .wl-note{color:rgba(255,255,255,.85);}
+  .dusk footer{color:rgba(255,255,255,.7); padding-bottom:40px;}
+  .dusk footer .links{color:rgba(255,255,255,.88);}
+  @media(max-width:860px){ .feat-list{grid-template-columns:1fr 1fr; gap:40px 20px;} }
+  @media(max-width:640px){
+    .dusk section{padding:72px 0;}
+    .stat-row{grid-template-columns:1fr 1fr; gap:26px 0;}
+    .stat-row div:nth-child(3){border-left:0;}
+    .feat-list{margin-top:44px;}
   }
 </style>
 </head>
 <body>
 
-<header>
+<header id="top">
   <nav class="nav">
-    <a class="logo" href="/"><svg viewBox="0 0 32 32" width="22" height="22" aria-hidden="true" style="vertical-align:-4px;margin-right:6px"><defs><linearGradient id="lgm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs><path fill="url(#lgm)" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#lgm)" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></svg>Roamly</a>
+    <a class="logo" href="/"><svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><defs><linearGradient id="lgm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs><path fill="url(#lgm)" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#lgm)" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></svg>Roamly</a>
     <div class="links">
-      <a href="#how">How it works</a>
+      <a href="#" class="on">Home</a>
       <a href="#features">Features</a>
-      <a href="#waitlist">Early access</a>
-      <a href="auth.html?redirect=roamly.html" class="cta">Plan my night</a>
+      <a href="#how">See it</a>
+    </div>
+    <div class="acts" id="navActs">
+      <a href="auth.html?redirect=roamly.html" class="signin">Sign in</a>
+      <a href="auth.html?mode=register&amp;redirect=roamly.html" class="cta">Get started</a>
     </div>
   </nav>
 </header>
 
 <!-- HERO -->
 <section class="hero">
-  <div class="aurora"></div>
-  <div class="wrap">
-    <div class="eyebrow">Roamly</div>
-    <h1>Your night,<br><span class="grad">planned.</span></h1>
-    <p class="lead">Tell it your budget and your vibe. Get a real itinerary of places near you —
-      timed, mapped, and ready to go.</p>
-    <div class="cta-row">
-      <a href="auth.html?redirect=roamly.html" class="btn btn-grad">Plan my night</a>
-      <a href="#how" class="btn btn-ghost">See how it works</a>
+  <div class="hero-in">
+    <h1>The AI outing planner for every mood.</h1>
+    <p class="lead">Tell us what you're in the mood for, and Roamly builds a real, timed plan from places
+      near you. Or ask what's happening right now, and discover live events around you.</p>
+    <div class="slide" id="slide" role="button" tabindex="0" aria-label="Get started: open the planner">
+      <span class="slide-knob" id="slideKnob" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      <span class="slide-text" id="slideText">Swipe or tap to get started</span>
     </div>
+    <div class="moods" aria-label="Quick ideas">
+      <button type="button" data-q="Plan a date night"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"/></svg> Date night</button>
+      <button type="button" data-q="Plan a night out with friends"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="16.5" cy="9" r="2.6"/><path d="M16.5 14.4c2.4.2 4 1.8 4.5 4.6"/></svg> Friends</button>
+      <button type="button" data-q="Plan a solo afternoon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.8 3.4-6 7-6s6.3 2.2 7 6"/></svg> Solo</button>
+      <button type="button" data-q="Plan a family day out"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="7.5" r="2.8"/><circle cx="16" cy="7.5" r="2.8"/><path d="M3 19c.5-3.3 2.4-5.2 5-5.2s4.5 1.9 5 5.2M11 19c.5-3.3 2.4-5.2 5-5.2s4.5 1.9 5 5.2"/></svg> Family</button>
+      <button type="button" data-q="I'm bored, surprise me with something fun nearby"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8"/><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.6"/></svg> I'm bored</button>
+    </div>
+  </div>
+  <div class="hero-feats">
+    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c.7 5 3.3 7.6 8.3 8.3-5 .7-7.6 3.3-8.3 8.3-.7-5-3.3-7.6-8.3-8.3 5-.7 7.6-3.3 8.3-8.3Z"/></svg><b>Personalized</b><span>Your taste, your vibe.</span></div>
+    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg><b>Real-time</b><span>Live events &amp; open spots.</span></div>
+    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg><b>Planned for you</b><span>Full itineraries, not just lists.</span></div>
+    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"/></svg><b>Always with you</b><span>Chat or tap — your choice.</span></div>
+  </div>
+</section>
 
-    <div class="stage" id="demo-stage">
+<div class="dusk">
+
+<!-- STATS -->
+<section class="stats" aria-label="Roamly in numbers">
+  <div class="wrap stat-row">
+    <div class="reveal"><b>~25s</b><span>to a full plan</span></div>
+    <div class="reveal d1"><b>3–5</b><span>stops, timed &amp; mapped</span></div>
+    <div class="reveal d2"><b>Live</b><span>events, tonight</span></div>
+    <div class="reveal d3"><b>$0</b><span>to use</span></div>
+  </div>
+</section>
+
+<!-- DEMO -->
+<section class="demo-sec" id="how">
+  <div class="wrap center">
+    <div class="kicker reveal">See it in action</div>
+    <h2 class="reveal">Three words in.<br>A whole night out.</h2>
+    <div class="stage reveal d1" id="demo-stage">
       <div class="bar"><i></i><i></i><i></i></div>
       <div id="demo"></div>
     </div>
   </div>
 </section>
 
-<!-- HOW -->
-<section id="how">
-  <div class="wrap center">
-    <div class="kicker reveal">How it works</div>
-    <h2 class="reveal">Three words in.<br>A whole night out.</h2>
-    <p class="sub reveal d1">No endless scrolling. No 47 open tabs. Just say what kind of night you want.</p>
-    <div class="steps">
-      <div class="step reveal"><span class="n">01</span><h3>Say the vibe</h3>
-        <p>Chill, chaotic, romantic, "we just got paid" — plus your budget. That's the whole input.</p></div>
-      <div class="step reveal d1"><span class="n">02</span><h3>Get a real plan</h3>
-        <p>A stop-by-stop itinerary from real, open-right-now places near you — timed, budgeted, mapped.</p></div>
-      <div class="step reveal d2"><span class="n">03</span><h3>Go</h3>
-        <p>Every stop opens in Maps. Don't love one? Swap it in a tap and keep the night moving.</p></div>
-    </div>
-  </div>
-</section>
-
-<!-- FEATURES BENTO -->
-<section id="features" style="padding-top:0;">
+<!-- FEATURES -->
+<section id="features" class="feats">
   <div class="wrap">
     <div class="center">
       <div class="kicker reveal">Features</div>
-      <h2 class="reveal">Built on real places.<br>Not a listicle from 2019.</h2>
+      <h2 class="reveal">Real places. Real time.</h2>
     </div>
-    <div class="bento">
-      <div class="cell c-4 tint-a reveal"><span class="ico">🍜</span><h3>Real venues, live data</h3>
-        <p>Restaurants, bars, and dessert spots pulled live every time you plan — with ratings, price levels, and opening hours that are actually current.</p></div>
-      <div class="cell c-2 tint-b reveal d1"><span class="ico">🎟️</span><h3>Live events</h3>
-        <p>Shows, gigs, and pop-ups happening tonight get woven into the plan.</p></div>
-      <div class="cell c-2 tint-c reveal"><span class="ico">🌦️</span><h3>Weather-aware</h3>
-        <p>Raining? Short walks, cozy stops. Golden hour? Patio time.</p></div>
-      <div class="cell c-2 reveal d1"><span class="ico">💸</span><h3>Budget that behaves</h3>
-        <p>Set a number and the whole night fits inside it.</p></div>
-      <div class="cell c-2 tint-b reveal d2"><span class="ico">💬</span><h3>Chat to tweak</h3>
-        <p>"Make it cheaper." "More dancing." "Closer to me." Done.</p></div>
-      <div class="cell c-3 reveal"><span class="ico">🗺️</span><h3>Mapped stop by stop</h3>
-        <p>See the whole route at a glance, and open any stop in Google Maps instantly.</p></div>
-      <div class="cell c-3 tint-a reveal d1"><span class="ico">🔁</span><h3>Swap anything</h3>
-        <p>Every stop comes with alternates on deck — one tap and the plan rebalances around it.</p></div>
-    </div>
+    <ul class="feat-list">
+      <li class="reveal"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg><h3>Real venues</h3><p>Open now, near you.</p></li>
+      <li class="reveal d1"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5h18v3a2 2 0 0 0 0 3v3H3v-3a2 2 0 0 0 0-3Z"/><path d="M14 7.5v9" stroke-dasharray="1.5 2"/></svg><h3>Live events</h3><p>Gigs and pop-ups, tonight.</p></li>
+      <li class="reveal d2"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17a4 4 0 1 1 .6-8 5.5 5.5 0 0 1 10.6 1.5A3.3 3.3 0 0 1 17.5 17Z"/></svg><h3>Weather-aware</h3><p>Rain plans, patio plans.</p></li>
+      <li class="reveal"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="18" height="12" rx="2.5"/><path d="M3 10.5h18M16.5 14.5h1.5"/></svg><h3>On budget</h3><p>One number. Whole night.</p></li>
+      <li class="reveal d1"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4Z"/></svg><h3>Chat to tweak</h3><p>“Cheaper.” “Closer.” Done.</p></li>
+      <li class="reveal d2"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.7L4 15.5M4 20v-4.5h4.5"/></svg><h3>Swap anything</h3><p>One tap, new stop.</p></li>
+    </ul>
   </div>
 </section>
 
 <!-- WAITLIST -->
-<div class="wl" id="waitlist">
-  <div class="kicker reveal">Early access</div>
-  <h2 class="reveal">Be first in your city.</h2>
-  <p class="sub reveal d1" style="margin-left:auto; margin-right:auto;">Roamly is rolling out city by city. Drop your email and be first in line when it hits yours.</p>
-  <form class="wl-box reveal d2" id="wlForm">
-    <input type="email" id="wlEmail" placeholder="you@example.com" required />
-    <button class="btn btn-dark" type="submit">Join the waitlist</button>
-  </form>
-  <div class="wl-note" id="wlNote"></div>
-</div>
+<section class="wl" id="waitlist">
+  <div class="wrap center">
+    <div class="kicker reveal">Stay in the loop</div>
+    <h2 class="reveal">Get updates.</h2>
+    <p class="sub reveal d1" style="color:rgba(255,255,255,.75);margin:0 auto">New cities and features, straight to your inbox.</p>
+    <form class="wl-box reveal d1" id="wlForm">
+      <input type="email" id="wlEmail" placeholder="you@example.com" aria-label="Email" required />
+      <button class="btn btn-light" type="submit">Notify me</button>
+    </form>
+    <div class="wl-note" id="wlNote"></div>
+  </div>
+</section>
 
 <footer>
   <div class="links">
     <a href="roamly.html">Planner</a>
-    <a href="#how">How it works</a>
-    <a href="#waitlist">Early access</a>
+    <a href="#features">Features</a>
+    <a href="#waitlist">Updates</a>
   </div>
-  <div>© 2026 Roamly · your night, planned</div>
+  <div>© 2026 Roamly</div>
 </footer>
+
+</div>
 
 <script>
 const API = window.API_BASE;
+
+/* ---- header actions: signed-in visitors go straight to the planner ---- */
+try {
+  if (localStorage.getItem('trek_token')) {
+    document.querySelector('#navActs .signin').style.display = 'none';
+    const cta = document.querySelector('#navActs .cta');
+    cta.textContent = 'Open planner →'; cta.href = 'roamly.html';
+  }
+} catch (e) {}
+
+/* ---- header: transparent on the photo, solid after it ---- */
+const header = document.getElementById('top');
+const hero = document.querySelector('.hero');
+new IntersectionObserver(([en]) => header.classList.toggle('solid', !en.isIntersecting),
+  { rootMargin: '-80px 0px 0px 0px' }).observe(hero);
+
+/* ---- hero: swipe or tap to get started (chips start a ready-made request) ---- */
+function planWith(q, how){
+  track('get_started', { how, has_text: !!q });
+  location.href = 'roamly.html' + (q ? '?q=' + encodeURIComponent(q) : '');
+}
+(function slider(){
+  const box = document.getElementById('slide'), knob = document.getElementById('slideKnob');
+  let startX = null, x = 0, moved = false;
+  const max = () => box.clientWidth - knob.offsetWidth - 12;
+  const set = v => { x = Math.max(0, Math.min(max(), v));
+    box.style.setProperty('--x', x + 'px'); box.style.setProperty('--fill', (x + knob.offsetWidth + 6) + 'px'); };
+  const go = how => { set(max()); document.getElementById('slideText').textContent = 'Let’s go…';
+    setTimeout(() => planWith('', how), 220); };
+  box.addEventListener('pointerdown', e => { startX = e.clientX - x; moved = false; box.classList.add('dragging');
+    box.setPointerCapture(e.pointerId); });
+  box.addEventListener('pointermove', e => { if (startX === null) return;
+    const v = e.clientX - startX; if (Math.abs(v - x) > 3) moved = true; set(v); });
+  const end = () => { if (startX === null) return; startX = null; box.classList.remove('dragging');
+    if (!moved || x > max() * .7) go(moved ? 'swipe' : 'tap');   // a tap, or dragged most of the way
+    else { set(0); box.style.removeProperty('--fill'); } };
+  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+  box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('key'); } });
+})();
+document.querySelectorAll('.moods [data-q]').forEach(b => b.addEventListener('click', () => planWith(b.dataset.q, 'chip')));
 
 /* ---- scroll reveal ---- */
 const io = new IntersectionObserver((entries) => {

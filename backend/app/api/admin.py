@@ -399,6 +399,22 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
     dims["budget"].pop(None, None)
     dims["radius_km"].pop(None, None)
 
+    # Conversations (one session_id per conversation on the page): how long they run,
+    # and whether Roamly ever asked the same question twice in one.
+    per_session = (select(base.c.session_id, func.count().label("turns"))
+                   .where(base.c.session_id.is_not(None)).group_by(base.c.session_id).subquery())
+    s_count, s_turns = db.execute(select(func.count(), func.avg(per_session.c.turns))
+                                  .select_from(per_session)).one()
+    asks = (select(base.c.session_id, base.c.response["ask"].astext.label("ask"), func.count().label("n"))
+            .where(base.c.session_id.is_not(None), base.c.response["ask"].astext.is_not(None))
+            .group_by(base.c.session_id, base.c.response["ask"].astext).subquery())
+    repeated = db.scalar(select(func.count(distinct(asks.c.session_id))).where(asks.c.n > 1))
+    edits = db.execute(select(func.count(), func.count().filter(base.c.response_type == "itinerary"))
+                       .where(base.c.intent == "edit_plan")).one()
+    intents = db.execute(select(func.coalesce(base.c.intent, "(chips)"), func.count())
+                         .group_by(func.coalesce(base.c.intent, "(chips)"))
+                         .order_by(func.count().desc())).all()
+
     recent = db.execute(select(base.c.id, base.c.created_at, base.c.user_id, base.c.endpoint,
                                base.c.user_text, base.c.area, base.c.response_type, base.c.stops,
                                base.c.found_nothing, base.c.llm_failures, base.c.duration_ms)
@@ -415,6 +431,10 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
         "latency": latency,
         "breakdown": {k: [{"key": a, "count": n} for a, n in c.most_common(12)] for k, c in dims.items()},
         "recent": [{**r, "username": names.get(r["user_id"])} for r in recent],
+        "sessions": {"count": s_count, "avg_turns": round(float(s_turns), 1) if s_turns else None,
+                     "repeated_question": repeated,
+                     "edits": edits[0], "edits_applied": edits[1],
+                     "intents": [{"key": k, "count": n} for k, n in intents]},
         "llm_configured": llm.available(),
     }
 

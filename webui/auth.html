@@ -130,6 +130,41 @@
   .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:var(--primary); opacity:.4; animation:blink 1.2s infinite;}
   .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
   @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
+
+  /* ==== Toronto-at-dusk photo behind everything, same shading as the landing page ==== */
+  body{background:#140e28 url("hero-toronto.jpg") 62% 60% / cover no-repeat fixed;}
+  body::before{content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(28,20,58,.62) 0%, rgba(28,20,58,.3) 45%, rgba(28,20,58,.12) 70%),
+      linear-gradient(180deg, rgba(28,20,58,.35) 0%, rgba(28,20,58,0) 25%, rgba(20,14,40,.55) 100%);}
+  .shell{position:relative; z-index:0;}
+  .auth-hero{background:none !important; box-shadow:none !important; color:#fff;}
+  .auth-hero .skyline, .auth-hero .glow{display:none;}
+  .ah-copy h1{font-weight:600; letter-spacing:-.035em; text-shadow:0 2px 24px rgba(20,14,40,.3);}
+  .uses span{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.35); font-weight:600;}
+  .card.auth{background:rgba(255,255,255,.96); box-shadow:0 40px 80px -30px rgba(10,6,30,.65);}
+  .ah-back{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.4);}
+  @media (min-width:980px){
+    .demo-card{background:rgba(20,14,40,.45) !important; border:1px solid rgba(255,255,255,.16);
+      color:#fff !important; box-shadow:0 30px 60px -30px rgba(0,0,0,.6) !important;}
+    .demo-card .dmsg .bub{background:rgba(255,255,255,.12); color:#fff;}
+    .demo-card .dmsg.me .bub{background:#fff; color:var(--ink);}
+    .demo-card .dmsg .av{background:rgba(255,255,255,.14);}
+    .demo-card .dstops{border-top-color:rgba(255,255,255,.14);}
+    .demo-card .dstop .time{background:linear-gradient(120deg,#8a63f2,#e0789a); color:#fff;}
+    .demo-card .dstop .cat{color:rgba(255,255,255,.62);}
+    .demo-card .dots span{background:#fff;}
+  }
+  /* desktop: form on the left so the skyline (tower + couple, right side of the photo) stays clear */
+  @media (min-width:980px){
+    .auth-wrap{order:-1;}
+    .auth-hero{padding:28px 48px; flex:1 1 auto;}
+    .demo-card{display:none !important;}
+    body::before{background:
+      linear-gradient(90deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.25) 40%, rgba(28,20,58,0) 65%),
+      linear-gradient(180deg, rgba(28,20,58,.4) 0%, rgba(28,20,58,0) 35%, rgba(20,14,40,.35) 100%);}
+  }
+  @media (max-width:979px){ body{background-position:72% 40%;} .auth-wrap{margin-top:-40px;} .auth-hero{padding-bottom:70px;} }
 </style>
 </head>
 <body>
@@ -158,8 +193,8 @@
     </div>
     <div class="ah-copy">
       <h1>Better plans.<br>Less planning.</h1>
-      <p>Tell Roamly what you're after — real places near you, timed and budgeted, ready to go.</p>
-      <div class="uses" aria-label="Made for"><span>💘 Date nights</span><span>🎉 Friends</span><span>🧍 Solo</span><span>👨‍👩‍👧 Family</span><span>✨ Any mood</span></div>
+      <p>Real places near you, timed and budgeted.</p>
+      <div class="uses" aria-label="Made for"><span>Date nights</span><span>Friends</span><span>Solo</span><span>Family</span><span>Any mood</span></div>
     </div>
     <div class="demo-card" aria-hidden="true"><div id="demo"></div></div>
   </section>

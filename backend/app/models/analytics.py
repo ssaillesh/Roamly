@@ -34,6 +34,10 @@ class PlanLog(Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     endpoint: Mapped[str] = mapped_column(String(20), nullable=False)   # chat | options | build
+    # One per conversation on the page, so a whole back-and-forth can be read together.
+    session_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    # new_plan | edit_plan | events | ask_about_plan | chitchat (chat only)
+    intent: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True)
     user_text: Mapped[str | None] = mapped_column(Text, nullable=True)
