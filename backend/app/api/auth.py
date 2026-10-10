@@ -1,11 +1,13 @@
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.legal import TERMS_VERSION
 from app.database import get_db
 from app.models import User
 from app.middleware.auth import get_current_user
@@ -37,6 +39,9 @@ def _tokens(user: User, is_new: bool) -> TokenResponse:
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
 def register(body: RegisterRequest, db: Session = Depends(get_db)):
+    if not body.accept_terms:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "Please accept the Terms of Service and Privacy Policy to create an account.")
     if db.scalar(select(User.id).where(User.email == body.email)):
         raise HTTPException(status.HTTP_409_CONFLICT, "Email already registered")
     if db.scalar(select(User.id).where(User.username == body.username)):
@@ -47,6 +52,7 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
         display_name=body.display_name,
         password_hash=hash_password(body.password),
         is_test=looks_like_test(body.email, body.username),
+        terms_accepted_at=datetime.now(timezone.utc), terms_version=TERMS_VERSION,
     )
     db.add(user)
     db.commit()

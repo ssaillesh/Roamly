@@ -155,7 +155,9 @@ builds it from free open data:
 - **OpenStreetMap opening hours**: best effort. A place that is closed at its planned time is skipped; unknown hours are allowed.
 - **Overture neighbourhood names**: so "Kensington Market" is placed without a live geocoder.
 
-Each plan is timed (evening starts at 6 PM, with set minutes per kind of stop). Those times decide which places are open and are shown on the stops. Outside the stored city, plans fall back to the live search.
+Each plan is timed (evening starts at 6 PM, with set minutes per kind of stop). Those times decide which places are open and are shown on the stops. Museums, galleries and markets without listed hours are treated as daytime-only. Outside the stored city, plans fall back to the live search.
+
+**Budget:** `backend/app/services/costs.py` estimates each stop's cost per person: the admission price for well-known attractions, otherwise the kind of place (a sushi dinner is about $45, an escape room about $35, a park is free). The budget is then shared between the stops, with dinner getting the most. A tight budget gets fewer stops rather than cheaper ones. If a plan still comes in more than 10% over, the planner first swaps in cheaper places (the swap that costs the least quality), then drops optional stops, never a free one. The prices are approximate; update `KNOWN_PRICES` when admission prices change.
 
 **Refresh:** `.github/workflows/venues.yml` runs on the 26th of each month, and can also be run by hand (Actions → Refresh venues → Run workflow). It needs the repository secret `VENUES_DATABASE_URL`, set to the database's External URL. The loader refuses to write when the download looks broken, so last month's list stays. To run it locally:
 
@@ -163,6 +165,45 @@ Each plan is timed (evening starts at 6 PM, with set minutes per kind of stop). 
 cd backend && .venv/bin/pip install -r requirements-venues.txt   # duckdb, loader only
 .venv/bin/python -m scripts.load_venues                           # --dry-run, --skip-osm
 ```
+
+---
+
+## Nightlife tab
+
+`GET /api/v1/nightlife` powers the planner's **Nightlife** tab:
+
+- **Club nights & special guests** for tonight, this weekend or this week. They come from Ticketmaster and from Roamly's own listings:
+  - Ticketmaster events count as nightlife when they're dance/electronic, hip-hop, R&B, Latin or reggae, when they're named like a party, or when they're at a known night spot.
+  - Roamly's own listings come from the `nightlife_events` table (migration `0013`).
+- **Special days**, from `backend/app/services/special_days.py`: St. Patrick's, Valentine's, Lunar New Year, Cinco de Mayo, Pride, Canada Day, Caribbean Carnival, Nuit Blanche, Halloween, Diwali and New Year's Eve.
+  - A banner appears a few days ahead.
+  - The places that fit the day are listed, such as Irish pubs on St. Patrick's.
+  - Plans made in Toronto on the day lean into it, unless the person ruled it out ("no bars"), has a no-alcohol profile or asked for something else.
+  - Lunar New Year and Diwali come from a date table; a test fails when the table needs another year.
+- **Club guide:** clubs, LGBTQ+ bars, live music, comedy and karaoke, lounges, and bars and pubs from the stored venue list. They're grouped by neighbourhood, with places that have an event that night first. *Plan a night here* builds a plan around the place.
+
+**Roamly's own listings:**
+- Venues and promoters submit events at `/submit-event` (public, rate-limited, with a spam trap).
+- Nothing shows until an admin approves it in **Admin → Nightlife events**, where admins can also add events by hand.
+
+**SeatGeek** (optional; `SEATGEEK_CLIENT_ID` on the API) adds club shows and concerts to this tab only, following its [API terms](https://seatgeek.com/api-terms):
+- Their logo, linked to seatgeek.com, appears on every SeatGeek listing. It's `webui/seatgeek-logo.svg`, the unmodified file from seatgeek.com/press.
+- Their events never go to the AI: no "Plan around it" on SeatGeek events, and they aren't in What's on or the planner.
+- Results are cached for 10 minutes and never stored.
+- Searches cover concerts only, around a point rounded to about 1 km.
+- Users must accept the Terms, which name SeatGeek as a third-party beneficiary (see below).
+
+Resident Advisor and Eventbrite aren't used. Resident Advisor's terms ban automated collection, and Eventbrite has no public search.
+
+## Terms & privacy
+
+`webui/terms.html` and `webui/privacy.html` hold the Terms of Service and the Privacy Policy.
+- New accounts must tick "I agree" when they sign up; the API refuses a sign-up without it.
+- The acceptance time and version are stored on the user (migration `0014`).
+- Existing accounts are asked once, in the planner.
+- When either page changes in a way people must re-accept, bump `TERMS_VERSION` in `backend/app/legal.py`; everyone is asked again.
+
+Event times use the place's time zone, so a Toronto 10 PM show reads 10 PM on a phone set to another zone.
 
 ---
 

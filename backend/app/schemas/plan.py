@@ -40,8 +40,15 @@ class Event(BaseModel):
     start: str | None = None          # ISO; the page turns it into "on now" / "in 40 min"
     end: str | None = None
     free: bool | None = None          # None = unknown (not every source says)
-    source: str | None = None         # "ticketmaster" | "city_toronto"
+    source: str | None = None         # "ticketmaster" | "city_toronto" | "roamly" | "seatgeek"
     distance_km: float | None = None
+    genre: str | None = None          # "Dance/Electronic", "Hip-Hop/Rap"…
+    subgenre: str | None = None
+    adults_only: bool | None = None   # 19+ (legal drinking age enforced)
+    description: str | None = None    # Roamly-listed events
+    kind: str | None = None           # club_night | special_guest | party | holiday …
+    special_day: str | None = None    # services/special_days key
+    tz: str | None = None             # the place's time zone: times show in it, not the phone's
 
 
 class Plan(BaseModel):

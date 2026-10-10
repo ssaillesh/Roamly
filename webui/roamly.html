@@ -265,6 +265,53 @@
   .ev-note{margin:18px 2px 0; font-size:12.5px; color:var(--ink-3);}
   .skel-ev{display:flex; gap:14px; padding:12px; border-radius:var(--r-md); background:var(--surface); border:1px solid var(--line-2);}
 
+  .evc-desc{margin:6px 0 0; font-size:13px; color:var(--ink-2); line-height:1.45;}
+  .tag.adult{background:var(--surface-3); color:var(--ink-2);}
+  .tag.day{background:var(--sun-soft); color:var(--sun-ink);}
+  /* SeatGeek's terms: their logo, linked to seatgeek.com, wherever their events show */
+  .sg-link{display:inline-flex; align-items:center; gap:6px; color:var(--ink-3); text-decoration:none;}
+  .sg-logo{height:26px; width:auto; display:block;}        /* the stacked mark, resized proportionally */
+  .tag .sg-link{margin-left:4px;}
+  .tag .sg-logo{height:18px;}
+
+  /* ---- terms gate (accounts from before the Terms existed, or after they change) ---- */
+  .terms-gate{position:fixed; inset:0; z-index:200; display:grid; place-items:center; padding:16px;
+    background:rgba(23,21,58,.45); backdrop-filter:blur(3px);}
+  .tg-card{max-width:440px; width:100%; padding:24px; border-radius:var(--r-lg); background:var(--surface); box-shadow:var(--sh-3);}
+  .tg-card h2{margin:0 0 8px; font-size:20px; letter-spacing:-.01em;}
+  .tg-card p{margin:0 0 18px; color:var(--ink-2); font-size:15px; line-height:1.55;}
+  .tg-card a{color:var(--primary-ink); font-weight:700;}
+  .tg-acts{display:flex; flex-wrap:wrap; gap:8px;}
+
+  /* ---- nightlife ---- */
+  .nl-day{display:flex; gap:14px; align-items:center; margin:16px 0 4px; padding:16px 18px; border-radius:var(--r-md);
+    background:var(--grad-dusk); color:#fff; box-shadow:var(--sh-2);}
+  .nl-day .e{font-size:34px; line-height:1;}
+  .nl-day b{display:block; font-size:16.5px; letter-spacing:-.01em;}
+  .nl-day p{margin:3px 0 0; font-size:13.5px; opacity:.92;}
+  .nl-h{display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin:26px 2px 10px;}
+  .nl-h h2{margin:0; font-size:17px; font-weight:800; letter-spacing:-.01em;}
+  .nl-h span{font-size:12.5px; color:var(--ink-3); font-weight:600;}
+  .nl-area{margin:18px 2px 8px; font-size:11.5px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--ink-3);}
+  .spots{display:grid; gap:10px;}
+  @media (min-width:640px){ .spots{grid-template-columns:1fr 1fr;} }
+  .spot{display:flex; flex-direction:column; padding:12px 14px; border-radius:var(--r-md); background:var(--surface);
+    border:1px solid var(--line-2); box-shadow:var(--sh-1);}
+  .spot-top{display:flex; align-items:flex-start; gap:11px;}
+  .spot-emoji{width:40px; height:40px; flex:0 0 auto; border-radius:12px; display:grid; place-items:center; font-size:20px; background:var(--grad-soft);}
+  .spot h4{margin:0; font-size:15px; font-weight:750; line-height:1.3;}
+  .spot .meta{font-size:12.5px; color:var(--ink-3); font-weight:600; margin-top:2px;}
+  .spot .tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
+  .spot .tags:empty{display:none;}
+  .tag.ev{background:var(--pink-soft); color:var(--pink-ink);}
+  .tag.open{background:var(--mint-soft); color:var(--mint-ink);}
+  .spot-acts{display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:10px;}
+  .nl-more{display:flex; justify-content:center; margin-top:14px;}
+  .nl-cta{display:flex; align-items:center; gap:12px; margin:30px 0 0; padding:14px 16px; border-radius:var(--r-md);
+    background:var(--surface-2); font-size:13.5px; color:var(--ink-2);}
+  .nl-cta .e{font-size:22px;}
+  .nl-cta a{font-weight:750; color:var(--primary-ink);}
+
   /* ---- picker (build your own) ---- */
   .picker{margin-left:42px; animation:rise .45s var(--ease) both;}
   .psec{margin-bottom:18px;}
@@ -409,6 +456,7 @@
   <symbol id="i-live" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></symbol>
   <symbol id="i-logout" viewBox="0 0 24 24"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
   <symbol id="i-chat" viewBox="0 0 24 24"><path d="M5 19.5V6.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H8.5Z"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M19.5 14.6A7.8 7.8 0 0 1 9.4 4.5a7.8 7.8 0 1 0 10.1 10.1Z"/><path d="M17 3.5v3M15.5 5h3"/></symbol>
 </svg>
 
 <div class="app">
@@ -418,6 +466,7 @@
     <nav class="side-nav" aria-label="Main">
       <button class="nav-item" data-nav="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
       <button class="nav-item" data-nav="events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></button>
+      <button class="nav-item" data-nav="nightlife"><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg><span>Nightlife</span></button>
       <button class="nav-item" data-nav="saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></button>
       <a class="nav-item" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
     </nav>
@@ -447,6 +496,7 @@
       <section class="view" id="v-home" aria-label="Home"></section>
       <section class="view chat" id="chat" aria-label="Conversation" hidden><div class="thread" id="thread"></div></section>
       <section class="view" id="v-events" aria-labelledby="evTitle" hidden></section>
+      <section class="view" id="v-nightlife" aria-labelledby="nlTitle" hidden></section>
       <section class="view" id="v-saved" aria-labelledby="savedTitle" hidden></section>
     </main>
 
@@ -461,6 +511,7 @@
     <nav class="bnav" aria-label="Main">
       <button class="nav-item" data-nav="home"><svg class="ic" aria-hidden="true"><use href="#i-home"/></svg><span>Home</span></button>
       <button class="nav-item" data-nav="events"><svg class="ic" aria-hidden="true"><use href="#i-ticket"/></svg><span>What's on</span></button>
+      <button class="nav-item" data-nav="nightlife"><svg class="ic" aria-hidden="true"><use href="#i-moon"/></svg><span>Nightlife</span></button>
       <button class="nav-item" data-nav="saved"><svg class="ic" aria-hidden="true"><use href="#i-bookmark"/></svg><span>Saved</span><span class="count" data-saved-count></span></button>
       <a class="nav-item" href="profile.html"><svg class="ic" aria-hidden="true"><use href="#i-sliders"/></svg><span>My taste</span></a>
     </nav>
@@ -520,8 +571,9 @@ const wideMq = matchMedia('(min-width:1120px)');
 const wide = () => wideMq.matches;
 
 /* ================= views: Home · Chat · What's on · Saved ================= */
-const VIEWS = { home:'v-home', chat:'chat', events:'v-events', saved:'v-saved' };
-const TITLES = { chat:['Roamly','AI outing planner'], events:["What's on",'Live events near you'], saved:['Saved plans','Kept on this device'] };
+const VIEWS = { home:'v-home', chat:'chat', events:'v-events', nightlife:'v-nightlife', saved:'v-saved' };
+const TITLES = { chat:['Roamly','AI outing planner'], events:["What's on",'Live events near you'],
+  nightlife:['Nightlife','Clubs, club nights & special days'], saved:['Saved plans','Kept on this device'] };
 let view = null, chatScroll = 0;
 function showView(v, o = {}){
   if (!VIEWS[v]) v = 'home';
@@ -538,6 +590,7 @@ function showView(v, o = {}){
   if (v === 'home') renderHome(prev === null);
   if (v === 'saved') renderSavedView();
   if (v === 'events') openEvents(o.window);
+  if (v === 'nightlife') openNightlife(o.window);
   if (v === 'chat') requestAnimationFrame(() => { chat.scrollTop = o.bottom ? chat.scrollHeight : chatScroll; refitMaps(); });
   else $(VIEWS[v]).scrollTop = 0;
   // Phone back button: Home ↔ everything else.
@@ -734,7 +787,7 @@ function planTitle(plan){
    against the plan's own numbers, nothing is invented. */
 function fitsFor(plan){
   const m = plan._meta || {}, out = [], pp = Math.max(1, plan.party_size || 1);
-  const who = pp === 1 ? 'you' : `${pp}`;
+  const who = pp === 1 ? 'you' : `${pp} (~$${Math.round(plan.estimated_cost / pp)} each)`;
   if (plan.budget){
     const over = plan.estimated_cost - plan.budget;
     out.push(over <= 0
@@ -1297,6 +1350,7 @@ function renderCtx(){
   });
   if (wide() && changed.size && sheetOpen) changed.forEach(k => flashSec($('sec-' + k)));
   if (view === 'events') queueEventsRefresh();
+  if (view === 'nightlife') queueNightlifeRefresh();
 }
 function updateCtxChip(k){      // live text while dragging/typing — no flash, no re-render
   document.querySelectorAll(`[data-ctx] .cx[data-k="${k}"] span`).forEach(s => { s.textContent = ctxText(k); });
@@ -1640,7 +1694,10 @@ async function runPlan(prefs, o = {}){
 /* ================= what's on: live events near the planning state ================= */
 const WINDOWS = [['now','Right now'],['tonight','Tonight'],['weekend','This weekend']];
 const WINDOW_TEXT = { now:'right now', tonight:'tonight', weekend:'this weekend' };
-const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar' };
+const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar', roamly:'Listed on Roamly' };
+/* SeatGeek's API terms: their logo, linked to their home page, on everything of theirs we show. */
+const SG_LOGO = (cls = 'sg-logo') => `<a class="sg-link" href="https://seatgeek.com" target="_blank" rel="noopener" aria-label="SeatGeek">
+  <img class="${cls}" src="seatgeek-logo.svg" alt="SeatGeek"></a>`;
 const EV_ART = [
   [/music|concert|jazz|rock|hip|pop|dj/i, '🎵', 'linear-gradient(135deg,#e2ddff,#f7dcff)'],
   [/sport|hockey|basketball|soccer|baseball|football/i, '🏟️', 'linear-gradient(135deg,#dff1ff,#def7ea)'],
@@ -1662,13 +1719,15 @@ function evStatus(ev){
   if (st <= now && (isNaN(en) || en >= now)) return { live:true, text:'On now' };
   const mins = Math.round((st - now) / 60000);
   if (mins > 0 && mins < 90) return { live:false, text:`Starts in ${mins} min` };
-  const d = new Date(st), today = d.toDateString() === new Date().toDateString();
-  return { live:false, text: (today ? 'Today · ' : d.toLocaleDateString(undefined, { weekday:'short' }) + ' · ')
-    + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' }) };
+  // in the place's time zone (a Toronto 10 PM show is 10 PM, whatever zone the phone is in)
+  const zone = ev.tz ? { timeZone: ev.tz } : {}, d = new Date(st);
+  const day = x => x.toLocaleDateString('en-CA', zone), today = day(d) === day(new Date());
+  return { live:false, text: (today ? 'Today · ' : d.toLocaleDateString(undefined, { weekday:'short', ...zone }) + ' · ')
+    + d.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit', ...zone }) };
 }
-function evCardHtml(ev, i){
+function evCardHtml(ev, i, o = {}){
   const s = evStatus(ev), art = evArt(ev);
-  const cat = ev.category ? ev.category.split(',')[0].trim() : '';
+  const cat = ev.genre || (ev.category ? ev.category.split(',')[0].trim() : '');
   const price = ev.free ? '<span class="tag free">Free</span>'
     : ev.price_min ? `<span class="tag">from $${Math.round(ev.price_min)}</span>` : '';
   const where = [ev.venue, ev.distance_km != null ? `${ev.distance_km} km away` : null].filter(Boolean).map(esc).join(' · ');
@@ -1682,14 +1741,17 @@ function evCardHtml(ev, i){
       <div class="evc-when${s.live ? ' live' : ''}">${s.live ? '<span class="live-dot" aria-hidden="true"></span>' : ''}${esc(s.text || '')}</div>
       <h4 class="evc-name">${esc(ev.name)}</h4>
       ${where ? `<div class="evc-meta">${where}</div>` : ''}
-      <div class="evc-tags">${price}${cat ? `<span class="tag">${esc(cat)}</span>` : ''}</div>
+      <div class="evc-tags">${price}${cat ? `<span class="tag">${esc(cat)}</span>` : ''}${
+        ev.adults_only ? '<span class="tag adult">19+</span>' : ''}${o.dayTag ? `<span class="tag day">${esc(o.dayTag)}</span>` : ''}</div>
+      ${ev.description ? `<p class="evc-desc">${esc(ev.description)}</p>` : ''}
     </div>
     <div class="evc-acts">
-        <button class="btn btn-soft btn-sm" data-plan="${i}">${ic('plus','sm')} Plan around it</button>
+        ${ev.source === 'seatgeek' ? '' /* their terms: their events never go to the AI planner */
+          : `<button class="btn btn-soft btn-sm" data-plan="${i}">${ic('plus','sm')} Plan around it</button>`}
         <a class="btn btn-ghost btn-sm" href="${esc(dir)}" target="_blank" rel="noopener">${ic('nav','sm')} Directions</a>
-        ${link ? `<a class="btn btn-ghost btn-sm" href="${esc(link)}" target="_blank" rel="noopener">${ev.source === 'ticketmaster' ? 'Tickets' : 'Details'} ${ic('external','sm')}</a>` : ''}
+        ${link ? `<a class="btn btn-ghost btn-sm" href="${esc(link)}" target="_blank" rel="noopener">${ev.source === 'ticketmaster' || ev.source === 'seatgeek' ? 'Tickets' : 'Details'} ${ic('external','sm')}</a>` : ''}
     </div>
-    <div class="evc-src">${esc(SOURCE_LABEL[ev.source] || '')}</div>
+    <div class="evc-src">${ev.source === 'seatgeek' ? SG_LOGO() : esc(SOURCE_LABEL[ev.source] || '')}</div>
   </article>`;
 }
 
@@ -1833,6 +1895,178 @@ function planAround(e){
   runPlan(prefs, { at, withEvent: e });
 }
 
+/* ================= nightlife: club nights, special days, the club index ================= */
+const NL_WINDOWS = [['tonight','Tonight'],['weekend','This weekend'],['week','This week']];
+const NL_WINDOW_TEXT = { tonight:'tonight', weekend:'this weekend', week:'this week' };
+const NL_EMOJI = { clubs:'🪩', lgbtq:'🏳️‍🌈', music:'🎸', comedy:'🎤', lounges:'🍸', bars:'🍺' };
+const NL_PAGE = 40;
+let nl = { window:'tonight', kind:'all', all:false, res:null, key:null, ts:0, seq:0, shown:null };
+let nlRefreshT;
+function nlKey(){
+  return [nl.window, ready.radius_km, ready.location || (userLoc ? userLoc.lat.toFixed(3) + ',' + userLoc.lng.toFixed(3) : '')].join('|');
+}
+function queueNightlifeRefresh(){
+  clearTimeout(nlRefreshT);
+  nlRefreshT = setTimeout(() => { if (view === 'nightlife' && nl.shown !== nlKey() && (userLoc || ready.location)) openNightlife(); }, 700);
+}
+function renderNightlifeShell(){
+  const el = $('v-nightlife');
+  el.innerHTML = `<div class="page">
+    <header class="page-head"><div><h1 class="t-title" id="nlTitle">Nightlife</h1><p class="t-meta">Club nights, special guests and where to go</p></div>${AVATAR_BTN()}</header>
+    <div class="seg" role="tablist" aria-label="When">${NL_WINDOWS.map(([w, l]) =>
+      `<button role="tab" data-w="${w}" aria-selected="${nl.window === w}">${esc(l)}</button>`).join('')}</div>
+    <div class="ev-where">${ic('pin','sm')}<span>${esc(ready.location || (userLoc ? 'Near you' : 'No place set'))} · within ${fmtKm(ready.radius_km)}</span>
+      <button class="link" data-nl-where>Change</button></div>
+    <div id="nlBody" aria-live="polite" aria-busy="false"></div>
+  </div>`;
+  el.querySelectorAll('[data-w]').forEach(b => b.onclick = () => { nl.window = b.dataset.w; openNightlife(); });
+  el.querySelector('[data-nl-where]').onclick = () => openSheet(ready.location || userLoc ? 'radius_km' : 'location');
+}
+function openNightlife(w){
+  if (w) nl.window = w;
+  if (!ready) return;
+  renderNightlifeShell();
+  nl.shown = nlKey();
+  if (!userLoc && !ready.location){
+    $('nlBody').innerHTML = `<div class="empty"><div class="e-art" aria-hidden="true">🌙</div><h3>Where are you going out?</h3>
+      <p>Turn on your live location or type a neighbourhood to see clubs and club nights around it.</p>
+      <button class="btn btn-primary" data-nl-loc>${ic('pin','sm')} Set location</button></div>`;
+    $('nlBody').querySelector('[data-nl-loc]').onclick = () => needLocation(() => { if (view === 'nightlife') openNightlife(); });
+    return;
+  }
+  if (!token()){ requireSignIn(); return; }
+  const key = nlKey();
+  if (nl.key === key && nl.res && Date.now() - nl.ts < 5 * 60000){ renderNightlife(); return; }
+  loadNightlife(key);
+}
+async function loadNightlife(key){
+  const body = $('nlBody'), seq = ++nl.seq;
+  body.setAttribute('aria-busy', 'true');
+  body.innerHTML = `<p class="t-meta ev-summary" role="status">${ic('live','sm')} Checking what's on ${esc(NL_WINDOW_TEXT[nl.window])}…</p>
+    <div class="ev-items skel-wrap" aria-hidden="true">${[0,1,2].map(() => `<div class="skel-ev"><div class="skel" style="width:84px;height:84px;border-radius:16px"></div>
+      <div style="flex:1;display:grid;gap:8px;align-content:start;padding-top:4px"><div class="skel" style="height:10px;width:30%"></div>
+      <div class="skel" style="height:14px;width:80%"></div><div class="skel" style="height:10px;width:55%"></div></div></div>`).join('')}</div>`;
+  const q = new URLSearchParams({ window: nl.window, radius_km: ready.radius_km, tz: USER_TZ || '' });
+  if (ready.location) q.set('location', ready.location);
+  else if (userLoc){ q.set('lat', userLoc.lat); q.set('lng', userLoc.lng); }
+  try{
+    const r = await apiFetch(`${API}/nightlife?${q}`, { headers:{ ...authHeaders() } });
+    if (seq !== nl.seq) return;
+    if (r.status === 401){ requireSignIn(); return; }
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'failed');
+    nl.res = await r.json(); nl.key = key; nl.ts = Date.now(); nl.kind = 'all'; nl.all = false;
+    if (view === 'nightlife') renderNightlife();
+  }catch(e){
+    if (seq !== nl.seq || view !== 'nightlife') return;
+    body.setAttribute('aria-busy', 'false');
+    body.innerHTML = `<div class="notice err" style="margin-top:16px"><span class="n-ic">${ic('alert')}</span><div>
+      <b>Couldn't load nightlife</b><p>${esc((e && e.message && e.message !== 'failed') ? e.message : 'Check your connection and try again.')}</p>
+      <div class="n-acts"><button class="btn btn-dark btn-sm" data-retry>${ic('refresh','sm')} Try again</button></div></div></div>`;
+    body.querySelector('[data-retry]').onclick = () => loadNightlife(key);
+  }
+}
+function spotHtml(s, i){
+  const meta = [s.area, s.distance_km != null ? `${s.distance_km} km` : null].filter(Boolean).map(esc).join(' · ');
+  const cat = (s.categories && s.categories[0]) ? cap(String(s.categories[0])) : '';
+  const evs = s.events || [];
+  const tags = [
+    evs.length ? `<span class="tag ev">${ic('live','sm')} ${esc(evs.length === 1 ? evs[0].name : evs.length + ' events')}${
+      evs.some(e => e.source === 'seatgeek') ? SG_LOGO('sg-logo') : ''}</span>` : '',
+    s.open_tonight === true ? '<span class="tag open">Open tonight</span>' : '',
+    cat ? `<span class="tag">${esc(cat)}</span>` : '',
+  ].join('');
+  const dir = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ' ' + (s.address || ''))}`;
+  const site = safeUrl(s.url);
+  return `<article class="spot">
+    <div class="spot-top"><span class="spot-emoji" aria-hidden="true">${NL_EMOJI[s.kind] || '🌙'}</span>
+      <div><h4>${esc(s.name)}</h4>${meta ? `<div class="meta">${meta}</div>` : ''}</div></div>
+    <div class="tags">${tags}</div>
+    <div class="spot-acts">
+      <button class="btn btn-soft btn-sm" data-spot-plan="${i}">${ic('sparkle','sm')} Plan a night here</button>
+      <a class="btn btn-ghost btn-sm" href="${esc(dir)}" target="_blank" rel="noopener">${ic('nav','sm')} Directions</a>
+      ${site ? `<a class="btn btn-ghost btn-sm" href="${esc(site)}" target="_blank" rel="noopener">Website ${ic('external','sm')}</a>` : ''}
+    </div></article>`;
+}
+function renderNightlife(){
+  const body = $('nlBody'), res = nl.res; if (!body || !res) return;
+  body.setAttribute('aria-busy', 'false');
+  const day = res.special_day, evs = res.events || [], themed = res.themed_spots || [], spots = res.spots || [];
+  const dayTag = day ? `${day.emoji} ${day.name}` : '';
+  let html = '';
+  if (day) html += `<div class="nl-day" role="note"><span class="e" aria-hidden="true">${esc(day.emoji)}</span><div>
+      <b>${esc(day.today ? `${day.name} is today` : day.days_until === 1 ? `${day.name} is tomorrow` : `${day.name} in ${day.days_until} days`)}</b>
+      <p>${esc(day.blurb)}</p></div></div>`;
+  html += `<div class="nl-h"><h2>Club nights & special guests</h2><span>${esc(NL_WINDOW_TEXT[nl.window])}</span></div>`;
+  html += evs.length
+    ? `<div class="ev-items">${evs.map((e, i) => evCardHtml(e, i, { dayTag: e.special_day && day && e.special_day === day.key ? dayTag : '' })).join('')}</div>`
+    : `<p class="t-meta" style="margin:0 2px">${res.ticketed ? `No ticketed club nights listed ${esc(NL_WINDOW_TEXT[nl.window])} — the spots below are still worth a look.`
+        : 'Ticketed events aren\'t connected yet — the spots below are still worth a look.'}</p>`;
+  if (day && themed.length){
+    html += `<div class="nl-h"><h2>${esc(day.emoji)} Spots for ${esc(day.name)}</h2><span>${themed.length}</span></div>
+      <div class="spots">${themed.map(s => spotHtml(s, 't' + spots.indexOf(s) + ':' + themed.indexOf(s))).join('')}</div>`;
+  }
+  if (!res.covered){
+    html += `<div class="notice" style="margin-top:22px"><span class="n-ic">${ic('moon')}</span><div><b>The club guide covers Toronto for now</b>
+      <p>Club nights above still show wherever Ticketmaster lists them.</p></div></div>`;
+  } else {
+    const kinds = res.kinds || [];
+    const shown = spots.filter(s => nl.kind === 'all' || s.kind === nl.kind);
+    const page = nl.all ? shown : shown.slice(0, NL_PAGE);
+    html += `<div class="nl-h"><h2>Club guide</h2><span>${shown.length} place${shown.length === 1 ? '' : 's'}</span></div>
+      <div class="ev-filters" role="group" aria-label="Kind of place" style="margin-top:0">${[['all','All'], ...kinds.map(k => [k.key, `${NL_EMOJI[k.key] || ''} ${k.label}`])].map(([k, l]) =>
+        `<button class="chip sm" data-kind="${esc(k)}" aria-pressed="${nl.kind === k}">${esc(l)}</button>`).join('')}</div>`;
+    // grouped by neighbourhood, best first
+    const groups = [];
+    page.forEach(s => { const a = s.area || 'More spots'; let g = groups.find(x => x.a === a); if (!g) groups.push(g = { a, list:[] }); g.list.push(s); });
+    html += groups.map(g => `<div class="nl-area">${esc(g.a)}</div><div class="spots">${g.list.map(s => spotHtml(s, spots.indexOf(s))).join('')}</div>`).join('');
+    if (shown.length > page.length) html += `<div class="nl-more"><button class="btn btn-ghost btn-sm" data-nl-all>Show all ${shown.length}</button></div>`;
+  }
+  html += `<div class="nl-cta"><span class="e" aria-hidden="true">📣</span><span>Run a club night or a special event? <a href="submit-event.html">List it on Roamly</a> — we review every listing.</span></div>`;
+  body.innerHTML = html;
+  body.querySelectorAll('[data-plan]').forEach(b => b.onclick = () => { showView('chat', { bottom:true }); planAround(evs[+b.dataset.plan]); });
+  body.querySelectorAll('[data-spot-plan]').forEach(b => b.onclick = () => {
+    const id = b.dataset.spotPlan, s = id.startsWith('t') ? themed[+id.split(':')[1]] : spots[+id];
+    if (s) planNightAt(s);
+  });
+  body.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => { nl.kind = b.dataset.kind; nl.all = false; renderNightlife(); });
+  const more = body.querySelector('[data-nl-all]');
+  if (more) more.onclick = () => { nl.all = true; renderNightlife(); };
+}
+function planNightAt(s){
+  if (!token()){ requireSignIn(); return; }
+  if (busy){ toast('One sec — still working on the last plan.'); return; }
+  const prefs = readyPrefs();
+  delete prefs.location;                              // centre the plan on the place itself
+  prefs.requested_venues = [s.name];
+  showView('chat', { bottom:true });
+  addMsg('user', esc(`🌙 Plan a night at ${s.name}`));
+  typing(true, 'plan');
+  runPlan(prefs, { at: { lat: s.lat, lng: s.lng } });
+}
+
+/* Accounts made before the Terms existed (or before they changed) accept them once. */
+function termsGate(){
+  const el = document.createElement('div');
+  el.className = 'terms-gate'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
+  el.setAttribute('aria-labelledby', 'tgTitle');
+  el.innerHTML = `<div class="tg-card"><h2 id="tgTitle">Roamly's Terms & Privacy Policy</h2>
+    <p>Before you keep planning, please read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+      and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+    <div class="tg-acts"><button class="btn btn-primary" id="tgAccept">Accept and continue</button>
+      <button class="btn btn-ghost" id="tgOut">Sign out</button></div></div>`;
+  document.body.appendChild(el);
+  $('tgAccept').focus();
+  $('tgAccept').onclick = async e => {
+    e.target.disabled = true;
+    try{
+      const r = await apiFetch(`${API}/users/me/accept-terms`, { method:'POST', headers: authHeaders() });
+      if (!r.ok) throw new Error();
+      me = await r.json(); el.remove();
+    }catch(err){ e.target.disabled = false; toast("Couldn't save that — try again."); }
+  };
+  $('tgOut').onclick = () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=roamly.html'; };
+}
+
 /* ================= home ================= */
 function skyline(){
   // A generic city silhouette, generated (deterministic) — no image request.
@@ -1970,6 +2204,7 @@ function syncIdentity(){
   }
   if (mr.status === 'fulfilled' && mr.value.ok){ try{ me = await mr.value.json(); }catch(e){} syncIdentity(); }
   if (me && me.is_admin) $('adminLink').classList.remove('hidden');
+  if (me && me.needs_terms) termsGate();
   if (pr.status === 'fulfilled' && pr.value.ok){
     try{ profile = await pr.value.json(); }catch(e){}
     // Apply the profile's defaults unless the user already started changing things.

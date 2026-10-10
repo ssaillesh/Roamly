@@ -10,8 +10,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.services import city_events
 from app.services import events as ticketmaster
+from app.services import venue_index
 
-WINDOWS = ("now", "tonight", "weekend", "day")
+WINDOWS = ("now", "tonight", "weekend", "day", "week")
 DEFAULT_TZ = "America/Toronto"      # the app is Toronto-first; the page sends its real zone
 _POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="live-events")
 
@@ -30,6 +31,7 @@ def window_range(window: str, tz: str | None = None, now: datetime | None = None
     tonight  2h ago → 3am local
     weekend  Fri 5pm → Sun 11:59pm local (from now, if it's already the weekend)
     day      2h ago → 24h ahead (what a plan for today can use)
+    week     2h ago → 7 days ahead
     """
     zone = _zone(tz)
     now = (now or datetime.now(timezone.utc)).astimezone(zone)
@@ -47,6 +49,8 @@ def window_range(window: str, tz: str | None = None, now: datetime | None = None
         start, end = fri, sun
     elif window == "day":
         start, end = back, now + timedelta(hours=24)
+    elif window == "week":
+        start, end = back, now + timedelta(days=7)
     else:                                                       # "now"
         start, end = back, now + timedelta(hours=4)
     return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
@@ -88,6 +92,7 @@ def happening(lat: float, lng: float, *, window: str = "now", radius_km: float =
               now: datetime | None = None) -> list[dict]:
     """Events near lat/lng in the window, from every source, deduplicated and
     sorted: already on (nearest first), then by start time."""
+    tz = venue_index.tz_for(lat, lng, tz)      # the place's evening, not the phone's
     start_utc, end_utc = window_range(window if window in WINDOWS else "now", tz, now)
     jobs = [
         _POOL.submit(ticketmaster.search_events, lat, lng, radius_km=radius_km, size=size,
@@ -119,4 +124,7 @@ def happening(lat: float, lng: float, *, window: str = "now", radius_km: float =
         dist = ev["distance_km"] if ev.get("distance_km") is not None else 99
         return (0, dist, st) if is_on_now(ev, now_utc) else (1, 0, st)
     merged.sort(key=order)
+    if tz:
+        for ev in merged:
+            ev.setdefault("tz", tz)
     return merged[:size]

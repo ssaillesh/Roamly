@@ -9,6 +9,7 @@ from app.models import User, TasteProfile
 from app.middleware.auth import get_current_user
 from app.schemas.user import UserProfile, UserUpdate
 from app.schemas.profile import SurveyOut, TasteProfileOut, TasteProfileUpdate
+from app.legal import TERMS_VERSION
 from app.services import taste_profile
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -18,12 +19,21 @@ def _profile(user: User) -> UserProfile:
     return UserProfile(
         id=str(user.id), username=user.username, display_name=user.display_name,
         avatar_url=user.avatar_url, bio=user.bio, home_city=user.home_city, email=user.email,
-        is_admin=user.is_admin,
+        is_admin=user.is_admin, needs_terms=user.terms_version != TERMS_VERSION,
     )
 
 
 @router.get("/me", response_model=UserProfile)
 def get_me(user: User = Depends(get_current_user)):
+    return _profile(user)
+
+
+@router.post("/me/accept-terms", response_model=UserProfile)
+def accept_terms(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """An existing account accepts the current Terms & Privacy Policy."""
+    user.terms_accepted_at, user.terms_version = datetime.now(timezone.utc), TERMS_VERSION
+    db.add(user)
+    db.commit()
     return _profile(user)
 
 

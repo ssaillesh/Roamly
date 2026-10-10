@@ -50,6 +50,8 @@ FREE_TIER = {
     "sendgrid":      ("day",    100,   95, "Free trial: 100 emails a day for 60 days, then a paid plan "
                                            "is needed."),
     "ticketmaster":  ("day",   5000, 4900, "Free: 5,000 calls a day (over it they refuse; never billed)."),
+    "seatgeek":      ("day",   2000, 2000, "Free developer access. SeatGeek publishes no fixed limit, so this "
+                                           "is Roamly's own daily cap (results are cached 10 minutes)."),
     "open_meteo":    ("day",  10000, 9000, "Free for non-commercial use: 10,000 calls a day."),
 }
 # Daily token allowances, checked alongside the request caps (Groq's free tier

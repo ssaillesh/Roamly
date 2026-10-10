@@ -17,7 +17,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, require_admin
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_stats import RequestStatsMiddleware
-from app.api import admin, auth, users, waitlist, plan
+from app.api import admin, auth, nightlife, users, waitlist, plan
 from app.services import analytics
 
 
@@ -71,7 +71,7 @@ def metrics(request: Request, db: Session = Depends(get_db)):
 # their routes are switched off to keep the public API small; their code and
 # tables stay. To bring one back, import it above and add it here.
 P = settings.api_v1_prefix
-for r in (auth, users, waitlist, plan, admin):
+for r in (auth, users, waitlist, plan, nightlife, admin):
     app.include_router(r.router, prefix=P)
 
 

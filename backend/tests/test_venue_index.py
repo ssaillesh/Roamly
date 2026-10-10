@@ -40,6 +40,9 @@ def seeded():
            categories=["fast food restaurant"]),
         _v("bistro", "Le Bistro", ["dinner", "lunch"], 0.003, website="https://bistro.example",
            categories=["bistro"]),
+        _v("hall", "Grand Hall", ["leisure", "drinks", "activity"], 0.002,
+           categories=["music venue", "performing arts venue"]),
+        _v("pub", "Corner Pub", ["leisure", "drinks"], 0.002, categories=["pub", "bar"]),
     ]
     with SessionLocal() as db:
         db.query(Venue).filter(Venue.city == CITY).delete()
@@ -79,8 +82,8 @@ def test_wikidata_types_to_stops():
 
 
 def test_well_known_ranks_higher_and_closed_places_are_left_out(seeded):
-    friday_7pm = datetime(2026, 10, 9, 19, 0)
-    acts = {c["name"]: c["boost"] for c in REAL_CANDIDATES("activity", LAT, LNG, 5000, at=friday_7pm)}
+    friday_2pm, friday_7pm = datetime(2026, 10, 9, 14, 0), datetime(2026, 10, 9, 19, 0)
+    acts = {c["name"]: c["boost"] for c in REAL_CANDIDATES("activity", LAT, LNG, 5000, at=friday_2pm)}
     assert acts["Big Famous Museum"] > acts["Corner Arcade"]
     dinners = {c["name"]: c["boost"] for c in REAL_CANDIDATES("dinner", LAT, LNG, 5000, at=friday_7pm)}
     assert "Noon Diner" not in dinners                                # closes at 3pm
@@ -89,10 +92,19 @@ def test_well_known_ranks_higher_and_closed_places_are_left_out(seeded):
     assert dinners["Kaito Sushi"] > dinners["Le Bistro"] - 0.5        # known-open isn't penalised
 
 
+def test_evening_rules(seeded):
+    friday_9pm = datetime(2026, 10, 9, 21, 0)
+    acts = {c["name"] for c in REAL_CANDIDATES("activity", LAT, LNG, 5000, at=friday_9pm)}
+    assert "Big Famous Museum" not in acts           # no listed hours: museums keep daytime hours
+    assert {"Corner Arcade", "Grand Hall"} <= acts
+    night = {c["name"] for c in REAL_CANDIDATES("leisure", LAT, LNG, 5000, at=friday_9pm)}
+    assert night == {"Corner Pub"}                   # a concert hall is for a show, not drinks
+
+
 def test_a_search_term_narrows_and_the_radius_holds(seeded):
     assert [c["name"] for c in REAL_CANDIDATES("dinner", LAT, LNG, 5000, term="sushi")] == ["Kaito Sushi"]
     near = {c["name"] for c in REAL_CANDIDATES("activity", LAT, LNG, 500)}
-    assert near == {"Corner Arcade"}                                  # the museum is ~1.1 km away
+    assert near == {"Corner Arcade", "Grand Hall"}                    # the museum is ~1.1 km away
 
 
 def test_an_area_without_stored_venues_falls_back(seeded):
@@ -143,3 +155,10 @@ def test_plan_start_rules():
     assert planner.plan_start("evening", day(22, 10)) == day(18, d=10)  # evening's mostly over: tomorrow
     assert planner.plan_start("morning", day(8)) == day(10)
     assert planner.clock(day(9, 5)) == "9:05 AM"
+
+
+def test_tonight_means_the_places_night():
+    """A phone set to Malaysia time looking at Toronto gets Toronto's evening."""
+    assert venue_index.tz_for(43.65, -79.38, "Asia/Kuala_Lumpur") == "America/Toronto"
+    assert venue_index.tz_for(48.85, 2.35, "Europe/Paris") == "Europe/Paris"
+    assert venue_index.tz_for(None, None, None) is None

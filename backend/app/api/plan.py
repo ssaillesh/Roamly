@@ -371,6 +371,10 @@ def _structured(raw: dict) -> dict:
     for k, n in (("location", 100), ("interests", 200), ("avoid", 200), ("dietary", 100)):
         if isinstance(raw.get(k), str) and raw[k].strip():
             out[k] = raw[k].strip()[:n]
+    if isinstance(raw.get("requested_venues"), list):     # "Plan a night here" from the club guide
+        names = [v.strip()[:80] for v in raw["requested_venues"] if isinstance(v, str) and v.strip()]
+        if names:
+            out["requested_venues"] = names[:3]
     return out
 
 
@@ -727,6 +731,8 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
             quick_replies=["Search a wider area", "Something different"])
     plan = Plan(**plan_dict)
     msg = plan.intro or "Your plan:"
+    if plan_dict.get("special_note"):
+        msg = f"{plan_dict['special_note']} {msg}"
     if prefs.get("_assumed"):
         msg += f" (Assumed {', '.join(prefs['_assumed'])} — change it anytime.)"
     # Be honest about requested places we couldn't confirm exist nearby —

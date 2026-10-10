@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>List your event — Roamly</title>
+<meta name="description" content="Run a club night, a special-guest set or a themed party in Toronto? List it on Roamly's Nightlife tab." />
+<meta name="theme-color" content="#fbf8f4" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
+<link rel="stylesheet" href="/roamly.css" />
+<script src="/config.js"></script>
+<style>
+  body{background:var(--bg);}
+  .wrap{max-width:640px; margin:0 auto; padding:20px 16px 48px;}
+  .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
+  .logo{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:18px; color:var(--ink); text-decoration:none;}
+  .logo b{width:30px; height:30px; border-radius:10px; background:var(--grad); display:grid; place-items:center; color:#fff; font-size:15px;}
+  .top a.link{font-size:14px; font-weight:700; color:var(--primary-ink); text-decoration:none;}
+  h1{margin:0; font-size:clamp(26px,5vw,32px); letter-spacing:-.02em; line-height:1.15;}
+  .lede{margin:8px 0 22px; color:var(--ink-2); font-size:15px; line-height:1.5;}
+  form.card{padding:20px; display:grid; gap:16px;}
+  .row{display:grid; gap:16px;}
+  @media (min-width:560px){ .row.two{grid-template-columns:1fr 1fr;} }
+  .hint{font-weight:550; color:var(--ink-3); font-size:12.5px;}
+  select.input{appearance:none; background-image:linear-gradient(45deg,transparent 50%,var(--ink-3) 50%),linear-gradient(135deg,var(--ink-3) 50%,transparent 50%);
+    background-position:calc(100% - 20px) 21px,calc(100% - 15px) 21px; background-size:5px 5px; background-repeat:no-repeat; padding-right:40px;}
+  textarea.input{min-height:96px; padding:12px 16px; resize:vertical; line-height:1.45;}
+  .check{display:flex; align-items:center; gap:10px; font-size:14px; font-weight:650; color:var(--ink-2);}
+  .check input{width:20px; height:20px; accent-color:var(--primary);}
+  .hp{position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;}
+  .actions{display:flex; justify-content:flex-end;}
+  .err{color:var(--danger); font-size:14px; font-weight:650;}
+  .err:empty{display:none;}
+  .done{text-align:center; padding:40px 20px;}
+  .done .e{width:84px; height:84px; margin:0 auto 16px; border-radius:28px; display:grid; place-items:center; font-size:38px; background:var(--grad-soft);}
+  .done h2{margin:0 0 6px; font-size:20px;}
+  .done p{margin:0 auto 18px; max-width:40ch; color:var(--ink-2);}
+  fieldset{border:0; margin:0; padding:0; display:grid; gap:16px;}
+  legend{padding:0; margin-bottom:4px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <a class="logo" href="/"><b aria-hidden="true">R</b>Roamly</a>
+    <a class="link" href="/roamly">Open the planner →</a>
+  </div>
+
+  <div id="formView">
+    <h1>List your event on Roamly</h1>
+    <p class="lede">Club nights, special-guest sets and themed parties in Toronto show up in the app's Nightlife tab.
+      Every listing is reviewed before it appears.</p>
+
+    <form class="card" id="form" novalidate>
+      <fieldset>
+        <legend class="t-label">The event</legend>
+        <label class="field">Event name
+          <input class="input" name="title" required minlength="3" maxlength="160" placeholder="e.g. Afro House Fridays with DJ Nova" /></label>
+        <label class="field">Venue
+          <input class="input" name="venue_name" required minlength="2" maxlength="160" placeholder="e.g. Cube Nightclub" />
+          <span class="hint">The place's name as people know it. We match it to the map.</span></label>
+        <div class="row two">
+          <label class="field">Starts
+            <input class="input" type="datetime-local" name="starts_at" required /></label>
+          <label class="field">Ends <span class="hint">(optional)</span>
+            <input class="input" type="datetime-local" name="ends_at" /></label>
+        </div>
+        <div class="row two">
+          <label class="field">Kind of event
+            <select class="input" name="kind">
+              <option value="club_night">Club night</option>
+              <option value="special_guest">Special guest / DJ set</option>
+              <option value="party">Party</option>
+              <option value="holiday">Holiday / themed night</option>
+              <option value="live_music">Live music</option>
+              <option value="comedy">Comedy</option>
+            </select></label>
+          <label class="field">For a special day? <span class="hint">(optional)</span>
+            <select class="input" name="special_day">
+              <option value="">No</option>
+              <option value="st_patricks">St. Patrick's Day</option>
+              <option value="valentines">Valentine's Day</option>
+              <option value="lunar_new_year">Lunar New Year</option>
+              <option value="cinco_de_mayo">Cinco de Mayo</option>
+              <option value="pride">Pride</option>
+              <option value="canada_day">Canada Day</option>
+              <option value="carnival">Caribbean Carnival</option>
+              <option value="nuit_blanche">Nuit Blanche</option>
+              <option value="halloween">Halloween</option>
+              <option value="diwali">Diwali</option>
+              <option value="nye">New Year's Eve</option>
+            </select></label>
+        </div>
+        <label class="check"><input type="checkbox" name="free" /> Free entry</label>
+        <div class="row two" id="prices">
+          <label class="field">Tickets from ($) <span class="hint">(optional)</span>
+            <input class="input" type="number" name="price_min" min="0" max="5000" step="1" inputmode="decimal" /></label>
+          <label class="field">Up to ($) <span class="hint">(optional)</span>
+            <input class="input" type="number" name="price_max" min="0" max="5000" step="1" inputmode="decimal" /></label>
+        </div>
+        <label class="field">Tickets or info link <span class="hint">(optional)</span>
+          <input class="input" type="url" name="url" maxlength="500" placeholder="https://" /></label>
+        <label class="field">A line about it <span class="hint">(optional, up to 500 characters)</span>
+          <textarea class="input" name="description" maxlength="500" placeholder="Who's playing, the vibe, dress code, 19+…"></textarea></label>
+      </fieldset>
+      <fieldset>
+        <legend class="t-label">You</legend>
+        <div class="row two">
+          <label class="field">Your name <span class="hint">(optional)</span>
+            <input class="input" name="submitter_name" maxlength="120" autocomplete="name" /></label>
+          <label class="field">Email
+            <input class="input" type="email" name="submitter_email" required autocomplete="email" />
+            <span class="hint">Only so we can reach you about this listing.</span></label>
+        </div>
+      </fieldset>
+      <!-- left empty by people; bots fill it in -->
+      <label class="hp" aria-hidden="true">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+      <p class="hint" style="margin:0">By submitting you agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms</a>
+        (section 6 covers listings) and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
+      <p class="err" id="err" role="alert"></p>
+      <div class="actions"><button class="btn btn-primary" id="send" type="submit">Submit for review</button></div>
+    </form>
+  </div>
+
+  <div class="card done" id="doneView" hidden>
+    <div class="e" aria-hidden="true">🎉</div>
+    <h2>Thanks — it's in the queue</h2>
+    <p>We'll review it, and once approved it shows up in Roamly's Nightlife tab for people nearby.</p>
+    <button class="btn btn-ghost" id="another">List another event</button>
+  </div>
+</div>
+<script>
+const form = document.getElementById('form'), err = document.getElementById('err'), send = document.getElementById('send');
+const free = form.elements.free, prices = document.getElementById('prices');
+free.onchange = () => { prices.hidden = free.checked; };
+
+function message(body){
+  if (!body) return 'Something went wrong — try again.';
+  if (typeof body.detail === 'string') return body.detail;
+  if (Array.isArray(body.detail) && body.detail.length){
+    const d = body.detail[0], field = (d.loc || []).slice(-1)[0];
+    const names = { title:'Event name', venue_name:'Venue', starts_at:'Start time', ends_at:'End time',
+      submitter_email:'Email', url:'Link', price_min:'Price', price_max:'Price', description:'Description' };
+    return `${names[field] || 'A field'}: ${String(d.msg || 'check this').replace(/^Value error, /, '')}`;
+  }
+  return 'Something went wrong — try again.';
+}
+
+form.onsubmit = async e => {
+  e.preventDefault();
+  err.textContent = '';
+  if (!form.reportValidity()) return;
+  const f = form.elements, num = v => v === '' ? null : Number(v);
+  const body = {
+    title: f.title.value.trim(), venue_name: f.venue_name.value.trim(),
+    starts_at: f.starts_at.value, ends_at: f.ends_at.value || null,
+    kind: f.kind.value, special_day: f.special_day.value || null,
+    free: f.free.checked || null,
+    price_min: f.free.checked ? null : num(f.price_min.value), price_max: f.free.checked ? null : num(f.price_max.value),
+    url: f.url.value.trim() || null, description: f.description.value.trim() || null,
+    submitter_name: f.submitter_name.value.trim() || null, submitter_email: f.submitter_email.value.trim(),
+    website: f.website.value,
+  };
+  send.disabled = true; send.textContent = 'Sending…';
+  try{
+    const r = await apiFetch(`${API_BASE}/nightlife/submissions`, { method:'POST',
+      headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+    if (!r.ok){ err.textContent = message(await r.json().catch(() => null)); return; }
+    window.track && window.track('event_submitted', { kind: body.kind });
+    document.getElementById('formView').hidden = true;
+    document.getElementById('doneView').hidden = false;
+    window.scrollTo(0, 0);
+  }catch(x){
+    err.textContent = "Couldn't reach Roamly — check your connection and try again.";
+  }finally{
+    send.disabled = false; send.textContent = 'Submit for review';
+  }
+};
+document.getElementById('another').onclick = () => {
+  form.reset(); prices.hidden = false;
+  document.getElementById('doneView').hidden = true;
+  document.getElementById('formView').hidden = false;
+};
+</script>
+</body>
+</html>

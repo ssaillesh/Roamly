@@ -21,7 +21,9 @@ from app.services import llm
 from app.services import weather as weather_svc
 from app.services import events as events_svc
 from app.services import live_events
+from app.services import costs
 from app.services import experience
+from app.services import special_days
 from app.services import venue_index
 from app.metrics import time_itinerary_generation
 
@@ -30,7 +32,6 @@ log = logging.getLogger(__name__)
 # Indoor-only activity set for wet/cold days.
 INDOOR_ACTIVITIES = "arcades,escapegames,bowling,poolhalls,lasertag,karaoke,trampoline,museums,aquariums"
 
-PRICE_COST = {"$": 15, "$$": 30, "$$$": 65, "$$$$": 110}
 PRICE_LEVEL = {"$": 1, "$$": 2, "$$$": 3, "$$$$": 4}
 
 # How much the fun/hype signal counts (activity & leisure slots only). Tuned so a
@@ -108,6 +109,9 @@ SLOT_SPECS = {
     "dessert": {"label": "Sweet finish",     "icon": "🍰", "yelp": {"categories": "desserts,icecream"}, "osm": "food", "base": 10},
     "event":   {"label": "Live event",       "icon": "🎟️", "yelp": {}, "osm": "activities", "base": 40},
 }
+
+# Stops that are the same thing to a person ("their bar" may be a leisure or a drinks stop).
+_KIND_OF_STOP = {"leisure": "night", "drinks": "night", "dinner": "meal", "lunch": "meal"}
 
 # Day order used to sequence a user-assembled (picker) itinerary.
 SLOT_ORDER = {"cafe": 0, "scenic": 1, "activity": 2, "event": 3, "lunch": 4,
@@ -204,8 +208,9 @@ def _haversine_km(a_lat, a_lng, b_lat, b_lng):
     return 2 * R * math.asin(math.sqrt(x))
 
 
-def _est_cost(cand, slot):
-    return PRICE_COST.get(cand.get("price"), slot["base"])
+def _est_cost(cand, slot_key):
+    """Rough cost per person (services/costs.py)."""
+    return costs.estimate(cand, slot_key)
 
 
 # Fun, real activity categories keyed to who's going — so a boys' day gets
@@ -230,9 +235,10 @@ def activity_categories(group_type, vibe, interests):
     # routing rule — if they asked to be on the water, put them on the water.
     if wants_water(it):
         return WATER_ACTIVITIES
+    if any(w in it for w in ["active", "sporty", "energetic", "physical"]):   # moving, not karaoke
+        return "gokarts,climbing,trampoline,bowling,lasertag,paintball,axethrowing,minigolf"
     if any(w in it for w in ["paintball", "arcade", "escape", "kart", "laser", "axe", "bowling",
-                              "competitive", "mini golf", "minigolf", "trampoline", "climb", "karaoke",
-                              "active", "sporty", "energetic", "physical"]):
+                              "competitive", "mini golf", "minigolf", "trampoline", "climb", "karaoke"]):
         return competitive
     if group_type == "friends" or any(w in it for w in ["boys", "guys", "bros", "bachelor", "squad", "buddies"]):
         return competitive
@@ -289,15 +295,39 @@ def _tokens(s):
     return [t.strip() for t in re.split(r"[,;/]| and | or ", (s or "").lower()) if len(t.strip()) >= 3]
 
 
+# "No bars" means no drinking spots, whatever they're called: The Office Pub is
+# listed as a karaoke venue, and still a pub.
+_DRINKING = ["bar", "pub", "tavern", "lounge", "brewery", "brewpub", "taproom", "saloon", "nightclub",
+             "night club", "beer garden", "beer hall", "wine bar", "cocktail", "speakeasy"]
+_AVOID_KINDS = {"bar": _DRINKING, "pub": _DRINKING, "drink": _DRINKING, "drinking": _DRINKING,
+                "alcohol": _DRINKING, "booze": _DRINKING, "club": ["nightclub", "night club", "dance club"]}
+# A restaurant called "… Sushi Bar" is still dinner, not a bar.
+_FOOD_RE = re.compile(r"\b(restaurant|cafe|coffee|bakery|dessert|ice cream|eatery|diner|bistro|"
+                      r"delicatessen|food)\b")
+
+
+def _words_re(words):
+    return re.compile(r"\b(?:" + "|".join(re.escape(w) for w in words) + r")(?:e?s)?\b")
+
+
 def avoid_match(c, avoid):
     """True when a candidate is something the user said NOT to do — matched
     against its name and categories, singular/plural tolerant ('parks'→'park')."""
     toks = _tokens(avoid)
     if not toks:
         return False
-    hay = (c.get("name") or "").lower() + " " + " ".join(
-        str(x).lower() for x in (c.get("categories") or []))
-    return any(t.rstrip("s") in hay for t in toks)
+    name = (c.get("name") or "").lower()
+    cats = " ".join(str(x).lower().replace("_", " ") for x in (c.get("categories") or []))
+    for t in toks:
+        base = t[:-1] if t.endswith("s") and len(t) > 3 else t
+        kinds = _AVOID_KINDS.get(base)
+        if kinds:
+            rx = _words_re(kinds)
+            if rx.search(cats) or (rx.search(name) and not _FOOD_RE.search(cats)):
+                return True
+        elif _words_re([base]).search(name + " " + cats):
+            return True
+    return False
 
 
 def _interest_bonus(c, interests):
@@ -325,8 +355,12 @@ def _like_bonus(c, likes):
 
 
 def _is_alcohol_venue(c):
-    return any(re.sub(r"[^a-z0-9]", "", str(x).lower()) in _ALCOHOL_CATS
-               for x in (c.get("categories") or []))
+    cats = c.get("categories") or []
+    if any(re.sub(r"[^a-z0-9]", "", str(x).lower()) in _ALCOHOL_CATS for x in cats):
+        return True
+    # named like one ("The Office Pub", listed as karaoke) and not a restaurant
+    return bool(_words_re(_DRINKING).search((c.get("name") or "").lower())) and not _FOOD_RE.search(
+        " ".join(str(x).lower() for x in cats))
 
 
 def _norm_name(s: str) -> str:
@@ -368,6 +402,13 @@ def verify_requested_venue(name: str, lat: float, lng: float, radius: int = 8000
     gets to decide whether a place exists."""
     if not (name or "").strip():
         return None
+    # The stored venue list first: instant, and it's where the Nightlife tab's places come from.
+    try:
+        stored = venue_index.find_venue(name, lat, lng, radius)
+    except Exception:
+        stored = None
+    if stored and _name_matches(name, stored["name"]):
+        return stored
     for cands in (yelp.search(lat, lng, term=name, radius=radius, limit=8),
                   foursquare.search(lat, lng, query=name, radius=radius, limit=8)):
         for c in cands:
@@ -419,7 +460,7 @@ def stop_from(pick, slot_key, **extra) -> dict:
         "rating": pick.get("rating"), "price": pick.get("price"),
         "address": pick.get("address"), "image": pick.get("image"),
         "url": pick.get("url"), "source": pick.get("source"),
-        "est_cost": _est_cost(pick, slot), "categories": pick.get("categories") or [],
+        "est_cost": _est_cost(pick, slot_key), "categories": pick.get("categories") or [],
         # arousal (energy) drives the narration's emotional arc downstream.
         "arousal": experience.arousal_for(pick.get("categories")),
         **extra,
@@ -505,7 +546,8 @@ def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, c
     return cands
 
 
-def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste=None):
+def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste=None,
+           slot_key=None, allowance=None):
     """Higher is better. Balances rating, closeness, price preference (cheaper for
     value vibes / pricier when they want fancy), and — for activity/leisure
     slots — a fun/hype signal that's independent of star rating.
@@ -525,6 +567,8 @@ def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste
     score += (level - 1) * 0.6 if fancy else -(level - 1) * 0.5   # tier preference
     score += math.log10((c.get("review_count") or 0) + 1) * BUZZ_WEIGHT * crowd   # buzz / popularity
     score += c.get("boost", 0)   # stored list: well known, open then, not a chain (venue_index)
+    if slot_key and allowance is not None:   # its share of the budget (services/costs.py)
+        score += costs.fit(_est_cost(c, slot_key), allowance, slot_key, fancy)
     if apply_fun:
         # Excitement matters here, not just satisfaction — so a high-energy
         # experience can out-rank a better-reviewed but sleepy one.
@@ -551,10 +595,11 @@ def tag_for(c) -> tuple[str | None, str | None]:
 
 
 def _pick(cands, used, anchor, penalty, vary=False, fancy=False, apply_fun=False,
-          interests="", rng=random, explore=False, taste=None):
+          interests="", rng=random, explore=False, taste=None, slot_key=None, allowance=None):
     ranked = sorted(
         (c for c in cands if c.get("name") and c["name"].lower() not in used),
-        key=lambda c: _score(c, anchor, penalty, fancy, apply_fun, interests, taste), reverse=True)
+        key=lambda c: _score(c, anchor, penalty, fancy, apply_fun, interests, taste, slot_key, allowance),
+        reverse=True)
     if not ranked:
         return None
     # Surprise mode: a wide, even draw from the strong top of the ranking —
@@ -635,6 +680,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                     slots[i] = "activity"
                 seen_cafe = True
 
+    # A tight budget gets fewer, better stops (not a hot-dog dinner); what they
+    # asked for ("…and dessert") stays.
+    slots = costs.fewer_stops(slots, budget, party_size,
+                              keep=lambda s: bool(interest_term_for(s, interests)))
+    theme = _special_theme(lat, lng, slots, interests, avoid, no_alcohol)
     center = (lat, lng)
     start = plan_start(time_of_day)
     at = {}
@@ -644,8 +694,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     fancy = vibe == "extravagant"       # bias picks toward pricier/upscale venues
 
     def route(slot_key):
-        return route_for(slot_key, interests=interests, dietary=dietary, group_type=group_type,
-                         vibe=vibe, bad_weather=bad_weather, no_alcohol=no_alcohol)
+        term, cats = route_for(slot_key, interests=interests, dietary=dietary, group_type=group_type,
+                               vibe=vibe, bad_weather=bad_weather, no_alcohol=no_alcohol)
+        if theme and slot_key == theme[1] and term is None:
+            term = theme[2]                    # St. Patrick's Day → an Irish pub
+        return term, cats
 
     def keep(c):
         return allowed(c, avoid, no_alcohol)
@@ -660,10 +713,21 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                            radius_km=max(5.0, radius / 1000),
                            classification=events_svc.classification_for(vibe, interests))
               if live_events.available_for(lat, lng) else None)
+    day_job = None
+    if theme and theme[0].get("keyword") and events_svc.available():
+        s_utc, e_utc = live_events.window_range("day")
+        day_job = _POOL.submit(events_svc.search_events, lat, lng, radius_km=max(5.0, radius / 1000), size=4,
+                               keyword=theme[0]["keyword"], start_utc=s_utc, end_utc=e_utc)
     wait(list(jobs.values()), timeout=max(0.0, left()))
     late = {k for k, f in jobs.items() if not f.done()}
     found = {k: [c for c in _result(f, []) if keep(c)] for k, f in jobs.items()}
 
+    # Each stop's share of the budget per person: a $40 night and a $400 night
+    # pick different places, not just a different number of them.
+    allow = costs.allowances(slots, budget, party_size)
+    if fancy:   # "fancier": lean to the pricier places (cheaper swaps still keep it near budget)
+        allow = {k: v * 1.3 for k, v in allow.items()}
+    pools = {}   # picked name → (its candidates, where they were searched from, itself), for cheaper swaps
     anchor = center
     stops, skipped = [], []
     for i, slot_key in enumerate(slots):
@@ -682,12 +746,14 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
         apply_fun = slot_key in ("activity", "leisure")
         pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
-                     interests, rng=rng, explore=surprise, taste=taste)
+                     interests, rng=rng, explore=surprise, taste=taste,
+                     slot_key=slot_key, allowance=allow.get(slot_key))
         if not pick:
             if slot_key in late:
                 skipped.append(slot["label"])      # ran out of time, not out of places
             continue
         used.add(pick["name"].lower())
+        pools[pick["name"].lower()] = (cands, search_from, pick)
         if chain:
             anchor = (pick["lat"], pick["lng"])
         stops.append(stop_from(pick, slot_key))
@@ -712,6 +778,15 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         used.add(pick["name"].lower())
         slot_key = _slot_for_categories(pick.get("categories"))
         stop = stop_from(pick, slot_key, requested=True)   # user asked for it — never trim it
+        # It takes the place of the planned stop of the same kind (their bar, not a
+        # second bar at midnight); otherwise it slots in where that kind goes.
+        same = next((i for i, s in enumerate(stops) if not s.get("requested")
+                     and _KIND_OF_STOP.get(s["slot"], s["slot"]) == _KIND_OF_STOP.get(slot_key, slot_key)), None)
+        if same is not None:
+            stop["slot"], stop["label"], stop["icon"] = (stops[same]["slot"], stops[same]["label"],
+                                                         stops[same]["icon"])
+            stops[same] = stop
+            continue
         pos = next((i for i, s in enumerate(stops)
                     if SLOT_ORDER.get(s["slot"], 9) > SLOT_ORDER.get(slot_key, 9)),
                    len(stops))
@@ -720,22 +795,61 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     def total():
         return sum(s["est_cost"] for s in stops) * max(1, party_size)
 
-    # Only trim on a real overage (estimates are rough), and drop the least
-    # essential first — a dessert/drink before ever cutting the activity, so the
-    # plan keeps its activity + food + leisure shape.
+    # Over budget (beyond 10%: estimates are rough)? First swap in cheaper places —
+    # the swap that saves the most per bit of quality lost (a cheaper bar before a
+    # hot-dog dinner); only then drop the least essential stop — a dessert/drink
+    # before the activity, and never a free one (it saves nothing).
+    limit = budget * 1.10 if budget else float("inf")
+
+    def score_as(c, slot_key, frm):
+        return _score(c, frm, tconf["penalty"], fancy, slot_key in ("activity", "leisure"), interests,
+                      taste, slot_key, allow.get(slot_key))
+
+    for _ in range(3 * len(stops)):
+        if total() <= limit:
+            break
+        best = None
+        for i, s in enumerate(stops):
+            pool = pools.get(s["name"].lower())
+            if not pool or s.get("requested"):
+                continue
+            cands, frm, was = pool
+            cheaper = [c for c in cands if _est_cost(c, s["slot"]) < s["est_cost"]]
+            alt = _pick(cheaper, used, frm, tconf["penalty"], fancy=fancy,
+                        apply_fun=s["slot"] in ("activity", "leisure"), interests=interests,
+                        taste=taste, slot_key=s["slot"], allowance=allow.get(s["slot"]))
+            if not alt:
+                continue
+            saving = s["est_cost"] - _est_cost(alt, s["slot"])
+            loss = max(0.05, score_as(was, s["slot"], frm) - score_as(alt, s["slot"], frm))
+            if best is None or saving / loss > best[0]:
+                best = (saving / loss, i, alt, (cands, frm, alt))
+        if best is None:
+            break
+        _, i, alt, pool = best
+        used.add(alt["name"].lower())
+        pools[alt["name"].lower()] = pool
+        stops[i] = stop_from(alt, stops[i]["slot"])
+
     DROP_ORDER = {"dessert": 0, "cafe": 1, "drinks": 1, "leisure": 1, "scenic": 2, "activity": 3}
-    while stops and total() > budget * 1.15 and len(stops) > 2:
-        droppable = [s for s in stops
-                     if s["slot"] not in ("dinner", "lunch") and not s.get("requested")]
+    while stops and total() > limit and len(stops) > 2:
+        droppable = [s for s in stops if s["slot"] not in ("dinner", "lunch")
+                     and not s.get("requested") and s["est_cost"] > 0]
         if not droppable:
             break
-        stops.remove(min(droppable, key=lambda s: DROP_ORDER.get(s["slot"], 5)))
+        stops.remove(min(droppable, key=lambda s: (DROP_ORDER.get(s["slot"], 5), -s["est_cost"])))
 
     spread = route_km(stops)   # how spread out the plan ended up (for the UI / narration)
 
     # Live events happening near here (concerts, games, comedy) — surfaced as
     # options the guest can build around, not forced into the fixed stops.
-    events = (_result(ev_job, [], timeout=left()) or [])[:3]
+    events, seen_events = [], set()      # the special day's own events first
+    for e in _result(day_job, [], timeout=left()) + (_result(ev_job, [], timeout=left()) or []):
+        k = re.sub(r"[^a-z0-9]", "", (e.get("name") or "").lower())
+        if k and k not in seen_events:
+            seen_events.add(k)
+            events.append(e)
+    events = events[:3]
 
     plan = {
         "vibe": vibe, "budget": budget, "party_size": party_size, "currency": "USD",
@@ -748,9 +862,39 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         # slots dropped because the time budget ran out (not for lack of places)
         "skipped": skipped,
     }
+    if theme:
+        plan["special_note"] = _theme_note(theme, stops)
     retime(plan)
     _narrate(plan, interests, group_type, time_of_day, dietary, wx, events, avoid)
     return plan
+
+
+def _special_theme(lat, lng, slots, interests, avoid, no_alcohol):
+    """(day, slot, what to lean towards) when today is a special day in the stored
+    city and the plan has that kind of stop — unless they asked for something else
+    there, ruled it out ("no bars"), or don't drink."""
+    if not venue_index.in_city(lat, lng):
+        return None
+    day = special_days.active()
+    theme = special_days.theme_for(day["key"]) if day and day["today"] else None
+    if not theme or theme[0] not in slots or interest_term_for(theme[0], interests):
+        return None
+    if avoid_match({"name": theme[1], "categories": [theme[1]]}, avoid):
+        return None
+    if no_alcohol and theme[0] in ("leisure", "drinks"):
+        return None
+    return day, theme[0], theme[1]
+
+
+def _theme_note(theme, stops) -> str | None:
+    """"☘️ It's St. Patrick's Day, so drinks are at McVeigh's." — only if a stop fits."""
+    day, slot_key, want = theme
+    words = [want, *venue_index._TERM_ALIASES.get(want, ())]
+    for s in stops:
+        hay = (s["name"] + " " + " ".join(s.get("categories") or [])).lower()
+        if s["slot"] == slot_key and any(w in hay for w in words):
+            return f"{day['emoji']} It's {day['name']}, so your {SLOT_SPECS[slot_key]['label'].lower()} stop is {s['name']}."
+    return None
 
 
 def build_trip(*, days, lat, lng, budget, exclude=None, **opts):
@@ -781,7 +925,7 @@ def _to_option(c, slot_key):
         "price": c.get("price"), "categories": c.get("categories") or [],
         "address": c.get("address"), "image": c.get("image"),
         "url": c.get("url"), "source": c.get("source"),
-        "est_cost": _est_cost(c, SLOT_SPECS[slot_key]),
+        "est_cost": _est_cost(c, slot_key),
         "arousal": experience.arousal_for(c.get("categories")),
         "tag": emoji, "tag_label": label,
     }
@@ -848,7 +992,7 @@ def build_from_selection(selections, *, lat, lng, party_size=2, budget=0,
             "rating": sel.get("rating"), "price": sel.get("price"),
             "address": sel.get("address"), "image": sel.get("image"),
             "url": sel.get("url"), "source": sel.get("source"),
-            "est_cost": sel.get("est_cost") if sel.get("est_cost") is not None else _est_cost(sel, spec),
+            "est_cost": sel.get("est_cost") if sel.get("est_cost") is not None else _est_cost(sel, slot_key),
             "categories": sel.get("categories") or [],
             "arousal": sel.get("arousal") if sel.get("arousal") is not None else experience.arousal_for(sel.get("categories")),
         })

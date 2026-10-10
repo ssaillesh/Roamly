@@ -91,6 +91,10 @@
   .switcher b{color:var(--primary-ink); cursor:pointer; font-weight:750;}
   .switcher b:hover{text-decoration:underline; text-underline-offset:3px;}
   .fineprint{font-size:12px; color:var(--ink-3); text-align:center; margin-top:16px;}
+  .fineprint a{color:inherit;}
+  .agree-row{display:flex; align-items:flex-start; gap:10px; font-size:13.5px; font-weight:600; color:var(--ink-2); line-height:1.45; cursor:pointer;}
+  .agree-row input{width:19px; height:19px; margin:1px 0 0; flex:0 0 auto; accent-color:var(--primary);}
+  .agree-row a{color:var(--primary-ink); font-weight:700;}
   .success{position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
     background:rgba(255,255,255,.97); opacity:0; pointer-events:none; transition:opacity .3s var(--ease); text-align:center; padding:20px;}
   .success.on{opacity:1; pointer-events:auto;}
@@ -256,6 +260,13 @@
             <div class="hint" id="hPassword">At least 6 characters.</div>
           </div>
 
+          <div class="fld agree" id="fAgree">
+            <label class="agree-row"><input type="checkbox" id="agree" />
+              <span>I agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+                and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
+            <div class="hint" id="hAgree"></div>
+          </div>
+
           <div class="row-between">
             <button type="button" class="link" id="forgotLink">Forgot password?</button>
           </div>
@@ -271,7 +282,8 @@
           New to Roamly? <b id="switchLink">Create a free account</b>
         </div>
 
-        <div class="fineprint">By continuing you agree to Roamly's Terms & Privacy Policy.</div>
+        <div class="fineprint" id="fineprint">By continuing you agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms</a>
+          &amp; <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</div>
       </div>
 
       <!-- FORGOT PASSWORD PANEL -->
@@ -313,6 +325,8 @@ function applyMode(animate=true){
   document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.mode===mode));
   $('segThumb').style.transform = mode==='register' ? 'translateX(100%)' : 'translateX(0)';
   $('regFields').style.display = mode==='register' ? 'block' : 'none';
+  $('fAgree').style.display = mode==='register' ? 'block' : 'none';
+  $('fineprint').style.display = mode==='register' ? 'none' : 'block';
   if (mode==='register'){
     $('headTitle').textContent = 'Create your account';
     $('headSub').textContent = "Takes about a minute — then you're planning.";
@@ -345,7 +359,7 @@ function setField(id, state, hint){
   if (hintEl && hint !== undefined) hintEl.textContent = hint;
 }
 function clearErrors(){
-  ['fUsername','fDisplay','fEmail','fPassword'].forEach(id => $(id) && $(id).classList.remove('ok','err'));
+  ['fUsername','fDisplay','fEmail','fPassword','fAgree'].forEach(id => $(id) && $(id).classList.remove('ok','err'));
 }
 function clearFormMsg(){ $('formMsg').className = 'msg-box'; $('formMsg').textContent = ''; }
 
@@ -409,6 +423,8 @@ $('authForm').addEventListener('submit', async (e) => {
     username = $('username').value.trim();
     displayName = $('displayName').value.trim() || username;
     if (!USER_RE.test(username)){ setField('fUsername','err','3–30 characters — letters, numbers, underscore.'); ok = false; }
+    if (!$('agree').checked){ setField('fAgree','err','Please accept the Terms and Privacy Policy to continue.'); ok = false; }
+    else setField('fAgree', null, '');
   }
   if (!ok){ shakeCard(); return; }
 
@@ -417,7 +433,7 @@ $('authForm').addEventListener('submit', async (e) => {
   try{
     const path = mode === 'register' ? '/auth/register' : '/auth/login';
     const body = mode === 'register'
-      ? { email, password, username, display_name: displayName }
+      ? { email, password, username, display_name: displayName, accept_terms: $('agree').checked }
       : { email, password };
     const r = await apiFetch(API + path, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),

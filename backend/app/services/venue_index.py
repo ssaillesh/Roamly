@@ -17,8 +17,9 @@ from app.database import SessionLocal
 from app.models import Area, Venue
 from app.services.opening_hours import is_open
 
-# Cities the loader covers: (south, west, north, east).
+# Cities the loader covers: (south, west, north, east), and their time zones.
 CITIES = {"toronto": (43.58, -79.64, 43.86, -79.11)}
+CITY_TZ = {"toronto": "America/Toronto"}
 
 # ---- Overture category → planner stops ------------------------------------------
 _RESTAURANT_EXTRA = {"diner", "gastropub", "bistro", "delicatessen", "tapas_bar", "fast_food_restaurant"}
@@ -134,6 +135,29 @@ more less else different another other new better nice good great fun cool inste
 kind like active sporty energetic physical exciting chill relaxing relaxed quiet lively fancy
 fancier cheap cheaper upscale casual""".split())
 
+# What people say → what the categories call it ("nightclub" is "dance club" in Overture).
+_TERM_ALIASES = {"nightclub": ("dance club",), "nightclubs": ("dance club",), "clubbing": ("dance club",),
+                 "club": ("dance club",), "clubs": ("dance club",), "rave": ("dance club",)}
+
+# Concert halls and theatres are for a show (the events list), not a drinks stop. Judged
+# by the main category (every music venue and comedy club also has the parent
+# "performing arts venue"), or by a hall's name unless it's also listed as a bar.
+_SHOW_PRIMARY = re.compile(r"performing arts|concert hall|opera|theat(?:re|er)|stadium|arena")
+_SHOW_NAME = re.compile(r"\b(hall|amphithea(?:tre|ter)|arena|stadium|centre for the performing arts|"
+                        r"opera house|theatre|theater)\b", re.I)
+_DRINK_WORDS = re.compile(r"\b(bar|pub|lounge|club|tavern|brewery|karaoke)\b")
+
+
+def is_show_venue(name: str, categories) -> bool:
+    cats = [str(c).lower() for c in categories or []]
+    if cats and _SHOW_PRIMARY.search(cats[0]):
+        return True
+    return bool(_SHOW_NAME.search(name or "")) and not _DRINK_WORDS.search(" ".join(cats))
+# Places like these keep daytime hours; without listed hours, assume roughly these
+# (no art gallery at 9:45 PM).
+_DAYTIME = re.compile(r"museum|gallery|zoo|farmers market|public market|historic|library|botanical")
+DAYTIME_HOURS = "10:00-17:30"
+
 _loaded_cache: dict[tuple[int, int], tuple[float, bool]] = {}
 
 
@@ -185,6 +209,7 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
     near = Venue.lat.between(s, n), Venue.lng.between(w, e), Venue.slots.contains([slot_key])
     dist2 = (Venue.lat - lat) * (Venue.lat - lat) + (Venue.lng - lng) * (Venue.lng - lng) * 0.53
     words = [x for x in re.findall(r"[a-z]{3,}", (term or "").lower()) if x not in _FILLER]
+    words = [p for x in words for p in (x, *_TERM_ALIASES.get(x, ()))]
     with SessionLocal() as db:
         rows = {v.id: v for v in db.scalars(select(Venue).where(*near).order_by(dist2).limit(limit))}
         # the best-known ones in range, even if not the nearest
@@ -200,7 +225,10 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
         c = _row_dict(v)
         if _km(lat, lng, v.lat, v.lng) * 1000 > radius_m:
             continue
-        hay = (v.name + " " + " ".join(c["categories"])).lower()
+        kinds = " ".join(c["categories"]).lower()
+        if slot_key in ("leisure", "drinks") and is_show_venue(v.name, c["categories"]):
+            continue
+        hay = v.name.lower() + " " + kinds
         c["term_hit"] = bool(words) and any(x in hay for x in words)
         boost = NOTABILITY_WEIGHT * math.log2(1 + (v.notability or 0))
         if v.chain and slot_key in ("dinner", "lunch", "cafe", "dessert", "leisure", "drinks"):
@@ -212,10 +240,11 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
         if alias and any(a in hay for a in alias):
             boost += KIND_MATCH
         if at is not None:
-            open_now = is_open(v.hours, at)
+            hours = v.hours or (DAYTIME_HOURS if _DAYTIME.search(kinds) else None)
+            open_now = is_open(hours, at)
             if open_now is False:
                 continue                     # closed at the planned time
-            boost += 0.2 if open_now else -0.2
+            boost += 0.2 if open_now and v.hours else -0.2     # listed as open beats unknown
         c["boost"] = round(boost, 2)
         out.append(c)
     if words and any(c["term_hit"] for c in out):
@@ -225,8 +254,19 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
 
 def in_city(lat, lng) -> bool:
     """Is this point inside a city the stored list covers?"""
-    return lat is not None and lng is not None and any(
-        s <= lat <= n and w <= lng <= e for s, w, n, e in CITIES.values())
+    return city_of(lat, lng) is not None
+
+
+def city_of(lat, lng) -> str | None:
+    if lat is None or lng is None:
+        return None
+    return next((c for c, (s, w, n, e) in CITIES.items() if s <= lat <= n and w <= lng <= e), None)
+
+
+def tz_for(lat, lng, fallback: str | None = None) -> str | None:
+    """The time zone of a place we know ("tonight" in Toronto is Toronto's night,
+    whatever zone the phone is in); else the caller's."""
+    return CITY_TZ.get(city_of(lat, lng) or "", fallback)
 
 
 def find_area(name: str, near: tuple[float, float] | None = None) -> tuple[float, float] | None:
@@ -258,3 +298,81 @@ def find_area(name: str, near: tuple[float, float] | None = None) -> tuple[float
         return min(pts, key=lambda p: _km(near[0], near[1], p[0], p[1]))
     return pts[0]
 
+
+
+# ---- nightlife: the club index ------------------------------------------------------
+# Kinds of night spot, checked in order (a gay bar is LGBTQ+ before it's a bar).
+NIGHT_KINDS = [
+    ("clubs", "Clubs", re.compile(r"dance club|night ?club|salsa club|cabaret")),
+    ("lgbtq", "LGBTQ+", re.compile(r"gay bar|lgbt")),
+    ("music", "Live music", re.compile(r"music venue|jazz|blues")),
+    ("comedy", "Comedy & karaoke", re.compile(r"comedy|karaoke")),
+    ("lounges", "Lounges", re.compile(r"lounge|hookah|cocktail bar|wine bar|speakeasy")),
+    ("bars", "Bars & pubs", re.compile(r"\bpub\b|\bbar\b|brewery|tavern|beer|taproom")),
+]
+NIGHT_KIND_LABELS = {k: label for k, label, _ in NIGHT_KINDS}
+_areas_cache: tuple[float, list[tuple[str, float, float]]] | None = None
+
+
+def night_kind(name: str, categories) -> str | None:
+    if is_show_venue(name, categories):
+        return None
+    kinds = " ".join(str(c).lower() for c in categories or [])
+    return next((k for k, _, rx in NIGHT_KINDS if rx.search(kinds)), None)
+
+
+def area_of(lat: float, lng: float) -> str | None:
+    """The neighbourhood a point is in (the nearest stored one, within ~1.5 km)."""
+    global _areas_cache
+    if _areas_cache is None or time.monotonic() - _areas_cache[0] > 3600:
+        try:
+            with SessionLocal() as db:
+                rows = db.execute(select(Area.name, Area.lat, Area.lng)
+                                  .where(Area.kind.in_(("neighborhood", "microhood")))).all()
+        except Exception:
+            rows = []
+        _areas_cache = (time.monotonic(), [tuple(r) for r in rows])
+    best = min(_areas_cache[1], key=lambda a: _km(lat, lng, a[1], a[2]), default=None)
+    return best[0] if best and _km(lat, lng, best[1], best[2]) <= 1.5 else None
+
+
+def nightlife(lat: float, lng: float, radius_m: float, *, limit: int = 400) -> list[dict] | None:
+    """Night spots near a point (clubs, lounges, live music, bars…), each with its
+    kind, neighbourhood and distance. None when this area isn't in the stored list."""
+    if not covers(lat, lng):
+        return None
+    s, n, w, e = _box(lat, lng, radius_m)
+    night = or_(Venue.slots.contains(["leisure"]), Venue.slots.contains(["drinks"]))
+    dist2 = (Venue.lat - lat) * (Venue.lat - lat) + (Venue.lng - lng) * (Venue.lng - lng) * 0.53
+    with SessionLocal() as db:
+        rows = db.scalars(select(Venue).where(Venue.lat.between(s, n), Venue.lng.between(w, e), night)
+                          .order_by(dist2).limit(limit)).all()
+    out = []
+    for v in rows:
+        kind = night_kind(v.name, v.categories or [v.category])
+        km = _km(lat, lng, v.lat, v.lng)
+        if not kind or km * 1000 > radius_m:
+            continue
+        c = _row_dict(v)
+        c.update(kind=kind, area=area_of(v.lat, v.lng), distance_km=round(km, 1))
+        out.append(c)
+    return out
+
+
+def find_venue(name: str, lat: float, lng: float, radius_m: float = 8000) -> dict | None:
+    """A stored place by (roughly) its name near a point: for "plan a night at X"."""
+    q = (name or "").strip()
+    if len(q) < 3:
+        return None
+    s, n, w, e = _box(lat, lng, radius_m)
+    try:
+        with SessionLocal() as db:
+            rows = db.scalars(select(Venue).where(Venue.lat.between(s, n), Venue.lng.between(w, e),
+                                                  Venue.name.ilike(f"%{q}%")).limit(20)).all()
+    except Exception:
+        return None
+    if not rows:
+        return None
+    exact = [v for v in rows if v.name.lower() == q.lower()]
+    best = min(exact or rows, key=lambda v: (-(v.notability or 0), _km(lat, lng, v.lat, v.lng)))
+    return _row_dict(best)

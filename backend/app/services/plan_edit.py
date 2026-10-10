@@ -114,9 +114,19 @@ def _when(plan: dict, slots: list[str], i: int):
     return schedule(slots, start)[i] if start else None
 
 
-def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_cap=None, fancy=None, at=None):
+def _share(plan: dict, others: list[dict], ctx: EditContext) -> float | None:
+    """What's left of the budget per person for one stop, after the other stops."""
+    budget = plan.get("budget") or 0
+    if budget <= 0:
+        return None
+    return max(0.0, budget / max(1, ctx.party_size) - sum(s.get("est_cost") or 0 for s in others))
+
+
+def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_cap=None, fancy=None, at=None,
+            allowance=None):
     """Best real venue for one stop, or None. `wish` steers the search ("sushi");
-    `at` = when it happens (places closed then are left out)."""
+    `at` = when it happens (places closed then are left out); `allowance` = its
+    share of the budget per person."""
     tconf = TRANSPORT.get(ctx.transport, TRANSPORT["any"])
     radius = ctx.radius or tconf["radius"]
     price_pref = VIBE_PLANS.get(ctx.vibe, VIBE_PLANS[DEFAULT_VIBE])["price"]
@@ -125,12 +135,13 @@ def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_ca
     fut = _POOL.submit(_gather, anchor, slot_key, price_pref, radius, ctx.dietary, term, cats, at=at)
     cands = [c for c in _result(fut, [], timeout=PLAN_TIME_BUDGET) if allowed(c, ctx.avoid, ctx.no_alcohol)]
     if cost_cap is not None:
-        cands = [c for c in cands if _est_cost(c, SLOT_SPECS[slot_key]) < cost_cap] or cands
+        cands = [c for c in cands if _est_cost(c, slot_key) < cost_cap] or cands
     rng = random.Random(ctx.seed) if ctx.seed is not None else random
     return _pick(cands, exclude, anchor, tconf["penalty"],
                  fancy=ctx.vibe == "extravagant" if fancy is None else fancy,
                  apply_fun=slot_key in ("activity", "leisure"),
-                 interests=", ".join(filter(None, [wish, ctx.interests])), rng=rng, taste=ctx.taste)
+                 interests=", ".join(filter(None, [wish, ctx.interests])), rng=rng, taste=ctx.taste,
+                 slot_key=slot_key, allowance=allowance)
 
 
 def _what(slot_key):
@@ -165,7 +176,7 @@ def _swap(stops, op, plan, ctx, exclude, changed, problems):
     slots[i] = slot
     pick = _repick(slot, _between(rest, i, plan), taste_wish, ctx, exclude,
                    cost_cap=old.get("est_cost") if cheaper else None, fancy=True if fancier else None,
-                   at=_when(plan, slots, i))
+                   at=_when(plan, slots, i), allowance=None if fancier else _share(plan, rest, ctx))
     if not pick:
         problems.append(f"I couldn't find another {taste_wish or _what(slot)} nearby, so {old['name']} stays.")
         return
@@ -186,7 +197,8 @@ def _add(stops, op, plan, ctx, exclude, changed, problems):
                   if SLOT_ORDER.get(s.get("slot"), 5) > SLOT_ORDER.get(slot, 5)), len(stops))
     slots = [s["slot"] for s in stops]
     slots.insert(i, slot)
-    pick = _repick(slot, _between(stops, i, plan), wish, ctx, exclude, at=_when(plan, slots, i))
+    pick = _repick(slot, _between(stops, i, plan), wish, ctx, exclude, at=_when(plan, slots, i),
+                   allowance=_share(plan, stops, ctx))
     if not pick:
         problems.append(f"I couldn't find {wish or _what(slot)} nearby to add.")
         return

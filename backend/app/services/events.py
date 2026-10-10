@@ -39,16 +39,17 @@ def _tm_time(dt: datetime) -> str:
 
 
 def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12,
-                  classification: str | None = None,
+                  classification: str | None = None, keyword: str | None = None,
                   start_utc: datetime | None = None, end_utc: datetime | None = None) -> list[dict]:
-    """Events near lat/lng, optionally only those starting in [start_utc, end_utc]."""
+    """Events near lat/lng, optionally only those starting in [start_utc, end_utc]
+    and/or matching a keyword ("St. Patrick")."""
     if not available():
         return []
     radius_km = max(1, int(round(radius_km)))
     # Window rounded to 10 min in the key so repeat "right now" asks share a cache entry.
     win = (f"{int(start_utc.timestamp() // 600)}-{int(end_utc.timestamp() // 600)}"
            if start_utc and end_utc else "any")
-    key = f"tm:{round(lat, 2)}:{round(lng, 2)}:{radius_km}:{classification}:{win}:{size}"
+    key = f"tm:{round(lat, 2)}:{round(lng, 2)}:{radius_km}:{classification}:{keyword}:{win}:{size}"
     cached = redis_client.get(key)
     if cached is not None:
         return json.loads(cached)
@@ -62,6 +63,8 @@ def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12
     }
     if classification:
         params["classificationName"] = classification
+    if keyword:
+        params["keyword"] = keyword
     if start_utc and end_utc:
         params["startDateTime"], params["endDateTime"] = _tm_time(start_utc), _tm_time(end_utc)
     try:
@@ -77,7 +80,10 @@ def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12
         venue = (e.get("_embedded", {}).get("venues") or [{}])[0]
         loc = venue.get("location") or {}
         start = e.get("dates", {}).get("start", {})
-        seg = ((e.get("classifications") or [{}])[0].get("segment") or {}).get("name")
+        cls = (e.get("classifications") or [{}])[0]
+        seg = (cls.get("segment") or {}).get("name")
+        genre = (cls.get("genre") or {}).get("name")
+        sub = (cls.get("subGenre") or {}).get("name")
         prices = e.get("priceRanges") or []
         img = next((im["url"] for im in e.get("images", []) if im.get("width", 0) >= 600), None)
         out.append({
@@ -92,6 +98,11 @@ def search_events(lat: float, lng: float, *, radius_km: int = 20, size: int = 12
             "free": False if prices else None,       # Ticketmaster rarely lists free events
             "source": "ticketmaster",
             "category": seg,
+            # "Dance/Electronic", "Hip-Hop/Rap"… (Ticketmaster says "Undefined" when it doesn't know)
+            "genre": genre if genre and genre != "Undefined" else None,
+            "subgenre": sub if sub and sub != "Undefined" else None,
+            # legal drinking age enforced: 19+ in Ontario
+            "adults_only": bool((e.get("ageRestrictions") or {}).get("legalAgeEnforced")) or None,
             "url": e.get("url"),
             "price_min": prices[0]["min"] if prices else None,
             "price_max": prices[0]["max"] if prices else None,

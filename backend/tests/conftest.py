@@ -39,6 +39,7 @@ def _offline_geocode(monkeypatch):
     # their own fixtures unless a test opts in (tests/test_venue_index.py).
     monkeypatch.setattr(venue_index, "candidates", lambda *a, **kw: None)
     monkeypatch.setattr(venue_index, "find_area", lambda *a, **kw: None)
+    monkeypatch.setattr(venue_index, "find_venue", lambda *a, **kw: None)
     yield
 
 
@@ -54,6 +55,7 @@ def make_user(client, prefix="user"):
         "username": f"{prefix}_{uid}",
         "display_name": prefix.title(),
         "password": "password123",
+        "accept_terms": True,
     }
     resp = client.post("/api/v1/auth/register", json=body)
     assert resp.status_code == 201, resp.text

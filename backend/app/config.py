@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     # Ticketmaster Discovery (free: concerts, sports, comedy). Use the Consumer Key.
     ticketmaster_api_key: str = ""
 
+    # SeatGeek Platform API (free developer access): club shows and concerts for the
+    # Nightlife tab only. A credential: set it on the API server, never in the page.
+    # Turn it on only once webui/seatgeek-logo.svg exists (their terms require the logo).
+    seatgeek_client_id: str = ""
+
     # City of Toronto "Festivals & Events" open-data feed (free/public festivals).
     # Blank disables it. As of 2026-09 the endpoint answers 403 for everyone; the
     # client stays quiet until the City restores it (dataset 9201059e-… on

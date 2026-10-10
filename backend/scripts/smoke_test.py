@@ -37,7 +37,8 @@ def main():
     u = f"smoke_{random.randint(1000, 999999)}"
     email = f"{u}@example.com"
     r = c.post(f"{BASE}/auth/register", json={
-        "email": email, "username": u, "display_name": "Smoke", "password": "password123"})
+        "email": email, "username": u, "display_name": "Smoke", "password": "password123",
+        "accept_terms": True})
     r.raise_for_status()
     token = r.json()["access_token"]
     print(f"[1] registered @{u}")

@@ -86,7 +86,7 @@ def main():
         uid = uuid.uuid4().hex[:8]
         r = http.post(f"{BASE}/auth/register", json={
             "email": f"evallive_{uid}@example.com", "username": f"evallive_{uid}",
-            "display_name": "Eval", "password": "password123"})
+            "display_name": "Eval", "password": "password123", "accept_terms": True})
         r.raise_for_status()
         token = r.json()["access_token"]
         failures = 0

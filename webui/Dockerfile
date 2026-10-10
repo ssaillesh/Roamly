@@ -5,6 +5,10 @@ COPY auth.html /srv/auth.html
 COPY roamly.html /srv/roamly.html
 COPY profile.html /srv/profile.html
 COPY admin.html /srv/admin.html
+COPY submit-event.html /srv/submit-event.html
+COPY terms.html /srv/terms.html
+COPY privacy.html /srv/privacy.html
+COPY seatgeek-logo.svg /srv/seatgeek-logo.svg
 COPY config.js /srv/config.js
 COPY roamly.css /srv/roamly.css
 COPY hero-toronto.jpg /srv/hero-toronto.jpg

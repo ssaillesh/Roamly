@@ -200,7 +200,12 @@ async function api(path, opts = {}){
   if (r.status === 401){ localStorage.removeItem('trek_token'); location.replace('auth.html?redirect=admin.html'); throw new Error('Signed out'); }
   if (r.status === 204) return null;
   const d = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(d.detail || `Request failed (${r.status})`);
+  if (!r.ok){
+    const detail = Array.isArray(d.detail)        // a form check: "starts_at: …"
+      ? d.detail.map(x => `${(x.loc || []).slice(-1)[0]}: ${String(x.msg || '').replace(/^Value error, /, '')}`).join('; ')
+      : d.detail;
+    throw new Error(detail || `Request failed (${r.status})`);
+  }
   return d;
 }
 const q = (extra = {}) => '?' + new URLSearchParams(Object.assign(
@@ -323,6 +328,7 @@ const SECTIONS = [
   { id:'apis', title:'Outside APIs', group:'Systems', render: renderApis },
   { id:'users', title:'Users', group:'Manage', render: renderUsers },
   { id:'waitlist', title:'Waitlist', group:'Manage', render: renderWaitlist },
+  { id:'events', title:'Nightlife events', group:'Manage', render: renderEvents },
   { id:'audit', title:'Admin activity', group:'Manage', render: renderAudit },
 ];
 const RANGES = [[7,'7d'],[30,'30d'],[90,'90d'],[365,'1y']];
@@ -714,7 +720,7 @@ async function renderHealth(seq){
 
 // ---- outside APIs
 const PROVIDER = { llm:'AI (LLM)', yelp:'Yelp', google_places:'Google Places', foursquare:'Foursquare',
-  ticketmaster:'Ticketmaster', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding',
+  ticketmaster:'Ticketmaster', seatgeek:'SeatGeek (Nightlife only)', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding',
   open_meteo:'Open-Meteo weather', sendgrid:'SendGrid email' };
 const PER = { day:'today (UTC)', month:'this month' };
 function guardCell(r){
@@ -870,10 +876,138 @@ async function renderWaitlist(seq){
   };
 }
 
+// ---- nightlife events: venue submissions to review, and events added by hand
+const EV_KINDS = [['club_night','Club night'],['special_guest','Special guest / DJ'],['party','Party'],
+  ['holiday','Holiday / themed'],['live_music','Live music'],['comedy','Comedy']];
+const EV_DAYS = [['','—'],['st_patricks',"St. Patrick's Day"],['valentines',"Valentine's Day"],['lunar_new_year','Lunar New Year'],
+  ['cinco_de_mayo','Cinco de Mayo'],['pride','Pride'],['canada_day','Canada Day'],['carnival','Caribbean Carnival'],
+  ['nuit_blanche','Nuit Blanche'],['halloween','Halloween'],['diwali','Diwali'],['nye',"New Year's Eve"]];
+const evState = { tab:'pending' };
+const kindName = k => (EV_KINDS.find(x => x[0] === k) || [k, k])[1];
+const dayName = k => (EV_DAYS.find(x => x[0] === k) || [k, k])[1];
+/* Event times are Toronto times, whatever the browser's zone. */
+function torontoInput(s){
+  if (!s) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone:'America/Toronto', year:'numeric', month:'2-digit', day:'2-digit',
+    hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(new Date(s));
+  const g = t => parts.find(p => p.type === t).value;
+  return `${g('year')}-${g('month')}-${g('day')}T${g('hour')}:${g('minute')}`;
+}
+const torontoTime = s => s ? new Date(s).toLocaleString(undefined, { timeZone:'America/Toronto', weekday:'short', month:'short',
+  day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+const evPrice = e => e.free ? 'Free' : e.price_min != null ? `$${fmt(e.price_min)}${e.price_max ? '–' + fmt(e.price_max) : ''}` : '—';
+const evStatus = e => e.status === 'approved' ? '<span class="badge good">live</span>' : e.status === 'rejected'
+  ? '<span class="badge crit">rejected</span>' : '<span class="badge warn">waiting</span>';
+
+async function renderEvents(seq){
+  const d = await api('/admin/events?status=' + evState.tab);
+  if (stale(seq)) return;
+  $('secSub').textContent = d.pending ? `${fmt(d.pending)} waiting for review — nothing shows in the app until you approve it`
+    : 'Nothing waiting for review';
+  const tabs = [['pending', `Waiting${d.pending ? ` (${d.pending})` : ''}`], ['upcoming','Live & upcoming'], ['rejected','Rejected'], ['all','All']];
+  const rows = d.events;
+  $('sec').innerHTML = `
+    <div class="toolbar sec">${tabs.map(([k, l]) =>
+      `<button class="btn btn-sm ${evState.tab === k ? 'btn-dark' : 'btn-ghost'}" data-evtab="${k}">${esc(l)}</button>`).join('')}
+      <span style="flex:1"></span><button class="btn btn-primary btn-sm" id="evNew">Add an event</button></div>
+    ${panel('Nightlife events', table([
+      { h:'When', f: e => esc(torontoTime(e.starts_at)) },
+      { h:'Event', cls:'clip', f: e => `<b>${esc(e.title)}</b><div class="t-meta">${esc(kindName(e.kind))}${e.special_day ? ' · ' + esc(dayName(e.special_day)) : ''}</div>${
+          e.description ? `<div class="t-meta" style="white-space:normal;max-width:42ch">${esc(e.description)}</div>` : ''}` },
+      { h:'Venue', f: e => `${esc(e.venue_name)}<div class="t-meta">${e.venue_id ? 'on the map' : e.lat != null ? 'placed by hand' : 'not matched to the map'}</div>` },
+      { h:'Price', f: e => esc(evPrice(e)) },
+      { h:'From', cls:'clip', f: e => e.source === 'submission'
+          ? `${esc(e.submitter_name || 'Venue')}<div class="t-meta">${esc(e.submitter_email || '')}</div>` : '<span class="t-meta">added by an admin</span>' },
+      { h:'Status', f: evStatus },
+      { h:'', f: e => `<div style="display:flex;gap:6px;flex-wrap:wrap">${e.status !== 'approved' ? `<button class="btn btn-primary btn-sm" data-ev-act="approved" data-id="${e.id}">Approve</button>` : ''}${
+          e.status === 'pending' ? `<button class="btn btn-ghost btn-sm" data-ev-act="rejected" data-id="${e.id}">Reject</button>` : ''}
+          <button class="btn btn-ghost btn-sm" data-ev-act="edit" data-id="${e.id}">Edit</button>
+          <button class="btn btn-ghost btn-sm" data-ev-act="delete" data-id="${e.id}">Delete</button>${
+          e.url ? `<a class="btn btn-ghost btn-sm" href="${esc(e.url)}" target="_blank" rel="noopener noreferrer">Link ↗</a>` : ''}</div>` }],
+      rows, { empty: evState.tab === 'pending' ? 'Nothing waiting. Venues can submit at /submit-event.' : 'No events here.' }),
+      'Events listed here show in the Nightlife tab once approved. Ticketmaster events show automatically.')}`;
+  $('sec').querySelectorAll('[data-evtab]').forEach(b => b.onclick = () => { evState.tab = b.dataset.evtab; route(); });
+  $('evNew').onclick = () => eventForm(null);
+  $('sec').querySelectorAll('[data-ev-act]').forEach(b => b.onclick = async () => {
+    const e = rows.find(r => String(r.id) === b.dataset.id), act = b.dataset.evAct;
+    if (act === 'edit') return eventForm(e);
+    if (act === 'delete' && !confirm(`Delete “${e.title}”? This can't be undone.`)) return;
+    b.disabled = true;
+    try{
+      if (act === 'delete') await api(`/admin/events/${e.id}`, { method:'DELETE' });
+      else await api(`/admin/events/${e.id}/status`, { method:'POST', body: JSON.stringify({ status: act }) });
+      toast(act === 'approved' ? 'Approved — it\'s live in the Nightlife tab' : act === 'rejected' ? 'Rejected' : 'Deleted');
+      route();
+    }catch(err){ b.disabled = false; toast(err.message); }
+  });
+}
+
+function eventForm(e){
+  const v = e || { kind:'club_night', status:'approved' };
+  const opt = (list, cur) => list.map(([k, l]) => `<option value="${esc(k)}" ${k === (cur || '') ? 'selected' : ''}>${esc(l)}</option>`).join('');
+  const box = overlay(xHead(esc(e ? 'Edit event' : 'Add an event')) + `
+    <label class="field">Event name<input class="input" id="efTitle" maxlength="160" value="${esc(v.title || '')}"></label>
+    <label class="field sec">Venue <span class="t-meta">(search the map, or type a name)</span>
+      <input class="input" id="efVenue" maxlength="160" autocomplete="off" value="${esc(v.venue_name || '')}">
+      <span class="t-meta" id="efLinked">${v.venue_id ? 'Linked to the map ✓' : ''}</span></label>
+    <div id="efVenues" class="sec" style="display:grid;gap:6px"></div>
+    <div class="sec" style="display:grid;gap:12px;grid-template-columns:1fr 1fr">
+      <label class="field">Starts (Toronto time)<input class="input" id="efStart" type="datetime-local" value="${esc(torontoInput(v.starts_at))}"></label>
+      <label class="field">Ends <span class="t-meta">(optional)</span><input class="input" id="efEnd" type="datetime-local" value="${esc(torontoInput(v.ends_at))}"></label>
+      <label class="field">Kind<select class="input" id="efKind">${opt(EV_KINDS, v.kind)}</select></label>
+      <label class="field">Special day<select class="input" id="efDay">${opt(EV_DAYS, v.special_day)}</select></label>
+      <label class="field">From ($)<input class="input" id="efMin" type="number" min="0" value="${v.price_min ?? ''}"></label>
+      <label class="field">Up to ($)<input class="input" id="efMax" type="number" min="0" value="${v.price_max ?? ''}"></label>
+    </div>
+    <label class="field sec" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="efFree" ${v.free ? 'checked' : ''}> Free entry</label>
+    <label class="field sec">Tickets / info link<input class="input" id="efUrl" type="url" maxlength="500" value="${esc(v.url || '')}"></label>
+    <label class="field sec">Description<textarea class="input" id="efDesc" maxlength="500" rows="3" style="padding:12px 16px;min-height:90px">${esc(v.description || '')}</textarea></label>
+    ${e ? '' : `<label class="field sec" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="efLive" checked> Show it in the app right away</label>`}
+    <div class="acts"><button class="btn btn-primary" id="efSave">${e ? 'Save' : 'Add event'}</button><button class="btn btn-ghost" data-close>Cancel</button></div>`);
+  let venueId = v.venue_id || null, t;
+  const venue = box.querySelector('#efVenue'), list = box.querySelector('#efVenues');
+  venue.oninput = () => {
+    venueId = null; box.querySelector('#efLinked').textContent = '';
+    clearTimeout(t);
+    const q = venue.value.trim();
+    if (q.length < 2){ list.innerHTML = ''; return; }
+    t = setTimeout(async () => {
+      try{
+        const found = await api('/admin/venues/search?' + new URLSearchParams({ q }));
+        list.innerHTML = found.map((x, i) => `<button class="btn btn-ghost btn-sm" style="justify-content:flex-start" data-pick="${i}">${esc(x.name)}
+          <span class="t-meta">${esc([x.category, x.address].filter(Boolean).join(' · '))}</span></button>`).join('');
+        list.querySelectorAll('[data-pick]').forEach(b => b.onclick = () => {
+          const x = found[+b.dataset.pick];
+          venue.value = x.name; venueId = x.id; list.innerHTML = '';
+          box.querySelector('#efLinked').textContent = 'Linked to the map ✓';
+        });
+      }catch(err){ list.innerHTML = ''; }
+    }, 250);
+  };
+  box.querySelector('#efSave').onclick = async ev => {
+    const val = id => box.querySelector(id).value.trim(), num = id => val(id) === '' ? null : Number(val(id));
+    const free = box.querySelector('#efFree').checked;
+    const body = { title: val('#efTitle'), venue_name: val('#efVenue'), starts_at: val('#efStart'), ends_at: val('#efEnd') || null,
+      kind: val('#efKind'), special_day: val('#efDay') || null, free: free || null,
+      price_min: free ? null : num('#efMin'), price_max: free ? null : num('#efMax'),
+      url: val('#efUrl') || null, description: val('#efDesc') || null };
+    if (venueId || e) body.venue_id = venueId;     // editing: null unlinks (re-matched by name)
+    if (!e) body.status = box.querySelector('#efLive').checked ? 'approved' : 'pending';
+    if (!body.title || !body.venue_name || !body.starts_at){ toast('Add a name, a venue and a start time'); return; }
+    ev.target.disabled = true;
+    try{
+      await api(e ? `/admin/events/${e.id}` : '/admin/events', { method: e ? 'PATCH' : 'POST', body: JSON.stringify(body) });
+      closeOverlay(); toast(e ? 'Saved' : 'Event added'); route();
+    }catch(err){ ev.target.disabled = false; toast(err.message); }
+  };
+}
+
 // ---- audit
 const ACTIONS = { disable:'Disabled account', enable:'Enabled account', delete_user:'Deleted account', send_reset:'Sent password reset',
   mark_test:'Marked as test', unmark_test:'Counted in stats', invite:'Sent waitlist invites', mark_invited:'Marked invited',
-  export:'Exported CSV', grant_admin:'Made admin', revoke_admin:'Removed admin' };
+  export:'Exported CSV', grant_admin:'Made admin', revoke_admin:'Removed admin',
+  event_create:'Added event', event_edit:'Edited event', event_approved:'Approved event', event_rejected:'Rejected event',
+  event_pending:'Moved event back to review', event_delete:'Deleted event' };
 async function renderAudit(seq){
   const rows = await api('/admin/audit?limit=200');
   if (stale(seq)) return;

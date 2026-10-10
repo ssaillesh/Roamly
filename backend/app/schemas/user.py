@@ -13,6 +13,7 @@ class UserPublic(BaseModel):
 class UserProfile(UserPublic):
     email: str | None = None
     is_admin: bool = False      # the web app shows the admin link when true
+    needs_terms: bool = False   # hasn't accepted the current Terms & Privacy Policy yet
 
 
 class UserUpdate(BaseModel):

@@ -22,13 +22,15 @@ from app.config import settings
 from app.database import get_db
 from app.middleware.auth import require_admin
 from app.models import (
-    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, PlanLog, TasteProfile, User,
-    UserActivityDay, WaitlistSignup,
+    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, NightlifeEvent, PlanLog, TasteProfile, User,
+    UserActivityDay, Venue, WaitlistSignup,
 )
+from app.api.nightlife import _as_utc, check_times, link_venue
+from app.schemas.nightlife import AdminEventIn, AdminEventPatch
 from app.redis_client import redis_client
 from app.services import ga4, llm, taste_profile, usage
 from app.services import events as events_svc
-from app.services import foursquare, google_places, yelp
+from app.services import foursquare, google_places, seatgeek, yelp
 from app.services.analytics import RETENTION_DAYS, utc_today
 from app.services.email import email_enabled, send_email, send_password_reset
 from app.services.security import create_reset_token
@@ -163,7 +165,7 @@ def _live_status(db: Session) -> dict:
     out["configured"] = {
         "llm": llm.available(), "yelp": yelp.available(), "foursquare": foursquare.available(),
         "google_places": google_places.available(), "ticketmaster": events_svc.available(),
-        "email": email_enabled(), "ga4": ga4.configured(),
+        "seatgeek": seatgeek.available(), "email": email_enabled(), "ga4": ga4.configured(),
     }
     def missing(*names):
         return " and ".join(n for n in names if not getattr(settings, n.lower())) + \
@@ -180,6 +182,7 @@ def _live_status(db: Session) -> dict:
         "google_places": None if google_places.available() else "switched off in code: "
                          + usage.DISABLED["google_places"],
         "ticketmaster": None if events_svc.available() else missing("TICKETMASTER_API_KEY"),
+        "seatgeek": None if seatgeek.available() else missing("SEATGEEK_CLIENT_ID") + " (Nightlife tab only)",
         "email": None if email_enabled() else missing("SENDGRID_API_KEY", "EMAIL_FROM"),
         "ga4": ga4.problem(),
     }.items() if v}
@@ -795,6 +798,122 @@ def invite(body: InviteBody, db: Session = Depends(get_db), admin: User = Depend
 
 def _esc(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+# --- nightlife events (the Nightlife tab's own listings) ---------------------------
+
+def _event_out(e: NightlifeEvent) -> dict:
+    return {c: getattr(e, c) for c in (
+        "id", "title", "venue_name", "venue_id", "lat", "lng", "address", "starts_at", "ends_at",
+        "price_min", "price_max", "free", "url", "kind", "special_day", "description", "status",
+        "source", "submitter_name", "submitter_email", "created_at", "reviewed_at")}
+
+
+def _event_or_404(db: Session, event_id: int) -> NightlifeEvent:
+    e = db.get(NightlifeEvent, event_id)
+    if not e:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such event")
+    return e
+
+
+def _apply_venue(db: Session, e: NightlifeEvent) -> None:
+    """A linked stored venue fills in the map point and address."""
+    if e.venue_id:
+        v = db.get(Venue, e.venue_id)
+        if not v:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown venue_id")
+        e.lat, e.lng = v.lat, v.lng
+        e.address = e.address or v.address
+
+
+@router.get("/events")
+def list_events(status_: str = Query("pending", alias="status", pattern="^(pending|approved|rejected|upcoming|all)$"),
+                db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    stmt = select(NightlifeEvent)
+    if status_ == "upcoming":
+        stmt = stmt.where(NightlifeEvent.status == "approved",
+                          func.coalesce(NightlifeEvent.ends_at, NightlifeEvent.starts_at)
+                          >= datetime.now(timezone.utc) - timedelta(hours=6))
+        stmt = stmt.order_by(NightlifeEvent.starts_at)
+    else:
+        if status_ != "all":
+            stmt = stmt.where(NightlifeEvent.status == status_)
+        stmt = stmt.order_by(NightlifeEvent.created_at.desc())
+    pending = db.scalar(select(func.count()).select_from(NightlifeEvent)
+                        .where(NightlifeEvent.status == "pending"))
+    return {"pending": pending, "events": [_event_out(e) for e in db.scalars(stmt.limit(300))]}
+
+
+@router.post("/events", status_code=201)
+def create_event(body: AdminEventIn, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    if body.status not in ("pending", "approved"):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "status must be pending or approved")
+    start, end = check_times(body.starts_at, body.ends_at)
+    e = NightlifeEvent(**body.model_dump(exclude={"starts_at", "ends_at", "status"}),
+                       starts_at=start, ends_at=end, status=body.status, source="admin")
+    if e.venue_id:
+        _apply_venue(db, e)
+    elif e.lat is None:
+        link_venue(e)
+    if e.status == "approved":
+        e.reviewed_by, e.reviewed_at = admin.id, datetime.now(timezone.utc)
+    db.add(e)
+    db.flush()
+    _audit(db, admin, "event_create", str(e.id), title=e.title)
+    db.commit()
+    return _event_out(e)
+
+
+@router.patch("/events/{event_id}")
+def edit_event(event_id: int, body: AdminEventPatch, db: Session = Depends(get_db),
+               admin: User = Depends(require_admin)):
+    e = _event_or_404(db, event_id)
+    changes = body.model_dump(exclude_unset=True)
+    for k, v in changes.items():
+        setattr(e, k, _as_utc(v) if k in ("starts_at", "ends_at") and v else v)
+    if "venue_id" in changes:
+        if e.venue_id:
+            _apply_venue(db, e)
+        else:                                  # unlinked: match the (new) name again
+            e.lat = e.lng = None
+            link_venue(e)
+    if e.ends_at and e.ends_at <= e.starts_at:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "The end time must be after the start.")
+    _audit(db, admin, "event_edit", str(e.id), fields=sorted(changes))
+    db.commit()
+    return _event_out(e)
+
+
+class EventStatusBody(BaseModel):
+    status: str = Field(pattern="^(approved|rejected|pending)$")
+
+
+@router.post("/events/{event_id}/status")
+def set_event_status(event_id: int, body: EventStatusBody, db: Session = Depends(get_db),
+                     admin: User = Depends(require_admin)):
+    e = _event_or_404(db, event_id)
+    e.status, e.reviewed_by, e.reviewed_at = body.status, admin.id, datetime.now(timezone.utc)
+    _audit(db, admin, f"event_{body.status}", str(e.id), title=e.title)
+    db.commit()
+    return _event_out(e)
+
+
+@router.delete("/events/{event_id}", status_code=204)
+def delete_event(event_id: int, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    e = _event_or_404(db, event_id)
+    _audit(db, admin, "event_delete", str(e.id), title=e.title)
+    db.delete(e)
+    db.commit()
+
+
+@router.get("/venues/search")
+def search_venues(q: str = Query(min_length=2, max_length=80), db: Session = Depends(get_db),
+                  _admin: User = Depends(require_admin)):
+    """Stored places by name, to link an event to (well-known first)."""
+    rows = db.scalars(select(Venue).where(Venue.name.ilike(f"%{q.strip()}%"))
+                      .order_by(Venue.notability.desc(), func.length(Venue.name)).limit(10)).all()
+    return [{"id": v.id, "name": v.name, "category": v.category, "address": v.address,
+             "lat": v.lat, "lng": v.lng} for v in rows]
 
 
 # --- exports + audit ------------------------------------------------------------
