@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 
 from app.services.planner import (
     SLOT_ORDER, SLOT_SPECS, TRANSPORT, VIBE_PLANS, DEFAULT_VIBE, PLAN_TIME_BUDGET, _POOL,
-    _est_cost, _gather, _pick, _result, allowed, cuisine_term, route_for, route_km, stop_from,
+    _est_cost, _gather, _pick, _result, allowed, cuisine_term, parse_start, retime, route_for,
+    route_km, schedule, stop_from,
 )
 
 # Words that name a kind of stop → that stop's slot. Checked in order.
@@ -107,14 +108,21 @@ def _between(stops: list[dict], i: int, plan: dict) -> tuple[float, float]:
     return (c.get("lat"), c.get("lng"))
 
 
-def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_cap=None, fancy=None):
-    """Best real venue for one stop, or None. `wish` steers the search ("sushi")."""
+def _when(plan: dict, slots: list[str], i: int):
+    """When the stop at index i (of `slots`, the plan's stops after the change) happens."""
+    start = parse_start(plan.get("start"))
+    return schedule(slots, start)[i] if start else None
+
+
+def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_cap=None, fancy=None, at=None):
+    """Best real venue for one stop, or None. `wish` steers the search ("sushi");
+    `at` = when it happens (places closed then are left out)."""
     tconf = TRANSPORT.get(ctx.transport, TRANSPORT["any"])
     radius = ctx.radius or tconf["radius"]
     price_pref = VIBE_PLANS.get(ctx.vibe, VIBE_PLANS[DEFAULT_VIBE])["price"]
     term, cats = route_for(slot_key, interests=wish or ctx.interests, dietary=ctx.dietary,
                            group_type=ctx.group_type, vibe=ctx.vibe, no_alcohol=ctx.no_alcohol)
-    fut = _POOL.submit(_gather, anchor, slot_key, price_pref, radius, ctx.dietary, term, cats)
+    fut = _POOL.submit(_gather, anchor, slot_key, price_pref, radius, ctx.dietary, term, cats, at=at)
     cands = [c for c in _result(fut, [], timeout=PLAN_TIME_BUDGET) if allowed(c, ctx.avoid, ctx.no_alcohol)]
     if cost_cap is not None:
         cands = [c for c in cands if _est_cost(c, SLOT_SPECS[slot_key]) < cost_cap] or cands
@@ -153,8 +161,11 @@ def _swap(stops, op, plan, ctx, exclude, changed, problems):
     slot = slot_for_text(taste_wish, old["slot"]) if taste_wish else old["slot"]
     exclude.add(old["name"].lower())
     rest = stops[:i] + stops[i + 1:]
+    slots = [s["slot"] for s in stops]
+    slots[i] = slot
     pick = _repick(slot, _between(rest, i, plan), taste_wish, ctx, exclude,
-                   cost_cap=old.get("est_cost") if cheaper else None, fancy=True if fancier else None)
+                   cost_cap=old.get("est_cost") if cheaper else None, fancy=True if fancier else None,
+                   at=_when(plan, slots, i))
     if not pick:
         problems.append(f"I couldn't find another {taste_wish or _what(slot)} nearby, so {old['name']} stays.")
         return
@@ -173,7 +184,9 @@ def _add(stops, op, plan, ctx, exclude, changed, problems):
     else:   # the day's natural order: activity before dinner, drinks after, dessert last
         i = next((k for k, s in enumerate(stops)
                   if SLOT_ORDER.get(s.get("slot"), 5) > SLOT_ORDER.get(slot, 5)), len(stops))
-    pick = _repick(slot, _between(stops, i, plan), wish, ctx, exclude)
+    slots = [s["slot"] for s in stops]
+    slots.insert(i, slot)
+    pick = _repick(slot, _between(stops, i, plan), wish, ctx, exclude, at=_when(plan, slots, i))
     if not pick:
         problems.append(f"I couldn't find {wish or _what(slot)} nearby to add.")
         return
@@ -214,6 +227,8 @@ def apply_edits(plan: dict, ops: list[dict], ctx: EditContext) -> tuple[dict, li
             problems.append("I didn't understand part of that change.")
 
     plan["stops"] = stops
+    if changed:
+        retime(plan)   # later stops shift when one is added, removed or moved
     plan["estimated_cost"] = sum(s.get("est_cost") or 0 for s in stops) * max(1, ctx.party_size)
     plan["walk_km"] = route_km(stops)
     if changed:

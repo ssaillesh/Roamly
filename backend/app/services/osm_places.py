@@ -103,11 +103,12 @@ def _post(query: str) -> list | None:
             resp = httpx.post(endpoint, data={"data": query},
                               headers={"User-Agent": settings.geocode_user_agent},
                               timeout=_TIMEOUTS.get(endpoint, 8.0))
-        except httpx.HTTPError:
-            usage.record("overpass", ok=False)
+        except httpx.HTTPError as e:
+            usage.record("overpass", ok=False, error=f"{endpoint.split('/')[2]}: {type(e).__name__}")
             _down_until[endpoint] = time.monotonic() + _COOLDOWN
             continue
-        usage.record("overpass", ok=resp.status_code == 200)
+        usage.record("overpass", ok=resp.status_code == 200,
+                     error=f"{endpoint.split('/')[2]}: HTTP {resp.status_code}")
         if resp.status_code == 429:
             _down_until[endpoint] = time.monotonic() + _COOLDOWN_BUSY
             continue

@@ -10,19 +10,15 @@ the AI isn't answering — e.g. a retired model name 404ing on every call.
 """
 import json
 import logging
-from datetime import datetime, timezone
+import re
+import time
 
 import httpx
 
 from app.config import settings
-from app.redis_client import redis_client
 from app.services import usage
 
 log = logging.getLogger(__name__)
-
-_LAST_ERROR = "llm:last_error"
-_LAST_OK = "llm:last_ok"
-
 
 def available() -> bool:
     return bool(settings.llm_api_key)
@@ -45,31 +41,20 @@ def _payload(messages: list[dict], temperature: float, max_tokens: int) -> dict:
     return payload
 
 
-def _note(key: str, value: dict | None = None) -> None:
-    try:
-        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        redis_client.setex(key, 7 * 86400, json.dumps({"at": stamp, **(value or {})}))
-    except Exception:
-        pass
-
-
-def _failed(why: str) -> None:
-    log.warning("LLM call failed (%s): %s", settings.llm_model, why)
-    _note(_LAST_ERROR, {"error": why[:300], "model": settings.llm_model})
-
-
 def health() -> dict:
     """The latest success and failure, for the admin dashboard."""
-    out = {"model": settings.llm_model}
-    for key, name in ((_LAST_OK, "last_ok"), (_LAST_ERROR, "last_error")):
-        try:
-            raw = redis_client.get(key)
-            out[name] = json.loads(raw) if raw else None
-        except Exception:
-            out[name] = None
-    err, ok = out.get("last_error"), out.get("last_ok")
-    out["failing"] = bool(err and (not ok or err["at"] > ok["at"]))
-    return out
+    return {"model": settings.llm_model, **usage.health("llm")}
+
+
+def _retry_after(resp) -> float | None:
+    """Seconds Groq asks us to wait on a 429 ("Please try again in 3.27s")."""
+    m = re.search(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)s", resp.text or "")
+    if m:
+        return int(m.group(1) or 0) * 60 + float(m.group(2))
+    try:
+        return float(resp.headers.get("retry-after"))
+    except (TypeError, ValueError):
+        return None
 
 
 def _post(payload: dict, timeout: float) -> httpx.Response:
@@ -93,29 +78,40 @@ def ping() -> tuple[bool, str]:
 def chat(messages: list[dict], *, temperature: float = 0.7,
          max_tokens: int = 1200, want_json: bool = False, timeout: float = 45.0) -> str | None:
     """Return the assistant's reply text, or None on any failure (or when the
-    free-tier blocker says the daily allowance is used up)."""
+    free-tier blocker says the daily allowance is used up). A short per-minute
+    rate limit (Groq's free tier: 8,000 tokens a minute) is waited out once."""
     if not available() or not usage.allow("llm"):
         return None
+    payload = _payload(messages, temperature, max_tokens)
+    for attempt in range(2):
+        try:
+            resp = _post(payload, timeout)
+        except httpx.HTTPError as e:
+            return _failed(f"{type(e).__name__}: {str(e)[:200]}")
+        wait = _retry_after(resp) if resp.status_code == 429 else None
+        if attempt == 0 and wait is not None and wait <= 6:
+            usage.record("llm", ok=False, error=f"HTTP 429, retried after {wait:.1f}s: {resp.text[:200]}")
+            time.sleep(wait + 0.25)
+            continue
+        break
+    if resp.status_code != 200:
+        return _failed(f"HTTP {resp.status_code}: {resp.text[:240]}")
     try:
-        with usage.counted("llm"):
-            resp = _post(_payload(messages, temperature, max_tokens), timeout)
-            if resp.status_code != 200:
-                _failed(f"HTTP {resp.status_code}: {resp.text[:240]}")
-                resp.raise_for_status()
-            body = resp.json()
-            content = body["choices"][0]["message"].get("content")
-            if not content:
-                _failed("empty reply (the model may have used its whole token allowance thinking)")
-                raise ValueError("empty reply")
-    except httpx.HTTPStatusError:
-        return None                       # already noted with the server's message
-    except (httpx.HTTPError, KeyError, ValueError, IndexError, TypeError) as e:
-        if str(e) != "empty reply":
-            _failed(f"{type(e).__name__}: {str(e)[:200]}")
-        return None
+        body = resp.json()
+        content = body["choices"][0]["message"].get("content")
+    except (KeyError, ValueError, IndexError, TypeError) as e:
+        return _failed(f"unreadable reply: {type(e).__name__}")
+    if not content:
+        return _failed("empty reply (the model may have used its whole token allowance thinking)")
+    usage.record("llm", ok=True)
     usage.record_tokens("llm", (body.get("usage") or {}).get("total_tokens") or 0)
-    _note(_LAST_OK)
     return content
+
+
+def _failed(why: str) -> None:
+    log.warning("LLM call failed (%s): %s", settings.llm_model, why)
+    usage.record("llm", ok=False, error=why)
+    return None
 
 
 def chat_json(messages: list[dict], *, temperature: float = 0.4, timeout: float = 45.0) -> dict | None:

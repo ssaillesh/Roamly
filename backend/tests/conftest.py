@@ -13,7 +13,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.services import geocoding
+from app.services import geocoding, venue_index
 
 # Minimal offline gazetteer for deterministic tests.
 _FIXTURE_COORDS = {
@@ -35,6 +35,10 @@ def _offline_geocode(monkeypatch):
     monkeypatch.setattr(geocoding, "geocode", fake_geocode)
     # Plan logging names the area around a plan; keep that offline too.
     monkeypatch.setattr(geocoding, "reverse_area", lambda lat, lng: None)
+    # The stored venue list may be loaded in the dev database: plans in tests use
+    # their own fixtures unless a test opts in (tests/test_venue_index.py).
+    monkeypatch.setattr(venue_index, "candidates", lambda *a, **kw: None)
+    monkeypatch.setattr(venue_index, "find_area", lambda *a, **kw: None)
     yield
 
 

@@ -60,7 +60,7 @@ CITY["drinks"] = CITY["leisure"]
 PLACES = {"toronto": C, "kensington market": (43.6547, -79.4005)}
 
 
-def fake_gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, cat_override=None):
+def fake_gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, cat_override=None, **kw):
     """Like the real search: a term narrows the results when anything matches it."""
     cands = [dict(c) for c in CITY.get(slot_key, [])]
     if term_override:

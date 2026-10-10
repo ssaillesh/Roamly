@@ -611,7 +611,7 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
             "period_calls": sum(r.calls for r in p_calls),
             "period_errors": sum(r.errors for r in p_calls),
             "quota": q, "status": status, "note": q["note"] if q else _KEYLESS.get(p),
-            "error": (llm.health()["last_error"] or {}).get("error") if p == "llm" and llm.health()["failing"] else None,
+            "error": (h["last_error"] or {}).get("error") if (h := usage.health(p))["failing"] else None,
             "est_cost_month": cost,
         })
     series = defaultdict(dict)

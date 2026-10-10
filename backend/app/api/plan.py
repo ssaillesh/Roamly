@@ -21,7 +21,7 @@ from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
-from app.services import plan_intent
+from app.services import plan_intent, venue_index
 from app.services.analytics import save_plan_log
 from app.services.plan_edit import EditContext, apply_edits
 from app.services import events as events_svc
@@ -464,7 +464,8 @@ def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None
     if not loc_name and session.get("location"):
         loc_name = prefs["location"] = session["location"]
     if loc_name:
-        coords = geocode(loc_name, None)
+        # neighbourhoods and landmarks from the stored list first (no live geocoder)
+        coords = venue_index.find_area(loc_name, (req.lat, req.lng)) or geocode(loc_name, None)
         if coords:
             lat, lng = coords
     if (lat is None or lng is None) and not structured:
@@ -503,10 +504,14 @@ def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None
             prefs["party_size"] = 4
     # A stated budget is a TOTAL unless they said per person. When a group's wording
     # doesn't say, _budget_scope_question asks once (no hidden multiplying).
+    # The router may *guess* total/per person; only count it when the words were
+    # actually said, or this turn answers our "total or each?" question.
     scope = prefs.pop("budget_scope", None)
-    if not scope and not structured:
-        scope = ("per_person" if _PER_PERSON_RE.search(text) else
-                 "total" if _TOTAL_RE.search(text) else None)
+    said = ("per_person" if _PER_PERSON_RE.search(text) else
+            "total" if _TOTAL_RE.search(text) else None)
+    if scope and not said and "budget_scope" not in req.asked:
+        scope = None
+    scope = scope or (None if structured else said)
     prefs["_scope"] = scope
     if prefs.get("_budget_stated") and scope == "per_person":
         prefs["budget"] = float(prefs["budget"]) * int(prefs.get("party_size") or 2)

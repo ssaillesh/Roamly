@@ -20,6 +20,7 @@ memory under a lock and saved to `api_usage` by the stats flusher
 (services/analytics.py) once a minute. Each planner request also gets a tracker
 (see `request_tracker`) so its plan log can say whether the AI ran and failed.
 """
+import json
 import logging
 import threading
 from collections import defaultdict
@@ -78,8 +79,10 @@ _pending: dict[tuple[date, str], list[int]] = defaultdict(lambda: [0, 0])   # [c
 _tracker: ContextVar[dict | None] = ContextVar("usage_tracker", default=None)
 
 
-def record(provider: str, ok: bool) -> None:
-    """Count one call to `provider`. Never raises."""
+def record(provider: str, ok: bool, error: str | None = None) -> None:
+    """Count one call to `provider` (and remember the latest failure's reason for
+    the dashboard). Never raises."""
+    note(provider, ok, error)
     day = datetime.now(timezone.utc).date()
     with _lock:
         counts = _pending[(day, provider)]
@@ -97,12 +100,36 @@ def record(provider: str, ok: bool) -> None:
 def counted(provider: str):
     """Count the call made inside the block; an exception counts as an error
     (and still propagates to the caller's own error handling)."""
-    ok = False
     try:
         yield
-        ok = True
-    finally:
-        record(provider, ok)
+    except Exception as e:
+        record(provider, False, f"{type(e).__name__}: {str(e)[:240]}")
+        raise
+    record(provider, True)
+
+
+def note(provider: str, ok: bool, error: str | None = None) -> None:
+    """Remember the latest success / failure (with its reason) for a provider."""
+    try:
+        stamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+        if ok:
+            redis_client.set(f"api:last_ok:{provider}", stamp, ex=7 * 86400)
+        else:
+            redis_client.set(f"api:last_error:{provider}", json.dumps(
+                {"at": stamp, "error": (error or "failed")[:300]}), ex=7 * 86400)
+    except Exception:
+        pass
+
+
+def health(provider: str) -> dict:
+    """{"last_ok": iso, "last_error": {"at", "error"}, "failing": bool} for the dashboard."""
+    try:
+        ok = redis_client.get(f"api:last_ok:{provider}")
+        err = redis_client.get(f"api:last_error:{provider}")
+        err = json.loads(err) if err else None
+    except Exception:
+        ok = err = None
+    return {"last_ok": ok, "last_error": err, "failing": bool(err and (not ok or err["at"] > ok))}
 
 
 def drain() -> dict[tuple[date, str], list[int]]:

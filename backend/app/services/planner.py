@@ -3,11 +3,14 @@ nearby places. Optimises for: stops CLOSE together (no crossing town) and best v
 (great rating for the price). Uses Yelp (ratings/prices)
 when keyed, falls back to OpenStreetMap. An optional LLM writes the narration.
 """
+import logging
 import math
 import random
 import re
 import time
 from concurrent.futures import ThreadPoolExecutor, wait
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from app.services import foursquare
 from app.services import geocoding
@@ -19,7 +22,10 @@ from app.services import weather as weather_svc
 from app.services import events as events_svc
 from app.services import live_events
 from app.services import experience
+from app.services import venue_index
 from app.metrics import time_itinerary_generation
+
+log = logging.getLogger(__name__)
 
 # Indoor-only activity set for wet/cold days.
 INDOOR_ACTIVITIES = "arcades,escapegames,bowling,poolhalls,lasertag,karaoke,trampoline,museums,aquariums"
@@ -139,6 +145,56 @@ TRANSPORT = {
 }
 
 
+# ---- when each stop happens ----
+# Plans are timed in the stored list's city (Toronto for now). The time decides
+# which places are open, and is shown on each stop even without the AI narrator.
+LOCAL_TZ = ZoneInfo("America/Toronto")
+START_HOUR = {"morning": 10, "afternoon": 13, "evening": 18, "night": 20}
+# Minutes per kind of stop, including getting to the next one.
+STOP_MINUTES = {"cafe": 45, "scenic": 60, "activity": 105, "lunch": 75, "dinner": 105,
+                "leisure": 90, "drinks": 75, "dessert": 40, "event": 150}
+
+
+def plan_start(time_of_day=None, now=None) -> datetime:
+    """When a plan starts: today at the part of day's usual hour; if that has
+    passed, the next half hour; if the part of day is mostly over (3h+), tomorrow."""
+    now = now or datetime.now(LOCAL_TZ)
+    base = now.replace(hour=START_HOUR.get(time_of_day or "evening", 18), minute=0, second=0, microsecond=0)
+    if base >= now:
+        return base
+    soon = (now + timedelta(minutes=30 - now.minute % 30)).replace(second=0, microsecond=0)
+    return soon if soon - base <= timedelta(hours=3) else base + timedelta(days=1)
+
+
+def schedule(slots, start: datetime) -> list[datetime]:
+    """Planned start of each stop, one after another from `start`."""
+    out, t = [], start
+    for s in slots:
+        out.append(t)
+        t += timedelta(minutes=STOP_MINUTES.get(s, 60))
+    return out
+
+
+def clock(t: datetime) -> str:
+    return t.strftime("%I:%M %p").lstrip("0")
+
+
+def parse_start(value) -> datetime | None:
+    try:
+        t = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return t if t.tzinfo else t.replace(tzinfo=LOCAL_TZ)
+
+
+def retime(plan: dict) -> None:
+    """Give every stop its clock time from the plan's start (after edits too)."""
+    start = parse_start(plan.get("start"))
+    if start:
+        for s, t in zip(plan["stops"], schedule([s["slot"] for s in plan["stops"]], start)):
+            s["time"] = clock(t)
+
+
 def _haversine_km(a_lat, a_lng, b_lat, b_lng):
     R = 6371
     dlat = math.radians(b_lat - a_lat)
@@ -175,7 +231,8 @@ def activity_categories(group_type, vibe, interests):
     if wants_water(it):
         return WATER_ACTIVITIES
     if any(w in it for w in ["paintball", "arcade", "escape", "kart", "laser", "axe", "bowling",
-                              "competitive", "mini golf", "minigolf", "trampoline", "climb", "karaoke"]):
+                              "competitive", "mini golf", "minigolf", "trampoline", "climb", "karaoke",
+                              "active", "sporty", "energetic", "physical"]):
         return competitive
     if group_type == "friends" or any(w in it for w in ["boys", "guys", "bros", "bachelor", "squad", "buddies"]):
         return competitive
@@ -375,7 +432,24 @@ def route_km(stops) -> float:
                      for a, b in zip(stops, stops[1:])), 1)
 
 
-def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, cat_override=None):
+def _stored(anchor, slot_key, radius, dietary, term_override, cat_override, at):
+    """Candidates from the stored venue list, or None (area not covered / DB trouble)."""
+    want = term_override or (dietary if dietary and slot_key in ("lunch", "dinner") else None)
+    try:
+        return venue_index.candidates(slot_key, anchor[0], anchor[1], radius,
+                                      term=want, cats=cat_override, at=at)
+    except Exception:
+        log.exception("stored venue lookup failed; using the live search")
+        return None
+
+
+def _gather(anchor, slot_key, price_pref, radius, dietary, term_override=None, cat_override=None, at=None):
+    """Candidate places for one stop. The stored venue list first (instant, knows
+    opening hours and how well known a place is); the live searches only where
+    it has nothing. `at` = when the stop happens (places closed then are left out)."""
+    stored = _stored(anchor, slot_key, radius, dietary, term_override, cat_override, at)
+    if stored:
+        return stored
     slot = SLOT_SPECS[slot_key]
     term = slot["yelp"].get("term")
     if dietary and slot_key in ("lunch", "dinner"):
@@ -450,6 +524,7 @@ def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste
     score += (c.get("popularity") or 0) * POPULARITY_WEIGHT * crowd   # Foursquare foot-traffic trendiness
     score += (level - 1) * 0.6 if fancy else -(level - 1) * 0.5   # tier preference
     score += math.log10((c.get("review_count") or 0) + 1) * BUZZ_WEIGHT * crowd   # buzz / popularity
+    score += c.get("boost", 0)   # stored list: well known, open then, not a chain (venue_index)
     if apply_fun:
         # Excitement matters here, not just satisfaction — so a high-energy
         # experience can out-rank a better-reviewed but sleepy one.
@@ -561,6 +636,10 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                 seen_cafe = True
 
     center = (lat, lng)
+    start = plan_start(time_of_day)
+    at = {}
+    for s, t in zip(slots, schedule(slots, start)):
+        at.setdefault(s, t)   # a repeated kind of stop is checked at its first time
     chain = tconf.get("chain", False)   # only walking chains stops tightly together
     fancy = vibe == "extravagant"       # bias picks toward pricier/upscale venues
 
@@ -574,7 +653,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     # Gather every slot's candidates (and live events) concurrently, from the
     # centre at the full radius — one parallel wave instead of a slow network
     # round-trip per stop. Whatever isn't back by the deadline is left out.
-    jobs = {k: _POOL.submit(_gather, center, k, price_pref, radius, dietary, *route(k))
+    jobs = {k: _POOL.submit(_gather, center, k, price_pref, radius, dietary, *route(k), at=at[k])
             for k in dict.fromkeys(slots)}
     # Events in the next 24h within the plan's reach — ticketed and free city ones.
     ev_job = (_POOL.submit(live_events.happening, lat, lng, window="day", size=8,
@@ -596,7 +675,8 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             near = [c for c in cands if c.get("lat") is not None and c.get("lng") is not None
                     and _haversine_km(anchor[0], anchor[1], c["lat"], c["lng"]) * 1000 <= tconf["cluster"]]
             if not any((c.get("name") or "").lower() not in used for c in near) and left() > 3:
-                near = [c for c in _gather(anchor, slot_key, price_pref, tconf["cluster"], dietary, *route(slot_key))
+                near = [c for c in _gather(anchor, slot_key, price_pref, tconf["cluster"], dietary,
+                                           *route(slot_key), at=at[slot_key])
                         if keep(c)]
             cands = near or cands
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
@@ -660,7 +740,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     plan = {
         "vibe": vibe, "budget": budget, "party_size": party_size, "currency": "USD",
         "estimated_cost": total(), "center": {"lat": lat, "lng": lng},
-        "walk_km": spread, "stops": stops,
+        "walk_km": spread, "stops": stops, "start": start.isoformat(timespec="minutes"),
         "weather": (wx["summary"] if wx else None),
         "events": events,
         # names the user asked for that no verified source could confirm nearby
@@ -668,6 +748,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         # slots dropped because the time budget ran out (not for lack of places)
         "skipped": skipped,
     }
+    retime(plan)
     _narrate(plan, interests, group_type, time_of_day, dietary, wx, events, avoid)
     return plan
 
@@ -795,7 +876,7 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
         # build → peak → wind-down arc around it.
         peak_idx = max(range(len(stops)), key=lambda i: stops[i].get("arousal", 2.5))
         listing = "\n".join(
-            f"{i+1}. {s['label']} — {s['name']}"
+            f"{i+1}. " + (f"{s['time']} " if s.get("time") else "") + f"{s['label']} — {s['name']}"
             + (f" ({s['price']}, {s['rating']}★)" if s.get('rating') else "")
             + (f" [{', '.join(s['categories'][:2])}]" if s.get('categories') else "")
             + f"  ~${s['est_cost']}/pp"
@@ -837,12 +918,12 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
              "- Only reference an event if it appears in the EVENTS line, using its exact name/time.\n"
              "- Use your own knowledge ONLY for tone, timing, transitions and readability — never for "
              "facts about specific places.\n"
-             "Return JSON: {\"intro\": str, \"stops\": [{\"time\": str, \"desc\": str}, ...], \"tip\": str}.\n"
+             "Return JSON: {\"intro\": str, \"stops\": [{\"desc\": str}, ...], \"tip\": str}.\n"
              "intro = 3-4 sentences about the day/group/vibe — set the scene and the arc of the "
              "night; mention NO venue names that aren't in the list (it's fine to name the listed "
              "ones or none).\n"
-             "stops = one per venue IN ORDER: a realistic clock time (from the start time, allowing "
-             "travel + dwell) and 2-3 vivid sentences about THAT venue only — what it is, why it "
+             "stops = one per venue IN ORDER (the times shown are fixed — keep to them): "
+             "2-3 vivid sentences about THAT venue only — what it is, why it "
              "fits this group and budget, and one concrete thing to do or order there (drawn only "
              "from its listed categories/price, never invented specifics like dish names you can't "
              "know). If a stop is free (a park, beach, lookout), say so — free is a feature.\n"
@@ -864,7 +945,7 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
             plan["tip"] = data.get("tip")
             for s, extra in zip(stops, data["stops"]):
                 if isinstance(extra, dict):
-                    s["time"] = extra.get("time")
+                    s["time"] = s.get("time") or extra.get("time")
                     s["why"] = extra.get("desc") or s.get("why")
             return
     # deterministic fallback

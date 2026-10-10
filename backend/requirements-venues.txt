@@ -1,0 +1,2 @@
+# Only for scripts/load_venues.py (the monthly venue loader) — not installed in the API image.
+duckdb==1.5.6

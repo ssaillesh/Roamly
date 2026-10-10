@@ -1,0 +1,41 @@
+name: Refresh venues
+
+# Reloads the stored venue list the planner picks from (backend/scripts/load_venues.py):
+# Overture Maps places + Wikidata (how well known) + OpenStreetMap opening hours, all
+# free open data. Monthly is plenty: Overture publishes about once a month.
+#
+# Needs one repository secret, VENUES_DATABASE_URL = the production database's
+# External Database URL (Render → database → Connect → External). The loader
+# refuses to write if the download looks broken, so a bad month keeps last month's list.
+on:
+  schedule:
+    - cron: "41 8 26 * *"       # the 26th, 08:41 UTC
+  workflow_dispatch: {}
+
+jobs:
+  load:
+    runs-on: ubuntu-24.04
+    # ~3 min download + up to 8 min for opening hours (the public OSM servers are often slow)
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-venues.txt
+      - run: pip install -r requirements.txt -r requirements-venues.txt
+      - name: Load Toronto
+        env:
+          DATABASE_URL: ${{ secrets.VENUES_DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::Add the VENUES_DATABASE_URL repository secret (the database's External URL)"
+            exit 1
+          fi
+          python -m scripts.load_venues --city toronto

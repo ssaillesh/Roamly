@@ -55,6 +55,8 @@ class Plan(BaseModel):
     tip: str | None = None
     weather: str | None = None
     walk_km: float | None = None
+    # When the first stop starts (ISO, local time): edits re-time the stops from it.
+    start: str | None = None
     stops: list[PlanStop]
     events: list[Event] = Field(default_factory=list)
     day: int | None = None

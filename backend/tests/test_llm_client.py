@@ -30,16 +30,19 @@ def ai(monkeypatch):
     monkeypatch.setattr(settings, "llm_api_key", "test-key")
     monkeypatch.setattr(settings, "llm_model", "openai/gpt-oss-120b")
     monkeypatch.setattr(settings, "free_tier_only", True)
-    keys = [llm._LAST_ERROR, llm._LAST_OK, usage._token_key("llm"),
+    keys = ["api:last_error:llm", "api:last_ok:llm", usage._token_key("llm"),
             f"quota:llm:{usage._period_key('day')[0]}"]
     saved = {k: redis_client.get(k) for k in keys}
     redis_client.delete(*keys)
     sent = []
 
-    def reply(status, body):
+    def reply(status, body, *more):
+        """Answer with (status, body), then each of `more` on later calls."""
+        answers = [(status, body), *more]
+
         def post(url, json=None, **kw):
             sent.append(json)
-            return _Resp(status, body)
+            return _Resp(*answers[min(len(sent), len(answers)) - 1])
         monkeypatch.setattr(httpx, "post", post)
     yield reply, sent
     redis_client.delete(*keys)
@@ -81,3 +84,21 @@ def test_daily_token_cap_stops_calls(ai):
     usage.record_tokens("llm", usage.TOKEN_CAPS["llm"][1])
     assert llm.chat([{"role": "user", "content": "hi"}]) is None
     assert sent == []                                     # never reached Groq
+
+
+def test_short_rate_limit_is_waited_out_once(ai, monkeypatch):
+    reply, sent = ai
+    waits = []
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    reply(429, {"error": {"message": "Rate limit reached ... Please try again in 2.5s."}},
+          (200, {"choices": [{"message": {"content": "ok"}}]}))
+    assert llm.chat([{"role": "user", "content": "hi"}]) == "ok"
+    assert len(sent) == 2 and waits == [2.75]
+
+
+def test_long_rate_limit_is_not_waited(ai, monkeypatch):
+    reply, sent = ai
+    monkeypatch.setattr(llm.time, "sleep", lambda s: (_ for _ in ()).throw(AssertionError("waited")))
+    reply(429, {"error": {"message": "Please try again in 1m30s."}})
+    assert llm.chat([{"role": "user", "content": "hi"}]) is None and len(sent) == 1
+    assert "429" in llm.health()["last_error"]["error"]

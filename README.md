@@ -144,6 +144,28 @@ the stats unless the "Test accounts" toggle is on.
 
 ---
 
+## Venue data (stored, refreshed monthly)
+
+Plans in Toronto pick from a stored venue list (`venues` / `areas` tables, migration `0012`)
+instead of a live map search, which was slow and often down. `backend/scripts/load_venues.py`
+builds it from free open data:
+
+- **Overture Maps places**: about 20,000 Toronto places that can be a stop, each mapped to stop types (dinner, café, activity…). Closed and low-confidence places are left out.
+- **Wikidata**: how well known a place is (the number of Wikipedia languages covering it), which is the "popular & well-known" signal. Landmarks Overture doesn't list as stops (CN Tower, the Distillery District, Kensington Market) are added from their Wikidata type. Stations, office towers and stadiums are kept out.
+- **OpenStreetMap opening hours**: best effort. A place that is closed at its planned time is skipped; unknown hours are allowed.
+- **Overture neighbourhood names**: so "Kensington Market" is placed without a live geocoder.
+
+Each plan is timed (evening starts at 6 PM, with set minutes per kind of stop). Those times decide which places are open and are shown on the stops. Outside the stored city, plans fall back to the live search.
+
+**Refresh:** `.github/workflows/venues.yml` runs on the 26th of each month, and can also be run by hand (Actions → Refresh venues → Run workflow). It needs the repository secret `VENUES_DATABASE_URL`, set to the database's External URL. The loader refuses to write when the download looks broken, so last month's list stays. To run it locally:
+
+```bash
+cd backend && .venv/bin/pip install -r requirements-venues.txt   # duckdb, loader only
+.venv/bin/python -m scripts.load_venues                           # --dry-run, --skip-osm
+```
+
+---
+
 ## Project layout
 
 ```

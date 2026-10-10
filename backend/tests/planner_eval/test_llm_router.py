@@ -57,3 +57,13 @@ def test_bad_llm_answer_falls_back_to_keywords(client, monkeypatch):
     r = c.say("remove the dessert")
     assert r["type"] in ("itinerary", "message")
     assert r.get("intent") in ("edit_plan", "new_plan")
+
+
+def test_llm_guess_of_total_is_not_trusted(client, monkeypatch):
+    """The router may guess "total"; with a group and no words saying so, ask."""
+    offline(monkeypatch, llm_replies=[
+        _plan({"budget": 60, "budget_scope": "total", "party_size": 4, "group_type": "friends"}),
+    ])
+    _, token = make_user(client, "evalllm5")
+    r = Convo(client, token).say("night out with 4 friends, $60")
+    assert r["type"] == "question" and r["ask"] == "budget_scope"
