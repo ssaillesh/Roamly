@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <title>List your event — Roamly</title>
 <meta name="description" content="Run a club night, a special-guest set or a themed party in Toronto? List it on Roamly's Nightlife tab." />
 <meta name="theme-color" content="#fbf8f4" />
@@ -10,14 +13,13 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
-<link rel="stylesheet" href="/roamly.css" />
+<link rel="stylesheet" href="/roamly.css?v=2026-10-11" />
 <script src="/config.js"></script>
 <style>
   body{background:var(--bg);}
   .wrap{max-width:640px; margin:0 auto; padding:20px 16px 48px;}
   .top{display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;}
   .logo{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:18px; color:var(--ink); text-decoration:none;}
-  .logo b{width:30px; height:30px; border-radius:10px; background:var(--grad); display:grid; place-items:center; color:#fff; font-size:15px;}
   .top a.link{font-size:14px; font-weight:700; color:var(--primary-ink); text-decoration:none;}
   h1{margin:0; font-size:clamp(26px,5vw,32px); letter-spacing:-.02em; line-height:1.15;}
   .lede{margin:8px 0 22px; color:var(--ink-2); font-size:15px; line-height:1.5;}
@@ -45,7 +47,7 @@
 <body>
 <div class="wrap">
   <div class="top">
-    <a class="logo" href="/"><b aria-hidden="true">R</b>Roamly</a>
+    <a class="logo" href="/" aria-label="Roamly home"><svg class="logo-mark" width="24" height="32" aria-hidden="true"><use href="/brand/roamly.svg#mark"/></svg><svg class="wordmark" width="75" height="22" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
     <a class="link" href="/roamly">Open the planner →</a>
   </div>
 

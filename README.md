@@ -51,6 +51,10 @@ everything runs in the API process, with Redis for caching and rate limiting.
 - `admin.html` — the **admin dashboard** (admins only): users & retention, sign-up funnel,
   traffic sources, where users are, planner quality, taste insights, server health, outside-API
   usage, user management, waitlist invites, admin activity and CSV exports.
+- `brand/` — the Roamly logo ("Fold Spark"):
+  - `roamly.svg` holds the star (`#mark`) and the wordmark (`#wordmark`) as symbols. Their neutral parts take the text colour, so the logo turns white on photos and ink on light pages; the orange `#FF5A20` stays fixed.
+  - `logo.svg` / `logo-white.svg` are the full lockups.
+  - `icon.svg`, `favicon-32.png`, `apple-touch-icon.png` and `icon-192/512.png` are the app icon.
 - `roamly.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
   planner, My taste and sign-in pages.
 

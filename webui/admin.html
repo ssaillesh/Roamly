@@ -3,13 +3,16 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <meta name="robots" content="noindex, nofollow" />
 <title>Roamly Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="/roamly.css" />
+<link rel="stylesheet" href="/roamly.css?v=2026-10-11" />
 <script src="/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -342,7 +345,7 @@ function shell(){
     groups += `<a href="#${s.id}" data-sec="${s.id}"><span class="dot" aria-hidden="true"></span>${esc(s.title)}</a>`;
   }
   $('app').innerHTML = `<div class="shell">
-    <aside class="aside"><a class="logo" href="roamly.html">Roamly<small>Admin</small></a>
+    <aside class="aside"><a class="logo" href="roamly.html" aria-label="Roamly admin"><svg class="logo-mark" width="24" height="32" aria-hidden="true"><use href="/brand/roamly.svg#mark"/></svg><svg class="wordmark" width="75" height="22" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg><small>Admin</small></a>
       <nav class="nav" aria-label="Dashboard sections">${groups}</nav>
       <div class="aside-foot">Signed in as <b>@${esc(state.me.username)}</b><br><a href="roamly.html">Back to the app</a></div></aside>
     <main class="content"><div class="topbar"><h1 id="secTitle">Overview<span class="sub" id="secSub"></span></h1>

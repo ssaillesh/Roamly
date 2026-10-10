@@ -13,65 +13,82 @@
   }catch(e){}
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <title>Roamly — Sign in</title>
 <meta name="description" content="Sign in or create a free Roamly account to start planning your night." />
-<meta name="theme-color" content="#221a5c" />
+<meta name="theme-color" content="#3a2a4f" />
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
-<link rel="stylesheet" href="/roamly.css" />
+<link rel="preload" as="image" href="auth-santorini.jpg" />
+<link rel="stylesheet" href="/roamly.css?v=2026-10-11" />
 <script src="/config.js"></script>
 <style>
-  body{min-height:100vh; min-height:100dvh;}
-  .shell{min-height:100vh; min-height:100dvh; display:flex; flex-direction:column;}
+  /* ==== the sunset terrace, full-bleed behind everything ==== */
+  body{min-height:100vh; min-height:100dvh; background:#3a2a4f; color:#fff;}
+  body::before{content:''; position:fixed; inset:0; z-index:-2; pointer-events:none;
+    background:url("auth-santorini.jpg") 50% 55% / cover no-repeat;}
+  /* shade: left for the headline, a touch at the top for the bar, the bottom on phones */
+  body::after{content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background:
+      linear-gradient(90deg, rgba(34,20,48,.52) 0%, rgba(34,20,48,.26) 38%, rgba(34,20,48,0) 62%),
+      linear-gradient(180deg, rgba(34,20,48,.38) 0%, rgba(34,20,48,0) 18%);}
 
-  /* ---- hero: the same dusk + skyline art as the planner's home ---- */
-  .auth-hero{padding:18px 22px 110px; border-radius:0 0 32px 32px;}
-  .auth-hero .skyline{height:118px;}
-  .ah-bar{display:flex; align-items:center; justify-content:space-between; min-height:48px;}
-  .ah-back{display:inline-flex; align-items:center; gap:6px; min-height:44px; padding:0 14px 0 10px; border-radius:var(--r-pill);
-    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.26); color:#fff; font-size:13.5px; font-weight:700;}
-  .ah-back:hover{background:rgba(255,255,255,.22);}
-  .ah-copy{margin-top:18px; max-width:30ch;}
-  .ah-copy h1{margin:0; font-size:clamp(30px,7vw,46px); font-weight:800; letter-spacing:-.035em; line-height:1.05;}
-  .ah-copy p{margin:12px 0 0; font-size:15px; color:rgba(255,255,255,.9); max-width:36ch;}
-  .uses{display:flex; flex-wrap:wrap; gap:8px; margin-top:18px;}
-  .uses span{display:inline-flex; align-items:center; gap:6px; padding:7px 13px; border-radius:var(--r-pill); font-size:13px; font-weight:700;
-    background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.24); color:#fff;}
-  .demo-card{display:none;}
+  .shell{min-height:100vh; min-height:100dvh; display:grid; grid-template-rows:auto 1fr; padding:0 clamp(16px,4vw,56px);}
 
-  .auth-wrap{flex:1; display:flex; justify-content:center; padding:0 16px 40px; margin-top:-86px; position:relative;}
+  /* ---- top bar ---- */
+  .bar{display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:84px;}
+  .brand{display:inline-flex; align-items:center; gap:10px; color:#fff; text-decoration:none; font-size:24px; font-weight:700;
+    letter-spacing:-.02em; text-shadow:0 2px 14px rgba(20,10,30,.35);}
+  .brand svg{filter:drop-shadow(0 2px 10px rgba(20,10,30,.35));}
+  .brand .mk{width:28px; height:36px;} .brand .wm{width:96px; height:28px;}
+  .bar-acts{display:flex; align-items:center; gap:14px; font-size:14px; color:rgba(255,255,255,.9);}
+  .bar-acts .q{text-shadow:0 1px 10px rgba(20,10,30,.4);}
+  .pill{display:inline-flex; align-items:center; min-height:40px; padding:0 18px; border-radius:var(--r-pill); cursor:pointer;
+    font:inherit; font-size:14px; font-weight:700; color:#fff; background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+    transition:background .2s, border-color .2s;}
+  .pill:hover{background:rgba(255,255,255,.24); border-color:#fff;}
 
-  /* ---- the form card ---- */
-  .card.auth{width:100%; max-width:430px; padding:28px 24px 24px; position:relative; overflow:hidden; border-radius:30px; box-shadow:var(--sh-3);
-    animation:cardIn .5s var(--ease) both; align-self:flex-start;}
+  /* ---- body: headline left, card right ---- */
+  .stage{display:grid; align-items:center; gap:32px; padding:8px 0 40px;}
+  .pitch{max-width:600px;}
+  .pitch h1{margin:0; font-size:clamp(38px,5.2vw,68px); line-height:1.04; font-weight:500; letter-spacing:-.035em; color:#fff;
+    text-shadow:0 2px 30px rgba(30,14,40,.35);}
+  .pitch p{margin:20px 0 0; max-width:44ch; font-size:clamp(15px,1.25vw,17px); line-height:1.6; color:rgba(255,255,255,.92);
+    text-shadow:0 1px 14px rgba(30,14,40,.45);}
+  @media (min-width:980px){
+    .stage{grid-template-columns:minmax(0,1fr) 440px; gap:48px; padding-bottom:56px;}
+    .pitch{align-self:start; margin-top:clamp(40px,10vh,120px);}
+  }
+
+  /* ---- the frosted card ---- */
+  .card.auth{position:relative; overflow:hidden; width:100%; max-width:440px; justify-self:end; padding:36px 38px 28px;
+    border-radius:28px; color:var(--ink); background:rgba(255,255,255,.86);
+    backdrop-filter:blur(22px) saturate(1.25); -webkit-backdrop-filter:blur(22px) saturate(1.25);
+    border:1px solid rgba(255,255,255,.65); box-shadow:0 40px 90px -36px rgba(30,12,40,.7);
+    animation:cardIn .55s var(--ease) both;}
   @keyframes cardIn{from{opacity:0; transform:translateY(14px);} to{opacity:1; transform:none;}}
   .card.shake{animation:shake .42s;}
   @keyframes shake{10%,90%{transform:translateX(-1px);} 20%,80%{transform:translateX(2px);} 30%,50%,70%{transform:translateX(-5px);} 40%,60%{transform:translateX(5px);}}
-  .card-head{margin-bottom:20px;}
-  .card-head .m{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; color:var(--primary-ink); margin-bottom:6px;}
-  .card-head h2{margin:0; font-size:27px; font-weight:800; letter-spacing:-.03em;}
-  .card-head p{margin:6px 0 0; font-size:14.5px; color:var(--ink-2);}
-
-  .seg{position:relative; display:flex; background:var(--surface-3); border-radius:var(--r-pill); padding:4px; margin-bottom:20px;}
-  .seg .thumb{position:absolute; top:4px; bottom:4px; left:4px; width:calc(50% - 4px); border-radius:var(--r-pill); background:var(--surface);
-    box-shadow:var(--sh-1); transition:transform .32s var(--pop);}
-  .seg button{position:relative; z-index:1; flex:1; min-height:42px; border:0; background:transparent; color:var(--ink-2);
-    font-size:14px; font-weight:750; border-radius:var(--r-pill); cursor:pointer; transition:color .25s;}
-  .seg button.on{color:var(--ink);}
+  .card-head{margin-bottom:24px;}
+  .card-head h2{margin:0; font-size:26px; font-weight:750; letter-spacing:-.025em; color:var(--ink);}
+  .card-head p{margin:8px 0 0; font-size:15px; line-height:1.5; color:var(--ink-2);}
 
   .fld{margin-bottom:14px;}
-  .fld label{display:block; font-size:13px; font-weight:750; color:var(--ink-2); margin-bottom:6px;}
   .in-wrap{position:relative; display:flex; align-items:center;}
-  .in-wrap .ic{position:absolute; left:15px; color:var(--ink-3); pointer-events:none;}
-  .in-wrap .input{padding-left:44px;}
+  .in-wrap .ic{position:absolute; left:16px; color:var(--ink-3); pointer-events:none;}
+  .in-wrap .input{min-height:52px; padding-left:46px; border-radius:14px; background:rgba(255,255,255,.92);}
   .fld.ok .input{border-color:rgba(21,122,76,.55);}
   .fld.err .input{border-color:var(--danger); box-shadow:0 0 0 4px rgba(192,44,79,.1);}
-  .fld.err label{color:var(--danger);}
-  .toggle-pw{position:absolute; right:6px; width:40px; height:40px; border:0; background:none; border-radius:12px; color:var(--ink-3); cursor:pointer; display:grid; place-items:center;}
+  .toggle-pw{position:absolute; right:6px; width:42px; height:42px; border:0; background:none; border-radius:12px; color:var(--ink-3);
+    cursor:pointer; display:grid; place-items:center;}
   .toggle-pw:hover{color:var(--ink); background:var(--surface-2);}
-  .hint{font-size:12.5px; color:var(--ink-3); margin-top:6px; min-height:16px; font-weight:550;}
+  .hint{font-size:12.5px; color:var(--ink-3); margin-top:6px; font-weight:550;}
+  .hint:empty{display:none;}
   .fld.err .hint{color:var(--danger);}
   .strength{display:flex; gap:4px; margin-top:8px; height:4px;}
   .strength i{flex:1; border-radius:99px; background:var(--surface-3); transition:background .3s;}
@@ -79,131 +96,94 @@
   .strength.s2 i:nth-child(1),.strength.s2 i:nth-child(2){background:#e8892f;}
   .strength.s3 i:nth-child(1),.strength.s3 i:nth-child(2),.strength.s3 i:nth-child(3){background:#e0b300;}
   .strength.s4 i{background:var(--mint);}
-  .row-between{display:flex; justify-content:flex-end; margin:-6px 0 12px;}
-  .row-between .link{font-size:13.5px;}
-  .submit{position:relative; overflow:hidden;}
+
+  .agree-row{display:flex; align-items:flex-start; gap:10px; margin:4px 0 2px; font-size:13.5px; font-weight:550; color:var(--ink-2);
+    line-height:1.45; cursor:pointer;}
+  .agree-row input{width:18px; height:18px; margin:1px 0 0; flex:0 0 auto; accent-color:var(--ink);}
+  .agree-row a, .fineprint a{color:var(--ink); text-decoration:underline; text-underline-offset:2px;}
+  .forgot{display:flex; justify-content:flex-end; margin:-4px 0 14px;}
+  .forgot .link{font-size:13.5px; color:var(--ink-2);}
+
+  .go{display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:52px; margin-top:8px; border:0;
+    border-radius:14px; cursor:pointer; background:#16213a; color:#fff; font:inherit; font-size:15.5px; font-weight:700;
+    box-shadow:0 14px 28px -14px rgba(22,33,58,.7); transition:transform .15s, background .2s;}
+  .go:hover{background:#0f182c;} .go:active{transform:translateY(1px);}
+  .go:disabled{opacity:.75; cursor:default;}
+  .go .ic{width:18px; height:18px; transition:transform .2s;} .go:hover .ic{transform:translateX(3px);}
   .spin{width:16px; height:16px; border-radius:50%; border:2.5px solid rgba(255,255,255,.4); border-top-color:#fff; animation:spin .7s linear infinite; display:none;}
-  .submit.loading .spin{display:inline-block;}
+  .go.loading .spin{display:inline-block;} .go.loading .ic{display:none;}
   @keyframes spin{to{transform:rotate(360deg);}}
-  .msg-box{margin-top:14px; font-size:13.5px; font-weight:650; text-align:center; min-height:18px;}
+  .msg-box{margin-top:12px; font-size:13.5px; font-weight:650; text-align:center;}
+  .msg-box:empty{display:none;}
   .msg-box.err{color:var(--danger);} .msg-box.ok{color:var(--mint-ink);}
-  .switcher{text-align:center; margin-top:18px; font-size:14px; color:var(--ink-2);}
-  .switcher b{color:var(--primary-ink); cursor:pointer; font-weight:750;}
-  .switcher b:hover{text-decoration:underline; text-underline-offset:3px;}
-  .fineprint{font-size:12px; color:var(--ink-3); text-align:center; margin-top:16px;}
-  .fineprint a{color:inherit;}
-  .agree-row{display:flex; align-items:flex-start; gap:10px; font-size:13.5px; font-weight:600; color:var(--ink-2); line-height:1.45; cursor:pointer;}
-  .agree-row input{width:19px; height:19px; margin:1px 0 0; flex:0 0 auto; accent-color:var(--primary);}
-  .agree-row a{color:var(--primary-ink); font-weight:700;}
+  .divider{display:flex; align-items:center; gap:12px; margin:22px 0 16px; font-size:12.5px; color:var(--ink-3);}
+  .divider::before,.divider::after{content:''; flex:1; height:1px; background:var(--line);}
+  .switcher{text-align:center; font-size:14px; color:var(--ink-2);}
+  .switcher button{border:0; background:none; padding:4px 2px; cursor:pointer; font:inherit; font-weight:750; color:var(--ink);
+    text-decoration:underline; text-underline-offset:3px;}
+  .fineprint{margin-top:18px; font-size:12px; line-height:1.5; color:var(--ink-3); text-align:center;}
+
   .success{position:absolute; inset:0; z-index:5; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
     background:rgba(255,255,255,.97); opacity:0; pointer-events:none; transition:opacity .3s var(--ease); text-align:center; padding:20px;}
   .success.on{opacity:1; pointer-events:auto;}
-  .check{width:74px; height:74px; border-radius:50%; background:var(--grad); display:grid; place-items:center; color:#fff;
-    transform:scale(0); animation:pop .5s var(--pop) .1s forwards; box-shadow:var(--sh-cta);}
+  .check{width:74px; height:74px; border-radius:50%; background:#16213a; display:grid; place-items:center; color:#fff;
+    transform:scale(0); animation:pop .5s var(--pop) .1s forwards;}
   .check .ic{width:34px; height:34px; stroke-width:2.6;}
   @keyframes pop{to{transform:scale(1);}}
   .success h3{margin:0; font-size:20px; font-weight:800; letter-spacing:-.02em;}
   .success p{margin:0; font-size:14px; color:var(--ink-2);}
   .fp-panel{display:none;}
   .fp-panel.on{display:block; animation:cardIn .35s var(--ease) both;}
-  .fp-back{margin-bottom:10px; padding:6px 0;}
+  .fp-back{display:inline-flex; align-items:center; gap:4px; margin:-6px 0 14px; padding:6px 0; color:var(--ink-2);}
 
-  /* ---- desktop: hero panel left, form right ---- */
-  @media (min-width:980px){
-    .shell{flex-direction:row; padding:24px; gap:24px; align-items:stretch;}
-    .auth-hero{flex:1 1 55%; border-radius:32px; padding:28px 40px 150px; display:flex; flex-direction:column;}
-    .auth-hero .skyline{height:150px;}
-    .ah-copy{margin-top:48px;}
-    .demo-card{display:block; margin-top:34px; max-width:440px; padding:18px 18px 12px; border-radius:24px; background:rgba(255,255,255,.96);
-      color:var(--ink); box-shadow:0 30px 60px -30px rgba(10,6,40,.6);}
-    .auth-wrap{flex:0 0 470px; margin:0; padding:0; align-items:center;}
+  /* ---- phones & tablets: headline, then the card ---- */
+  @media (max-width:979px){
+    body::before{background-position:30% 50%;}
+    body::after{background:
+      linear-gradient(180deg, rgba(34,20,48,.5) 0%, rgba(34,20,48,.18) 30%, rgba(34,20,48,.1) 55%, rgba(34,20,48,.45) 100%);}
+    .bar{min-height:72px;}
+    .stage{align-content:start;}
+    .pitch{margin-top:12px;}
+    .card.auth{justify-self:center; padding:28px 22px 22px; border-radius:24px;}
   }
-  /* demo chat inside the hero card */
-  .dmsg{display:flex; gap:10px; margin-bottom:10px; animation:rise .4s var(--ease) both;}
-  @keyframes rise{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
-  .dmsg .av{width:28px; height:28px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center; background:var(--surface-2);}
-  .dmsg .av .logo-mark{width:16px; height:16px;}
-  .dmsg .bub{padding:9px 13px; border-radius:16px; font-size:14px; background:var(--surface-2); border-top-left-radius:6px;}
-  .dmsg.me{flex-direction:row-reverse;}
-  .dmsg.me .bub{background:var(--ink); color:#fff; border-radius:16px; border-top-right-radius:6px;}
-  .dstops{border-top:1px solid var(--line-2); padding-top:8px; margin-bottom:6px;}
-  .dstop{display:flex; align-items:baseline; gap:10px; padding:6px 2px; font-size:14px;}
-  .dstop .time{font-size:11px; font-weight:800; color:var(--primary-ink); background:var(--primary-soft); padding:2px 8px; border-radius:999px;}
-  .dstop .name{font-weight:750;}
-  .dstop .cat{color:var(--ink-3); font-size:12.5px;}
-  .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%; background:var(--primary); opacity:.4; animation:blink 1.2s infinite;}
-  .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
-  @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
-
-  /* ==== Toronto-at-dusk photo behind everything, same shading as the landing page ==== */
-  body{background:#140e28 url("hero-toronto.jpg") 62% 60% / cover no-repeat fixed;}
-  body::before{content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
-    background:
-      linear-gradient(90deg, rgba(28,20,58,.62) 0%, rgba(28,20,58,.3) 45%, rgba(28,20,58,.12) 70%),
-      linear-gradient(180deg, rgba(28,20,58,.35) 0%, rgba(28,20,58,0) 25%, rgba(20,14,40,.55) 100%);}
-  .shell{position:relative; z-index:0;}
-  .auth-hero{background:none !important; box-shadow:none !important; color:#fff;}
-  .auth-hero .skyline, .auth-hero .glow{display:none;}
-  .ah-copy h1{font-weight:600; letter-spacing:-.035em; text-shadow:0 2px 24px rgba(20,14,40,.3);}
-  .uses span{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.35); font-weight:600;}
-  .card.auth{background:rgba(255,255,255,.96); box-shadow:0 40px 80px -30px rgba(10,6,30,.65);}
-  .ah-back{background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.4);}
-  @media (min-width:980px){
-    .demo-card{background:rgba(20,14,40,.45) !important; border:1px solid rgba(255,255,255,.16);
-      color:#fff !important; box-shadow:0 30px 60px -30px rgba(0,0,0,.6) !important;}
-    .demo-card .dmsg .bub{background:rgba(255,255,255,.12); color:#fff;}
-    .demo-card .dmsg.me .bub{background:#fff; color:var(--ink);}
-    .demo-card .dmsg .av{background:rgba(255,255,255,.14);}
-    .demo-card .dstops{border-top-color:rgba(255,255,255,.14);}
-    .demo-card .dstop .time{background:linear-gradient(120deg,#8a63f2,#e0789a); color:#fff;}
-    .demo-card .dstop .cat{color:rgba(255,255,255,.62);}
-    .demo-card .dots span{background:#fff;}
+  @media (max-width:560px){
+    .bar-acts .q{display:none;}
+    .brand .mk{width:24px; height:31px;} .brand .wm{width:82px; height:24px;}
+    .pitch p{margin-top:12px;}
+    .stage{gap:22px; padding-bottom:20px;}
   }
-  /* desktop: form on the left so the skyline (tower + couple, right side of the photo) stays clear */
-  @media (min-width:980px){
-    .auth-wrap{order:-1;}
-    .auth-hero{padding:28px 48px; flex:1 1 auto;}
-    .demo-card{display:none !important;}
-    body::before{background:
-      linear-gradient(90deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.25) 40%, rgba(28,20,58,0) 65%),
-      linear-gradient(180deg, rgba(28,20,58,.4) 0%, rgba(28,20,58,0) 35%, rgba(20,14,40,.35) 100%);}
-  }
-  @media (max-width:979px){ body{background-position:72% 40%;} .auth-wrap{margin-top:-40px;} .auth-hero{padding-bottom:70px;} }
+  @media (prefers-reduced-motion:reduce){ .card.auth,.check{animation:none; transform:none;} }
 </style>
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <defs><linearGradient id="rg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs>
-  <symbol id="i-logo" viewBox="0 0 32 32"><path fill="url(#rg)" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#rg)" stroke="none" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
-  <symbol id="i-logo-w" viewBox="0 0 32 32"><path fill="#fff" stroke="none" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="#fff" stroke="none" opacity=".8" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></symbol>
+  <symbol id="i-logo-w" viewBox="-36.3 -40 72.6 100"><path fill="currentColor" stroke="none" d="M0 -40L-9.24 -9.24L0 0ZM36.3 0L9.24 -9.24L0 0ZM0 60L9.24 9.24L0 0ZM-36.3 0L-9.24 9.24L0 0Z"/><path fill="#FF5A20" stroke="none" d="M0 -40L9.24 -9.24L0 0ZM36.3 0L9.24 9.24L0 0ZM0 60L-9.24 9.24L0 0ZM-36.3 0L-9.24 -9.24L0 0Z"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="m4 7.5 8 6 8-6"/></symbol>
   <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="3"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></symbol>
-  <symbol id="i-at" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.5"/><path d="M15.5 12v1.5a2.5 2.5 0 0 0 5 0V12a8.5 8.5 0 1 0-3.3 6.7"/></symbol>
   <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.8"/><path d="M4.5 20c.8-3.6 3.8-5.8 7.5-5.8s6.7 2.2 7.5 5.8"/></symbol>
   <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
   <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M4 4l16 16M10.6 6.1A9.6 9.6 0 0 1 12 6c6 0 9.5 6 9.5 6a16 16 0 0 1-2.9 3.6M6.4 7.9C3.9 9.6 2.5 12 2.5 12S6 18 12 18c1.4 0 2.7-.3 3.8-.8"/><path d="M9.9 10a3 3 0 0 0 4.1 4.1"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
-  <symbol id="i-sparkle" viewBox="0 0 24 24"><path d="M12 3.5c.6 4.4 3.1 6.9 7.5 7.5-4.4.6-6.9 3.1-7.5 7.5-.6-4.4-3.1-6.9-7.5-7.5 4.4-.6 6.9-3.1 7.5-7.5Z"/></symbol>
 </svg>
 
 <div class="shell">
-  <section class="hero auth-hero" aria-label="About Roamly">
-    <svg class="skyline" id="skyline" viewBox="0 0 800 120" preserveAspectRatio="xMidYMax slice" aria-hidden="true"></svg>
-    <span class="glow" aria-hidden="true"></span>
-    <div class="ah-bar">
-      <span class="logo on-dark"><svg class="logo-mark" aria-hidden="true"><use href="#i-logo-w"/></svg>Roamly</span>
-      <a class="ah-back" href="/"><svg class="ic sm" aria-hidden="true"><use href="#i-back"/></svg> Home</a>
+  <header class="bar">
+    <a class="brand" href="/" aria-label="Roamly home"><svg class="mk" width="26" height="34" aria-hidden="true"><use href="#i-logo-w"/></svg><svg class="wm" width="86" height="25" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
+    <div class="bar-acts">
+      <span class="q" id="barQ">Already have an account?</span>
+      <button type="button" class="pill" id="barSwitch">Sign in</button>
     </div>
-    <div class="ah-copy">
-      <h1>Better plans.<br>Less planning.</h1>
-      <p>Real places near you, timed and budgeted.</p>
-      <div class="uses" aria-label="Made for"><span>Date nights</span><span>Friends</span><span>Solo</span><span>Family</span><span>Any mood</span></div>
-    </div>
-    <div class="demo-card" aria-hidden="true"><div id="demo"></div></div>
-  </section>
+  </header>
 
-  <div class="auth-wrap">
+  <main class="stage">
+    <section class="pitch" aria-label="About Roamly">
+      <h1>Plan the moments<br>that matter.</h1>
+      <p>Tell us what you're in the mood for, and Roamly builds a real, timed plan from places near you.
+        Or ask what's happening right now, and discover live events around you.</p>
+    </section>
+
     <div class="card auth" id="card">
       <div class="success" id="success" role="status">
         <div class="check"><svg class="ic" aria-hidden="true"><use href="#i-check"/></svg></div>
@@ -214,100 +194,84 @@
       <!-- MAIN AUTH FORM -->
       <div id="mainPanel">
         <div class="card-head">
-          <div class="m"><svg class="ic sm" aria-hidden="true"><use href="#i-sparkle"/></svg> Roamly</div>
-          <h2 id="headTitle">Welcome back</h2>
-          <p id="headSub">Good to see you again — let's get back to planning.</p>
-        </div>
-
-        <div class="seg" role="group" aria-label="Sign in or create an account">
-          <div class="thumb" id="segThumb"></div>
-          <button type="button" class="on" data-mode="login">Sign in</button>
-          <button type="button" data-mode="register">Create account</button>
+          <h2 id="headTitle">Create your account</h2>
+          <p id="headSub">Get started with Roamly and never wonder what to do next.</p>
         </div>
 
         <form id="authForm" novalidate>
-          <div id="regFields">
-            <div class="fld" id="fUsername">
-              <label for="username">Username</label>
-              <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-at"/></svg>
-                <input class="input" id="username" placeholder="explorer" autocomplete="username" aria-describedby="hUsername" />
-              </div>
-              <div class="hint" id="hUsername">3–30 characters — letters, numbers, underscore.</div>
+          <div class="fld" id="fName">
+            <label class="sr-only" for="displayName">Your name</label>
+            <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>
+              <input class="input" id="displayName" placeholder="Your name" autocomplete="name" maxlength="100" />
             </div>
-            <div class="fld" id="fDisplay">
-              <label for="displayName">Display name</label>
-              <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-user"/></svg>
-                <input class="input" id="displayName" placeholder="Your name" autocomplete="name" />
-              </div>
-            </div>
+            <div class="hint"></div>
           </div>
 
           <div class="fld" id="fEmail">
-            <label for="email">Email address</label>
+            <label class="sr-only" for="email">Email address</label>
             <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg>
-              <input class="input" id="email" type="email" placeholder="you@example.com" autocomplete="email" aria-describedby="hEmail" />
+              <input class="input" id="email" type="email" placeholder="Email address" autocomplete="email" aria-describedby="hEmail" />
             </div>
             <div class="hint" id="hEmail"></div>
           </div>
 
           <div class="fld" id="fPassword">
-            <label for="password">Password</label>
+            <label class="sr-only" for="password">Password</label>
             <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>
-              <input class="input" id="password" type="password" placeholder="••••••••" autocomplete="current-password" aria-describedby="hPassword" />
-              <button type="button" class="toggle-pw" id="togglePw" aria-label="Show password"><svg class="ic" aria-hidden="true"><use href="#i-eye"/></svg></button>
+              <input class="input" id="password" type="password" placeholder="Password" autocomplete="new-password" aria-describedby="hPassword" />
+              <button type="button" class="toggle-pw" id="togglePw" aria-label="Show password"><svg class="ic" aria-hidden="true"><use href="#i-eye-off"/></svg></button>
             </div>
             <div class="strength" id="strength" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-            <div class="hint" id="hPassword">At least 6 characters.</div>
+            <div class="hint" id="hPassword"></div>
           </div>
 
-          <div class="fld agree" id="fAgree">
+          <div class="fld" id="fAgree">
             <label class="agree-row"><input type="checkbox" id="agree" />
               <span>I agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
                 and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
             <div class="hint" id="hAgree"></div>
           </div>
 
-          <div class="row-between">
+          <div class="forgot" id="forgotRow">
             <button type="button" class="link" id="forgotLink">Forgot password?</button>
           </div>
 
-          <button type="submit" class="btn btn-primary btn-lg btn-block submit" id="submitBtn">
-            <span class="spin"></span><span class="lbl" id="submitLbl">Sign in</span>
+          <button type="submit" class="go submit" id="submitBtn">
+            <span class="spin"></span><span class="lbl" id="submitLbl">Create account</span>
+            <svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>
           </button>
 
           <div class="msg-box" id="formMsg" role="alert"></div>
         </form>
 
-        <div class="switcher" id="switcher">
-          New to Roamly? <b id="switchLink">Create a free account</b>
-        </div>
+        <div class="divider">or</div>
+        <div class="switcher" id="switcher"></div>
 
-        <div class="fineprint" id="fineprint">By continuing you agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms</a>
-          &amp; <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</div>
+        <div class="fineprint" id="fineprint">By signing in you agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+          and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</div>
       </div>
 
       <!-- FORGOT PASSWORD PANEL -->
       <div class="fp-panel" id="fpPanel">
         <button class="link fp-back" id="fpBack"><svg class="ic sm" aria-hidden="true"><use href="#i-back"/></svg> Back to sign in</button>
         <div class="card-head">
-          <div class="m">Reset access</div>
-          <h2>Forgot password?</h2>
-          <p>Enter your email and we'll send reset instructions.</p>
+          <h2>Forgot your password?</h2>
+          <p>Enter your email and we'll send you a link to reset it.</p>
         </div>
         <div class="fld" id="fFpEmail">
-          <label for="fpEmail">Email address</label>
+          <label class="sr-only" for="fpEmail">Email address</label>
           <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-mail"/></svg>
-            <input class="input" id="fpEmail" type="email" placeholder="you@example.com" autocomplete="email" />
+            <input class="input" id="fpEmail" type="email" placeholder="Email address" autocomplete="email" />
           </div>
           <div class="hint"></div>
         </div>
-        <button type="button" class="btn btn-primary btn-lg btn-block submit" id="fpSubmit">
-          <span class="spin"></span><span class="lbl">Send reset link</span>
+        <button type="button" class="go submit" id="fpSubmit">
+          <span class="spin"></span><span class="lbl">Send reset link</span><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>
         </button>
         <div class="msg-box" id="fpMsg" role="status"></div>
       </div>
     </div>
-  </div>
+  </main>
 </div>
 
 <script>
@@ -319,36 +283,34 @@ const REDIRECT = params.get('redirect') || 'roamly.html';
 /* Already signed in? Skip straight through — this page is a gate, not a destination. */
 if (localStorage.getItem('trek_token')) location.replace(REDIRECT);
 
-/* ---------- mode toggle ---------- */
-let mode = params.get('mode') === 'register' ? 'register' : 'login';
-function applyMode(animate=true){
-  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.mode===mode));
-  $('segThumb').style.transform = mode==='register' ? 'translateX(100%)' : 'translateX(0)';
-  $('regFields').style.display = mode==='register' ? 'block' : 'none';
-  $('fAgree').style.display = mode==='register' ? 'block' : 'none';
-  $('fineprint').style.display = mode==='register' ? 'none' : 'block';
-  if (mode==='register'){
-    $('headTitle').textContent = 'Create your account';
-    $('headSub').textContent = "Takes about a minute — then you're planning.";
-    $('submitLbl').textContent = 'Create account';
-    $('switcher').innerHTML = 'Already have an account? <b id="switchLink">Sign in</b>';
-    $('password').setAttribute('autocomplete','new-password');
-    $('strength').style.display = 'flex';
-  } else {
-    $('headTitle').textContent = 'Welcome back';
-    $('headSub').textContent = "Good to see you again — let's get back to planning.";
-    $('submitLbl').textContent = 'Sign in';
-    $('switcher').innerHTML = "New to Roamly? <b id=\"switchLink\">Create a free account</b>";
-    $('password').setAttribute('autocomplete','current-password');
-    $('strength').style.display = 'none';
-  }
-  $('switchLink').onclick = () => { mode = mode==='login' ? 'register' : 'login'; clearErrors(); applyMode(); };
+/* ---------- sign in ↔ create account ---------- */
+let mode = params.get('mode') === 'login' ? 'login' : (params.get('mode') === 'register' ? 'register' : 'login');
+function showFor(id, on){ $(id).style.display = on ? '' : 'none'; }
+function applyMode(){
+  const reg = mode === 'register';
+  showFor('fName', reg); showFor('fAgree', reg); showFor('strength', reg && !!$('password').value);
+  showFor('forgotRow', !reg); showFor('fineprint', !reg);
+  $('headTitle').textContent = reg ? 'Create your account' : 'Welcome back';
+  $('headSub').textContent = reg ? 'Get started with Roamly and never wonder what to do next.'
+                                 : "Good to see you again — let's plan something.";
+  $('submitLbl').textContent = reg ? 'Create account' : 'Sign in';
+  $('password').setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
+  $('barQ').textContent = reg ? 'Already have an account?' : 'New to Roamly?';
+  $('barSwitch').textContent = reg ? 'Sign in' : 'Create account';
+  $('switcher').innerHTML = reg ? 'Already have an account? <button type="button" data-switch>Sign in</button>'
+                                : 'New to Roamly? <button type="button" data-switch>Create a free account</button>';
+  $('switcher').querySelector('[data-switch]').onclick = toggleMode;
+  document.title = reg ? 'Roamly — Create your account' : 'Roamly — Sign in';
   clearFormMsg();
 }
-document.querySelectorAll('.seg button').forEach(b => b.onclick = () => {
-  if (b.dataset.mode === mode) return; mode = b.dataset.mode; clearErrors(); applyMode();
-});
-applyMode(false);
+function toggleMode(){
+  mode = mode === 'login' ? 'register' : 'login';
+  clearErrors(); applyMode();
+  $('fpPanel').classList.remove('on'); $('mainPanel').style.display = 'block';
+  (mode === 'register' ? $('displayName') : $('email')).focus();
+}
+$('barSwitch').onclick = toggleMode;
+applyMode();
 
 /* ---------- field validation helpers ---------- */
 function setField(id, state, hint){
@@ -359,23 +321,16 @@ function setField(id, state, hint){
   if (hintEl && hint !== undefined) hintEl.textContent = hint;
 }
 function clearErrors(){
-  ['fUsername','fDisplay','fEmail','fPassword','fAgree'].forEach(id => $(id) && $(id).classList.remove('ok','err'));
+  ['fName','fEmail','fPassword','fAgree'].forEach(id => setField(id, null, ''));
 }
 function clearFormMsg(){ $('formMsg').className = 'msg-box'; $('formMsg').textContent = ''; }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const USER_RE = /^[a-zA-Z0-9_]{3,30}$/;
 
 $('email').addEventListener('input', () => {
   const v = $('email').value.trim();
   if (!v) return setField('fEmail', null, '');
   setField('fEmail', EMAIL_RE.test(v) ? 'ok' : 'err', EMAIL_RE.test(v) ? '' : 'That email doesn’t look right.');
-});
-$('username').addEventListener('input', () => {
-  const v = $('username').value.trim();
-  if (!v) return setField('fUsername', null, '3–30 characters — letters, numbers, underscore.');
-  setField('fUsername', USER_RE.test(v) ? 'ok' : 'err',
-    USER_RE.test(v) ? 'Nice — that’s available to try.' : 'Letters, numbers, underscore only.');
 });
 
 function pwScore(v){
@@ -388,24 +343,37 @@ function pwScore(v){
 }
 $('password').addEventListener('input', () => {
   const v = $('password').value;
-  const bar = $('strength');
-  bar.className = 'strength' + (v ? ' s' + pwScore(v) : '');
+  $('strength').className = 'strength' + (v ? ' s' + pwScore(v) : '');
+  showFor('strength', mode === 'register' && !!v);
   if (mode === 'register'){
-    if (!v) return setField('fPassword', null, 'At least 6 characters.');
-    setField('fPassword', v.length >= 6 ? 'ok' : 'err', v.length >= 6 ? '' : 'Needs at least 6 characters.');
+    if (!v) return setField('fPassword', null, '');
+    setField('fPassword', v.length >= 6 ? 'ok' : 'err', v.length >= 6 ? '' : 'At least 6 characters.');
   }
 });
 $('togglePw').onclick = () => {
   const inp = $('password');
   const show = inp.type === 'password';
   inp.type = show ? 'text' : 'password';
-  $('togglePw').innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${show ? 'eye-off' : 'eye'}"/></svg>`;
+  $('togglePw').innerHTML = `<svg class="ic" aria-hidden="true"><use href="#i-${show ? 'eye' : 'eye-off'}"/></svg>`;
   $('togglePw').setAttribute('aria-label', show ? 'Hide password' : 'Show password');
 };
+
+/* A username is made from the email ("sam.lee@…" → "sam_lee"); people never type one. */
+function usernameFrom(email, salt){
+  let u = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 22) || 'roamer';
+  if (u.length < 3) u = (u + '_roamly').slice(0, 10);
+  return salt ? `${u}_${salt}` : u;
+}
 
 /* ---------- submit ---------- */
 function shakeCard(){ const c=$('card'); c.classList.remove('shake'); void c.offsetWidth; c.classList.add('shake'); }
 function setLoading(btn, on){ btn.classList.toggle('loading', on); btn.disabled = on; }
+
+async function post(path, body){
+  const r = await apiFetch(API + path, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+  const d = await r.json().catch(() => ({}));
+  return { r, d };
+}
 
 $('authForm').addEventListener('submit', async (e) => {
   e.preventDefault();
@@ -416,13 +384,9 @@ $('authForm').addEventListener('submit', async (e) => {
 
   if (!EMAIL_RE.test(email)){ setField('fEmail','err','Enter a valid email.'); ok = false; }
   if (mode === 'login' && !password){ setField('fPassword','err','Enter your password.'); ok = false; }
-  if (mode === 'register' && password.length < 6){ setField('fPassword','err','Needs at least 6 characters.'); ok = false; }
-
-  let username, displayName;
   if (mode === 'register'){
-    username = $('username').value.trim();
-    displayName = $('displayName').value.trim() || username;
-    if (!USER_RE.test(username)){ setField('fUsername','err','3–30 characters — letters, numbers, underscore.'); ok = false; }
+    if (!$('displayName').value.trim()){ setField('fName','err','What should we call you?'); ok = false; }
+    if (password.length < 6){ setField('fPassword','err','At least 6 characters.'); ok = false; }
     if (!$('agree').checked){ setField('fAgree','err','Please accept the Terms and Privacy Policy to continue.'); ok = false; }
     else setField('fAgree', null, '');
   }
@@ -431,15 +395,25 @@ $('authForm').addEventListener('submit', async (e) => {
   const btn = $('submitBtn');
   setLoading(btn, true);
   try{
-    const path = mode === 'register' ? '/auth/register' : '/auth/login';
-    const body = mode === 'register'
-      ? { email, password, username, display_name: displayName, accept_terms: $('agree').checked }
-      : { email, password };
-    const r = await apiFetch(API + path, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.detail || 'Something went wrong — try again.');
+    let res;
+    if (mode === 'register'){
+      const display_name = $('displayName').value.trim();
+      // the username is picked for them; if it's taken, add a few digits and try again
+      for (let i = 0; i < 3; i++){
+        const salt = i ? String(Math.floor(1000 + Math.random() * 9000)) : '';
+        res = await post('/auth/register', { email, password, display_name, username: usernameFrom(email, salt),
+                                            accept_terms: $('agree').checked });
+        if (!(res.r.status === 409 && /username/i.test(res.d.detail || ''))) break;
+      }
+    } else {
+      res = await post('/auth/login', { email, password });
+    }
+    const { r, d } = res;
+    if (!r.ok){
+      const detail = Array.isArray(d.detail) ? 'Check the details and try again.' : d.detail;
+      throw new Error(r.status === 409 && /email/i.test(detail || '')
+        ? 'That email already has an account — sign in instead.' : (detail || 'Something went wrong — try again.'));
+    }
 
     localStorage.setItem('trek_token', d.access_token);
     localStorage.setItem('trek_user', d.user.username);
@@ -466,6 +440,7 @@ $('forgotLink').onclick = () => {
   $('fpEmail').value = $('email').value.trim();
   $('mainPanel').style.display = 'none';
   $('fpPanel').classList.add('on');
+  $('fpEmail').focus();
 };
 $('fpBack').onclick = () => {
   $('fpPanel').classList.remove('on');
@@ -480,10 +455,7 @@ $('fpSubmit').onclick = async () => {
   setLoading(btn, true);
   $('fpMsg').className = 'msg-box'; $('fpMsg').textContent = '';
   try{
-    const r = await apiFetch(API + '/auth/forgot-password', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }),
-    });
-    const d = await r.json().catch(() => ({}));
+    const { d } = await post('/auth/forgot-password', { email });
     $('fpMsg').className = 'msg-box ok';
     $('fpMsg').textContent = d.message || "If an account exists for that email, we've sent reset instructions.";
   }catch(err){
@@ -493,57 +465,6 @@ $('fpSubmit').onclick = async () => {
     setLoading(btn, false);
   }
 };
-
-/* ---------- hero skyline (same generated art as the planner) ---------- */
-(function(){
-  const r = n => { const s = Math.sin(n * 12.9898) * 43758.5453; return s - Math.floor(s); };
-  const T = 560; let back = '', front = '', win = '', x = 0, i = 0;
-  while (x < 800){ const w = 16 + Math.round(r(i + 1) * 16), h = 38 + Math.round(r(i + 7) * 46); back += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`; x += w + 2; i++; }
-  x = 0;
-  while (x < 800){ const w = 20 + Math.round(r(i + 3) * 18), h = 20 + Math.round(r(i + 5) * 30);
-    if (x + w < T - 18 || x > T + 18){ front += `<rect x="${x}" y="${120 - h}" width="${w}" height="${h}"/>`;
-      if (r(i + 9) > .3) win += `<rect x="${x + 5}" y="${126 - h}" width="3" height="3"/>`; }
-    x += w + 3; i++; }
-  $('skyline').innerHTML = `<g fill="#2b1d6e" opacity=".5">${back}</g><g fill="#1a1242">${front}<path d="M${T - 7} 120l4-62h6l4 62z"/>
-    <rect x="${T - 1.5}" y="6" width="3" height="56"/><ellipse cx="${T}" cy="47" rx="9" ry="4.5"/></g><g fill="#ffd27a" opacity=".85">${win}</g>`;
-})();
-
-/* ---------- animated itinerary preview (mirrors the marketing site) ---------- */
-const SCENARIOS = [
-  { ask: '$60, date night, something fancy 🍷', reply: "Here's your night — three stops, 12 minutes apart:",
-    stops: [['7:00','Bar Isabel','· dinner'],['8:45','Civil Liberties','· cocktails'],['10:15',"Sweet Olenka's",'· dessert']] },
-  { ask: '$30, chill night with the roomies 🍕', reply: 'Cozy and cheap — got you:',
-    stops: [['6:30','Superpoint','· pizza'],['8:00','Snakes & Lattes','· games'],['9:45','Night Owl','· pints']] },
-  { ask: 'we just got paid. go crazy 🤑', reply: 'Turning it up tonight:',
-    stops: [['7:30','Omakase bar','· sushi'],['9:30','Rooftop lounge','· drinks'],['11:30','Basement disco','· dancing']] },
-];
-const demo = $('demo');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-function el(html){ const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
-async function playDemo(){
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let i = 0;
-  for(;;){
-    const s = SCENARIOS[i % SCENARIOS.length]; i++;
-    demo.innerHTML = '';
-    demo.appendChild(el(`<div class="dmsg me"><div class="bub">${s.ask}</div></div>`));
-    const AV = '<div class="av"><svg class="logo-mark"><use href="#i-logo"/></svg></div>';
-    if (!reduce){
-      const typing = el(`<div class="dmsg">${AV}<div class="bub dots"><span></span><span></span><span></span></div></div>`);
-      demo.appendChild(typing); await sleep(950); typing.remove();
-    }
-    demo.appendChild(el(`<div class="dmsg">${AV}<div class="bub">${s.reply}</div></div>`));
-    const stops = el(`<div class="dstops"></div>`); demo.appendChild(stops);
-    for (const [t, n, c] of s.stops){
-      if (!reduce) await sleep(380);
-      const row = el(`<div class="dstop"><span class="time">${t}</span><span class="name">${n}</span><span class="cat">${c}</span></div>`);
-      row.style.animation = 'rise .4s var(--ease) both'; stops.appendChild(row);
-    }
-    await sleep(4200);
-  }
-}
-// The demo only exists on wide screens — don't run its loop when it's hidden.
-if (matchMedia('(min-width:980px)').matches) playDemo();
 </script>
 </body>
 </html>

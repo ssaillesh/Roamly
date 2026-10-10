@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <title>Roamly — your night, planned</title>
 <meta name="description" content="Tell Roamly your budget and your vibe — get a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
 <meta name="theme-color" content="#140e28" />
@@ -51,6 +54,7 @@
     font-size:14.5px; color:rgba(255,255,255,.88);}
   header.solid .nav{height:60px;}
   .logo{font-weight:650; font-size:19px; letter-spacing:-.02em; color:#fff; display:flex; align-items:center; gap:9px;}
+  .logo .mk{width:26px; height:34px;} .logo .wm{width:86px; height:25px;}
   .nav .links{margin:0 auto; display:flex; align-items:center; gap:36px;}
   .nav .links a{position:relative; padding:6px 0; transition:color .2s;}
   .nav .links a:hover{color:#fff;}
@@ -314,7 +318,7 @@
 
 <header id="top">
   <nav class="nav">
-    <a class="logo" href="/"><svg viewBox="0 0 32 32" width="24" height="24" aria-hidden="true"><defs><linearGradient id="lgm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7b5cf5"/><stop offset=".55" stop-color="#b44fd6"/><stop offset="1" stop-color="#ff6f9f"/></linearGradient></defs><path fill="url(#lgm)" d="M14 3c.9 6.6 4.4 10.1 11 11-6.6.9-10.1 4.4-11 11-.9-6.6-4.4-10.1-11-11 6.6-.9 10.1-4.4 11-11Z"/><path fill="url(#lgm)" d="M25.6 2.2c.3 2.1 1.3 3.1 3.4 3.4-2.1.3-3.1 1.3-3.4 3.4-.3-2.1-1.3-3.1-3.4-3.4 2.1-.3 3.1-1.3 3.4-3.4Z"/></svg>Roamly</a>
+    <a class="logo" href="/" aria-label="Roamly home"><svg class="mk" width="26" height="34" aria-hidden="true"><use href="/brand/roamly.svg#mark"/></svg><svg class="wm" width="86" height="25" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
     <div class="links">
       <a href="#" class="on">Home</a>
       <a href="#features">Features</a>

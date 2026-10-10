@@ -81,7 +81,8 @@ img{display:block; max-width:100%;}
 
 /* ---------------------------------------------------------------- logo */
 .logo{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:20px; letter-spacing:-.03em; color:var(--ink);}
-.logo-mark{width:26px; height:26px; flex:0 0 auto;}
+.logo-mark{width:24px; height:32px; flex:0 0 auto;}   /* the star is tall: brand/roamly.svg#mark */
+.wordmark{display:block; width:75px; height:22px; flex:0 0 auto;}   /* brand/roamly.svg#wordmark */
 .logo.on-dark{color:#fff;}
 
 /* ---------------------------------------------------------------- buttons */
