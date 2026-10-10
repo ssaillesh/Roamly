@@ -13,6 +13,7 @@ from app.services.venue_index import slots_for, wikidata_slots
 
 # conftest switches these off for every test; the tests here use the real ones.
 REAL_CANDIDATES, REAL_FIND_AREA = venue_index.candidates, venue_index.find_area
+REAL_FIND_PLACE = venue_index.find_place
 LAT, LNG = 10.0, 10.0          # far from any loaded city, so seeded rows never mix with real ones
 CITY = "testville"
 FRIDAY_6PM = datetime(2026, 10, 9, 18, 0, tzinfo=planner.LOCAL_TZ)
@@ -112,6 +113,9 @@ def test_an_area_without_stored_venues_falls_back(seeded):
 
 
 def test_placing_names(seeded, monkeypatch):
+    monkeypatch.setattr(venue_index, "find_place", REAL_FIND_PLACE)
+    assert REAL_FIND_PLACE("Zqx Market Village")[2] == "neighborhood"
+    assert REAL_FIND_PLACE("big famous museum")[2] == "venue"
     assert REAL_FIND_AREA("Zqx Market Village") == pytest.approx((LAT + 0.02, LNG))
     assert REAL_FIND_AREA("big famous museum") == pytest.approx((LAT + 0.01, LNG))   # well known: anywhere
     # partial names and little-known places only count for someone already in the city

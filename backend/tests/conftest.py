@@ -39,6 +39,7 @@ def _offline_geocode(monkeypatch):
     # their own fixtures unless a test opts in (tests/test_venue_index.py).
     monkeypatch.setattr(venue_index, "candidates", lambda *a, **kw: None)
     monkeypatch.setattr(venue_index, "find_area", lambda *a, **kw: None)
+    monkeypatch.setattr(venue_index, "find_place", lambda *a, **kw: None)
     monkeypatch.setattr(venue_index, "find_venue", lambda *a, **kw: None)
     yield
 

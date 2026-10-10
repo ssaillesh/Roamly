@@ -105,3 +105,19 @@ def test_no_bars_means_no_drinking_spots_of_any_name():
     assert not avoided("Parkdale Pizza", ["pizza restaurant"], "parks")
     assert planner._is_alcohol_venue({"name": "The Office Pub", "categories": ["karaoke venue"]})
     assert not planner._is_alcohol_venue({"name": "Kaito Sushi Bar", "categories": ["sushi restaurant"]})
+
+
+def test_no_fast_food_on_a_fancy_date(monkeypatch):
+    """McDonald's listed as a plain burger restaurant (no brand) still isn't date night."""
+    city = dict(CITY, dinner=[_c("McDonald's", ["burger restaurant", "restaurant"], boost=8),
+                              _c("Sushi Spot", ["sushi restaurant", "japanese restaurant"])])
+    _offline(monkeypatch, city)
+    date = planner.build_plan(lat=LAT, lng=LNG, budget=40, party_size=2, vibe="romantic", group_type="date",
+                              time_of_day="evening", target_stops=3)
+    assert _by_slot(date)["dinner"] == "Sushi Spot"
+    asked = planner.build_plan(lat=LAT, lng=LNG, budget=40, party_size=2, vibe="romantic", group_type="date",
+                               time_of_day="evening", target_stops=3, interests="quick comfort food")
+    assert _by_slot(asked)["dinner"] == "McDonald's"              # they asked for quick/comfort
+    chill = planner.build_plan(lat=LAT, lng=LNG, budget=40, party_size=2, vibe="chill", group_type="friends",
+                               time_of_day="evening", target_stops=3)
+    assert "dinner" in _by_slot(chill)                            # a casual plan may still use it

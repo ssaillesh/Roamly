@@ -21,6 +21,7 @@ memory under a lock and saved to `api_usage` by the stats flusher
 (see `request_tracker`) so its plan log can say whether the AI ran and failed.
 """
 import json
+import re
 import logging
 import threading
 from collections import defaultdict
@@ -98,6 +99,16 @@ def record(provider: str, ok: bool, error: str | None = None) -> None:
             t["llm_failures"] += 1
 
 
+_SECRET_PARAM = re.compile(r"((?:api_?key|apikey|client_id|client_secret|access_token|token|key)=)[^&'\"\s]+",
+                           re.IGNORECASE)
+
+
+def redact(text: str) -> str:
+    """Error text without credentials (HTTP errors quote the URL, and some APIs take
+    the key in it: Ticketmaster's apikey, SeatGeek's client_id)."""
+    return _SECRET_PARAM.sub(r"\1•••", text or "")
+
+
 @contextmanager
 def counted(provider: str):
     """Count the call made inside the block; an exception counts as an error
@@ -105,7 +116,7 @@ def counted(provider: str):
     try:
         yield
     except Exception as e:
-        record(provider, False, f"{type(e).__name__}: {str(e)[:240]}")
+        record(provider, False, redact(f"{type(e).__name__}: {str(e)}")[:240])
         raise
     record(provider, True)
 
@@ -118,7 +129,7 @@ def note(provider: str, ok: bool, error: str | None = None) -> None:
             redis_client.set(f"api:last_ok:{provider}", stamp, ex=7 * 86400)
         else:
             redis_client.set(f"api:last_error:{provider}", json.dumps(
-                {"at": stamp, "error": (error or "failed")[:300]}), ex=7 * 86400)
+                {"at": stamp, "error": redact(error or "failed")[:300]}), ex=7 * 86400)
     except Exception:
         pass
 

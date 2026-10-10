@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from app.services.planner import (
     SLOT_ORDER, SLOT_SPECS, TRANSPORT, VIBE_PLANS, DEFAULT_VIBE, PLAN_TIME_BUDGET, _POOL,
     _est_cost, _gather, _pick, _result, allowed, cuisine_term, parse_start, retime, route_for,
-    route_km, schedule, stop_from,
+    route_km, schedule, stop_from, too_casual,
 )
 
 # Words that name a kind of stop → that stop's slot. Checked in order.
@@ -133,7 +133,8 @@ def _repick(slot_key, anchor, wish, ctx: EditContext, exclude: set[str], cost_ca
     term, cats = route_for(slot_key, interests=wish or ctx.interests, dietary=ctx.dietary,
                            group_type=ctx.group_type, vibe=ctx.vibe, no_alcohol=ctx.no_alcohol)
     fut = _POOL.submit(_gather, anchor, slot_key, price_pref, radius, ctx.dietary, term, cats, at=at)
-    cands = [c for c in _result(fut, [], timeout=PLAN_TIME_BUDGET) if allowed(c, ctx.avoid, ctx.no_alcohol)]
+    cands = [c for c in _result(fut, [], timeout=PLAN_TIME_BUDGET) if allowed(c, ctx.avoid, ctx.no_alcohol)
+             and not too_casual(c, slot_key, ctx.vibe, ctx.group_type, wish or ctx.interests)]
     if cost_cap is not None:
         cands = [c for c in cands if _est_cost(c, slot_key) < cost_cap] or cands
     rng = random.Random(ctx.seed) if ctx.seed is not None else random

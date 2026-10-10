@@ -88,3 +88,12 @@ def test_ga4_says_what_is_wrong(monkeypatch, pid, creds, expect):
     monkeypatch.setattr(settings, "ga4_credentials_json", creds)
     problem = ga4.problem()
     assert (problem is None) if expect is None else (expect in problem)
+
+
+def test_errors_never_store_credentials():
+    """HTTP errors quote the URL; Ticketmaster and SeatGeek take their key in it."""
+    from app.services import usage as u
+    msg = ("HTTPStatusError: Client error '403 Forbidden' for url "
+           "'https://api.seatgeek.com/2/events?client_id=SECRET123&lat=43.65' and apikey=TMKEY9&x=1")
+    out = u.redact(msg)
+    assert "SECRET123" not in out and "TMKEY9" not in out and "lat=43.65" in out

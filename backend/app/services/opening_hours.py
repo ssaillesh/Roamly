@@ -6,13 +6,18 @@ Handles the forms that cover most real tags:
 Later rules override earlier ones for the days they name (OSM semantics), and a
 range past midnight ("18:00-02:00") counts toward the next morning.
 
-Anything else (public-holiday rules, months, sunrise, comments…) → None,
-meaning "unknown": the planner then neither trusts nor rejects the place.
+Public-holiday rules ("PH off", "Su,PH 12:00-17:00") are skipped, since they
+don't apply on an ordinary day, and day groups joined by commas
+("Mo-Fr 08:00-20:00, Sa 09:00-18:00") are read like separate rules.
+Anything else (months, sunrise, comments…) → None, meaning "unknown": the
+planner then neither trusts nor rejects the place.
 """
 import re
 from datetime import datetime, timedelta
 
 _DAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+_HOLIDAY = re.compile(r"\b(?:PH|SH)\b")
+_GROUP_SPLIT = re.compile(r",\s*(?=(?:Mo|Tu|We|Th|Fr|Sa|Su)\b)")
 _RULE = re.compile(r"^(?:(?P<days>[A-Za-z]{2}(?:\s*[-,]\s*[A-Za-z]{2})*)\s+)?(?P<times>.+)$")
 _TIME = re.compile(r"^(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})\+?$")
 
@@ -61,7 +66,15 @@ def schedule(spec: str | None) -> dict[int, list[tuple[int, int]]] | None:
     if spec == "24/7":
         return {d: [(0, 1440)] for d in range(7)}
     week: dict[int, list[tuple[int, int]]] = {}
-    for rule in filter(None, (r.strip() for r in spec.split(";"))):
+    rules = [g.strip() for r in spec.split(";") for g in _GROUP_SPLIT.split(r)]
+    for rule in filter(None, rules):
+        if _HOLIDAY.search(rule):
+            # "PH off" only applies on holidays; "Su,PH 12:00-17:00" still covers Sunday
+            head = rule.split(" ")[0]
+            days = [d for d in head.split(",") if not _HOLIDAY.fullmatch(d.strip())]
+            if not days or head == rule:
+                continue
+            rule = ",".join(days) + rule[len(head):]
         m = _RULE.match(rule)
         if not m:
             return None

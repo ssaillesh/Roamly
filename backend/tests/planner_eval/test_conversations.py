@@ -6,6 +6,7 @@ said, and things ruled out stay ruled out.
 """
 import pytest
 
+from app.services import planner
 from tests.conftest import make_user
 from tests.planner_eval.harness import Convo, offline
 
@@ -118,3 +119,23 @@ def test_bad_plan_on_screen_falls_back_to_planning(convo):
     c.plan = {"stops": "garbage"}             # a broken page state must not break the reply
     r = c.say("swap the dinner for sushi")
     assert r["type"] == "itinerary"
+
+
+def test_a_named_neighbourhood_keeps_the_plan_there(client, monkeypatch):
+    """"In Kensington Market" searches around it, not 7 km out (the bar's radius)."""
+    from app.services import venue_index
+    offline(monkeypatch)
+    radii = []
+    orig = planner._gather
+
+    def spy(anchor, slot_key, price, radius, *a, **kw):
+        radii.append(radius)
+        return orig(anchor, slot_key, price, radius, *a, **kw)
+    monkeypatch.setattr(planner, "_gather", spy)
+    monkeypatch.setattr(venue_index, "find_place", lambda name, near=None:
+                        (43.6547, -79.4005, "neighborhood") if "kensington" in name.lower() else None)
+    _, token = make_user(client, "evalhood")
+    c = Convo(client, token)                                   # the bar's radius: 7 km
+    r = c.say("date night in Kensington Market")
+    assert r["type"] == "itinerary"
+    assert radii and max(radii) <= 2000

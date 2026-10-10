@@ -127,6 +127,9 @@ VIBE_PLANS = {
 }
 DEFAULT_VIBE = "romantic"
 
+# Distance penalty per km = this / search radius in km (7 km → ~0.36, 2 km → 1.25).
+DISTANCE_WEIGHT_KM = 2.5
+
 # A "day arc" ordered morning→night. We take the first N depending on how much of
 # the day the guest wants filled — so a full day is many stops, an evening is few.
 # Repeated slot types (e.g. two activities) resolve to different venues.
@@ -445,6 +448,19 @@ def route_for(slot_key, *, interests="", dietary="", group_type=None, vibe=DEFAU
     return term_override, cat_override
 
 
+# What they'd say to want fast food on a date anyway.
+_CASUAL_ASK = re.compile(r"\b(fast food|mcdonald'?s?|quick|cheap eats|comfort food|drive.?thru|late.?night snack)\b", re.I)
+_FOOD_AND_DRINK_SLOTS = {"dinner", "lunch", "dessert", "cafe", "drinks", "leisure"}
+
+
+def too_casual(c, slot_key, vibe=None, group_type=None, wish="") -> bool:
+    """Fast food has no place in a date or a fancy night (McDonald's is for a quick,
+    cheap or comfort plan), unless they asked for it."""
+    dressy = vibe in ("romantic", "extravagant") or group_type == "date"
+    return (dressy and slot_key in _FOOD_AND_DRINK_SLOTS and not _CASUAL_ASK.search(wish or "")
+            and venue_index.is_fast_food(c))
+
+
 def allowed(c, avoid="", no_alcohol=False) -> bool:
     """False for a candidate the user ruled out ("no bars") or, for a no-alcohol
     profile, a venue that exists to serve alcohol."""
@@ -660,6 +676,9 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     price_pref = VIBE_PLANS[vibe]["price"]
     tconf = TRANSPORT.get(transport, TRANSPORT["any"])
     radius = radius or int(tconf["radius"] * (radius_scale or 1.0))
+    # Closeness counts more in a small area: "in Kensington Market" (2 km) should
+    # mean Kensington, not a famous square 1.6 km away.
+    penalty = max(tconf["penalty"], DISTANCE_WEIGHT_KM / max(radius / 1000, 0.5))
     used = set(exclude or ())
     slots = _slots_for(vibe, time_of_day, group_type, target_stops)
     taste = {"likes": likes, "crowd_pref": crowd_pref, "energy": energy}
@@ -720,7 +739,8 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                                keyword=theme[0]["keyword"], start_utc=s_utc, end_utc=e_utc)
     wait(list(jobs.values()), timeout=max(0.0, left()))
     late = {k for k, f in jobs.items() if not f.done()}
-    found = {k: [c for c in _result(f, []) if keep(c)] for k, f in jobs.items()}
+    found = {k: [c for c in _result(f, []) if keep(c) and not too_casual(c, k, vibe, group_type, interests)]
+             for k, f in jobs.items()}
 
     # Each stop's share of the budget per person: a $40 night and a $400 night
     # pick different places, not just a different number of them.
@@ -741,11 +761,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             if not any((c.get("name") or "").lower() not in used for c in near) and left() > 3:
                 near = [c for c in _gather(anchor, slot_key, price_pref, tconf["cluster"], dietary,
                                            *route(slot_key), at=at[slot_key])
-                        if keep(c)]
+                        if keep(c) and not too_casual(c, slot_key, vibe, group_type, interests)]
             cands = near or cands
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
         apply_fun = slot_key in ("activity", "leisure")
-        pick = _pick(cands, used, search_from, tconf["penalty"], vary, fancy, apply_fun,
+        pick = _pick(cands, used, search_from, penalty, vary, fancy, apply_fun,
                      interests, rng=rng, explore=surprise, taste=taste,
                      slot_key=slot_key, allowance=allow.get(slot_key))
         if not pick:
@@ -802,7 +822,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     limit = budget * 1.10 if budget else float("inf")
 
     def score_as(c, slot_key, frm):
-        return _score(c, frm, tconf["penalty"], fancy, slot_key in ("activity", "leisure"), interests,
+        return _score(c, frm, penalty, fancy, slot_key in ("activity", "leisure"), interests,
                       taste, slot_key, allow.get(slot_key))
 
     for _ in range(3 * len(stops)):
@@ -815,7 +835,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
                 continue
             cands, frm, was = pool
             cheaper = [c for c in cands if _est_cost(c, s["slot"]) < s["est_cost"]]
-            alt = _pick(cheaper, used, frm, tconf["penalty"], fancy=fancy,
+            alt = _pick(cheaper, used, frm, penalty, fancy=fancy,
                         apply_fun=s["slot"] in ("activity", "leisure"), interests=interests,
                         taste=taste, slot_key=s["slot"], allowance=allow.get(s["slot"]))
             if not alt:

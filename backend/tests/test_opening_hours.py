@@ -48,5 +48,5 @@ def test_day_range_wrapping_the_week():
 def test_always_open_and_unknown():
     assert is_open("24/7", at(3, 4)) is True
     assert is_open("10:00-18:00", at(3, 12)) is True   # no days = every day
-    for spec in (None, "", "sunrise-sunset", "PH off; Mo-Fr 09:00-17:00", "by appointment"):
+    for spec in (None, "", "sunrise-sunset", "Jan-Mar Mo-Fr 09:00-17:00", "by appointment"):
         assert is_open(spec, at(2, 12)) is None

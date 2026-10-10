@@ -329,6 +329,10 @@ _PREF_CHOICES = {
 RADIUS_KM_MIN, RADIUS_KM_MAX = 1.0, 20.0
 
 
+# Search radius (m) when they name a neighbourhood or a place rather than a city.
+_AREA_RADIUS = {"microhood": 1500, "neighborhood": 2000, "venue": 1500, "macrohood": 4000}
+
+
 def _radius_m(km: float) -> int:
     """Search radius in metres, clamped to the planner's 1-20 km range."""
     return int(max(RADIUS_KM_MIN, min(km, RADIUS_KM_MAX)) * 1000)
@@ -472,9 +476,12 @@ def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None
     loc_name = prefs.get("location") or (None if structured else _extract_location(_orig_user_text(req)))
     if not loc_name and session.get("location"):
         loc_name = prefs["location"] = session["location"]
+    place_kind = None
     if loc_name:
         # neighbourhoods and landmarks from the stored list first (no live geocoder)
-        coords = venue_index.find_area(loc_name, (req.lat, req.lng)) or geocode(loc_name, None)
+        found = venue_index.find_place(loc_name, (req.lat, req.lng))
+        coords = found[:2] if found else geocode(loc_name, None)
+        place_kind = found[2] if found else None
         if coords:
             lat, lng = coords
     if (lat is None or lng is None) and not structured:
@@ -537,6 +544,10 @@ def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None
             prefs["radius"] = r
         elif session.get("radius"):
             prefs["radius"] = session["radius"]
+    # "In Kensington Market" means around there, not anywhere within 7 km of it.
+    tight = _AREA_RADIUS.get(place_kind)
+    if tight and not (not structured and _extract_radius(text)):
+        prefs["radius"] = min(prefs.get("radius") or tight, tight)
     if not structured and re.search(r"\b(wider|widen|further|farther|bigger area|more area)\b", _last_msg(req)):
         prefs["radius"] = _radius_m(2 * (prefs.get("radius") or 7000) / 1000)
         prefs.setdefault("_assumed", []).append(f"searching within {prefs['radius'] / 1000:g} km")

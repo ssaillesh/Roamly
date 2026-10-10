@@ -126,7 +126,21 @@ NOTABILITY_WEIGHT = 0.5   # × log2(1 + Wikipedia editions): CN Tower ≈ +3.2, 
 CHAIN_PENALTY = 1.2       # meals/drinks/dessert: a local place over a chain branch
 FAST_FOOD_DINNER = 2.5    # fast food isn't dinner unless asked for
 KIND_MATCH = 2.0          # the kinds of activity this group/wish is routed to (arcades, museums…)
-_FAST_OK = re.compile(r"\b(fast food|burger|cheap|quick|fries|wings|shawarma|pizza)\b")
+_FAST_OK = re.compile(r"\b(fast food|burger|cheap|quick|fries|wings|shawarma|pizza|comfort|mcdonald'?s?)\b")
+# Fast-food chains, by name: Overture sometimes lists a McDonald's as a plain
+# "burger restaurant" with no brand, which would dodge both penalties.
+_FAST_FOOD_BRANDS = re.compile(
+    r"\b(mcdonald'?s|burger king|wendy'?s|kfc|kentucky fried|popeyes|taco bell|a&w|harvey'?s|subway|"
+    r"tim hortons|pizza pizza|domino'?s|pizza hut|little caesars|dairy queen|mary brown'?s|five guys|"
+    r"chick-fil-a|papa john'?s|pizzaville|pizza nova|241 pizza|quesada|osmow'?s|mr\.? sub|new york fries|"
+    r"arby'?s|carl'?s jr|church'?s (?:texas )?chicken|wingstop|jollibee|panda express|manchu wok|"
+    r"thai express|krispy kreme|cinnabon|coffee time|country style|chipotle|freshii|booster juice)\b", re.I)
+
+
+def is_fast_food(c: dict) -> bool:
+    """A fast-food place, by its flag, its category, or a fast-food chain's name."""
+    return (bool(c.get("fast_food")) or bool(_FAST_FOOD_BRANDS.search(c.get("name") or ""))
+            or any("fast food" in str(x).lower() for x in c.get("categories") or []))
 
 # Words in a wish that describe a mood, not a thing to search names for
 # ("something more active" mustn't narrow to places named "Moretti").
@@ -230,21 +244,24 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
             continue
         hay = v.name.lower() + " " + kinds
         c["term_hit"] = bool(words) and any(x in hay for x in words)
+        c["fast_food"] = is_fast_food(c)
+        c["chain"] = bool(v.chain) or c["fast_food"]
         boost = NOTABILITY_WEIGHT * math.log2(1 + (v.notability or 0))
-        if v.chain and slot_key in ("dinner", "lunch", "cafe", "dessert", "leisure", "drinks"):
+        if c["chain"] and slot_key in ("dinner", "lunch", "cafe", "dessert", "leisure", "drinks"):
             boost -= CHAIN_PENALTY
-        if v.fast_food and slot_key in ("dinner", "lunch") and not _FAST_OK.search(term or ""):
+        if c["fast_food"] and slot_key in ("dinner", "lunch") and not _FAST_OK.search(term or ""):
             boost -= FAST_FOOD_DINNER if slot_key == "dinner" else 1.0
         if v.website:
             boost += 0.3
         if alias and any(a in hay for a in alias):
             boost += KIND_MATCH
         if at is not None:
-            hours = v.hours or (DAYTIME_HOURS if _DAYTIME.search(kinds) else None)
-            open_now = is_open(hours, at)
+            open_now = listed = is_open(v.hours, at)
+            if open_now is None and _DAYTIME.search(kinds):
+                open_now = is_open(DAYTIME_HOURS, at)  # no (readable) hours: assume daytime
             if open_now is False:
                 continue                     # closed at the planned time
-            boost += 0.2 if open_now and v.hours else -0.2     # listed as open beats unknown
+            boost += 0.2 if listed else -0.2           # listed as open beats unknown
         c["boost"] = round(boost, 2)
         out.append(c)
     if words and any(c["term_hit"] for c in out):
@@ -270,10 +287,16 @@ def tz_for(lat, lng, fallback: str | None = None) -> str | None:
 
 
 def find_area(name: str, near: tuple[float, float] | None = None) -> tuple[float, float] | None:
-    """Centre of a neighbourhood ("Kensington Market") or a well-known place
-    ("CN Tower") from the stored list; None if not known. Partial names and
-    lesser-known places count only for someone already in the city, so "Victoria"
-    typed in BC doesn't land on Toronto's Victoria Village."""
+    """Centre of a neighbourhood or well-known place (see find_place); None if not known."""
+    found = find_place(name, near)
+    return found[:2] if found else None
+
+
+def find_place(name: str, near: tuple[float, float] | None = None) -> tuple[float, float, str] | None:
+    """(lat, lng, kind) of a neighbourhood ("Kensington Market": kind "neighborhood")
+    or a well-known place ("CN Tower": kind "venue") from the stored list; None if
+    not known. Partial names and lesser-known places count only for someone already
+    in the city, so "Victoria" typed in BC doesn't land on Toronto's Victoria Village."""
     q = (name or "").strip()
     if len(q) < 3:
         return None
@@ -284,12 +307,12 @@ def find_area(name: str, near: tuple[float, float] | None = None) -> tuple[float
             if not areas and local:
                 areas = db.scalars(select(Area).where(Area.name.ilike(f"%{q}%"))
                                    .order_by(func.length(Area.name)).limit(5)).all()
-            pts = [(a.lat, a.lng) for a in areas]
+            pts = [(a.lat, a.lng, a.kind) for a in areas]
             if not pts:
                 v = db.scalars(select(Venue).where(func.lower(Venue.name) == q.lower(),
                                                    Venue.notability >= (0 if local else 5))
                                .order_by(Venue.notability.desc()).limit(3)).all()
-                pts = [(x.lat, x.lng) for x in v]
+                pts = [(x.lat, x.lng, "venue") for x in v]
     except Exception:
         return None
     if not pts:

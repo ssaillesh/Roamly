@@ -21,6 +21,8 @@ from app.services import usage
 
 _URL = "https://api.seatgeek.com/2/events"
 _TTL = 60 * 10
+# Some APIs turn away anonymous traffic from cloud servers; say who's asking.
+_HEADERS = {"User-Agent": "Roamly/1.0 (outing planner; Nightlife tab)", "Accept": "application/json"}
 
 
 def available() -> bool:
@@ -76,7 +78,7 @@ def search_events(lat: float, lng: float, *, radius_km: float = 10, start_utc: d
         params["datetime_utc.gte"], params["datetime_utc.lte"] = _utc(start_utc), _utc(end_utc)
     try:
         with usage.counted("seatgeek"):
-            r = httpx.get(_URL, params=params, timeout=15.0)
+            r = httpx.get(_URL, params=params, headers=_HEADERS, timeout=15.0)
             r.raise_for_status()
         out = [_event(e) for e in r.json().get("events", []) if e.get("title")]
     except (httpx.HTTPError, ValueError):
