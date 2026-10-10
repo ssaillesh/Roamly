@@ -40,7 +40,8 @@ prefs (null/"" when not stated — never invent; later messages win over earlier
   budget_scope: "per_person" if they said each/pp/per person/a head; "total" if they said
     total/altogether/for everyone/in total; else null. An answer to "total or each?" counts.
   vibe: chill|romantic|adventurous|extravagant|night_out or null
-  party_size: integer or null; group_type: date|friends|family|solo or null
+  party_size: integer or null, counting everyone going ("family with two kids" = 4,
+    "me and 3 friends" = 4); group_type: date|friends|family|solo or null
   days: integer or null; time_of_day: morning|afternoon|evening|night or null
   transport: walk|transit|car or null; radius_km: number or null
   location: a place they name to plan in, or null

@@ -67,3 +67,14 @@ def test_llm_guess_of_total_is_not_trusted(client, monkeypatch):
     _, token = make_user(client, "evalllm5")
     r = Convo(client, token).say("night out with 4 friends, $60")
     assert r["type"] == "question" and r["ask"] == "budget_scope"
+
+
+def test_spelled_out_head_count_beats_the_models(client, monkeypatch):
+    """The model read "family with two kids" as 2 people; it's the kids plus two adults."""
+    offline(monkeypatch, llm_replies=[
+        _plan({"budget": 120, "group_type": "family", "party_size": 2, "time_of_day": "afternoon"}),
+    ])
+    _, token = make_user(client, "evalllm6")
+    r = Convo(client, token).say("family afternoon with two kids, around $120")
+    assert r["type"] == "question" and r["ask"] == "budget_scope"
+    assert "all 4" in r["message"]

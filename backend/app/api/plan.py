@@ -455,6 +455,11 @@ def _resolve(req: ChatRequest, taste: dict | None = None, extracted: dict | None
         prefs = _structured(req.prefs)
     elif extracted is not None:
         prefs = _from_router(extracted)
+        # A head count spelled out ("two kids", "4 friends") beats the model's guess,
+        # which tends to miss the adults ("family with two kids" → 2).
+        n = _party_size(text)
+        if n:
+            prefs["party_size"] = n
     else:
         prefs = _heuristic_extract(text)
     # Was a budget actually said in this request (vs. coming from the bar/profile)?
