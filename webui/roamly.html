@@ -271,6 +271,7 @@
   .evc-desc{margin:6px 0 0; font-size:13px; color:var(--ink-2); line-height:1.45;}
   .tag.adult{background:var(--surface-3); color:var(--ink-2);}
   .tag.day{background:var(--sun-soft); color:var(--sun-ink);}
+  .plan-eyebrow .tag.quick{margin-left:8px; background:var(--surface-3); color:var(--ink-2);}
   /* SeatGeek's terms: their logo, linked to seatgeek.com, wherever their events show */
   .sg-link{display:inline-flex; align-items:center; gap:6px; color:var(--ink-3); text-decoration:none;}
   .sg-logo{height:26px; width:auto; display:block;}        /* the stacked mark, resized proportionally */
@@ -839,7 +840,8 @@ function appendPlanCard(plan, dayLabel, o = {}){
   const el = document.createElement('article'); el.className = 'plan card';
   el.innerHTML = `
     <header class="plan-head">
-      <div class="plan-eyebrow">${ic('sparkle','sm')}<span class="t-label">${esc(dayLabel || WHEN_TITLE[m.when] || 'Your plan')}</span></div>
+      <div class="plan-eyebrow">${ic('sparkle','sm')}<span class="t-label">${esc(dayLabel || WHEN_TITLE[m.when] || 'Your plan')}</span>${
+        plan.quick ? `<span class="tag quick" title="The AI planner was busy, so these are Roamly's top-ranked picks. Try again for an AI-picked plan.">Quick version</span>` : ''}</div>
       <h3 class="plan-title">${esc(planTitle(plan))}</h3>
       <div class="plan-stats">
         <span class="stat">${ic('wallet','sm')}<b>~$${esc(plan.estimated_cost)}</b>${pp > 1 ? ` for ${pp}` : ''}</span>

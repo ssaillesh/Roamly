@@ -64,6 +64,9 @@ class Plan(BaseModel):
     walk_km: float | None = None
     # When the first stop starts (ISO, local time): edits re-time the stops from it.
     start: str | None = None
+    # True when the AI didn't pick the stops (it was busy or unavailable): the page labels
+    # it a "quick version" of the plan.
+    quick: bool = False
     stops: list[PlanStop]
     events: list[Event] = Field(default_factory=list)
     day: int | None = None

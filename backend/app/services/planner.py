@@ -22,6 +22,7 @@ from app.services import weather as weather_svc
 from app.services import events as events_svc
 from app.services import live_events
 from app.services import costs
+from app.services import curator
 from app.services import experience
 from app.services import special_days
 from app.services import venue_index
@@ -778,6 +779,46 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             anchor = (pick["lat"], pick["lng"])
         stops.append(stop_from(pick, slot_key))
 
+    # Live events happening near here (concerts, games, comedy) — surfaced as
+    # options the guest can build around, not forced into the fixed stops.
+    events, seen_events = [], set()      # the special day's own events first
+    for e in _result(day_job, [], timeout=min(left(), 3)) + (_result(ev_job, [], timeout=min(left(), 3)) or []):
+        k = re.sub(r"[^a-z0-9]", "", (e.get("name") or "").lower())
+        if k and k not in seen_events:
+            seen_events.add(k)
+            events.append(e)
+    events = events[:3]
+
+    # The AI picks: each stop chosen from a shortlist of the rule-ranked candidates
+    # (the rule pick is always on it), with the intro and a line per stop written in
+    # the same call. Walking plans keep the rule picks: each stop is searched near
+    # the previous one, so swapping one would stretch the walk.
+    def rank(c, slot_key, frm):
+        return _score(c, frm, penalty, fancy, slot_key in ("activity", "leisure"), interests,
+                      taste, slot_key, allow.get(slot_key))
+
+    curated = None
+    if stops and not chain and llm.available() and left() > 5:
+        lists = curator.shortlists(stops, pools, {n.lower() for n in exclude or ()}, rank)
+        curated = curator.choose(
+            stops, lists, context=_brief(vibe, group_type, party_size, budget, start, interests, avoid,
+                                         dietary, wx, theme),
+            times=[clock(t) for t in schedule([s["slot"] for s in stops], start)],
+            distance=lambda c: _haversine_km(lat, lng, c["lat"], c["lng"]),
+            labels={k: v["label"] for k, v in SLOT_SPECS.items()}, events=events,
+            timeout=max(4.0, min(left() - 1, 15.0)))
+    if curated:
+        for i, (pick, why) in enumerate(curated["picks"]):
+            old = stops[i]
+            if pick is not None and pick["name"].lower() != old["name"].lower():
+                cands, frm, _ = pools.pop(old["name"].lower())
+                used.discard(old["name"].lower())
+                used.add(pick["name"].lower())
+                pools[pick["name"].lower()] = (cands, frm, pick)
+                stops[i] = stop_from(pick, old["slot"])
+            if why:
+                stops[i]["why"] = why
+
     # Venues the user asked for BY NAME: research each against the same verified
     # sources the planner trusts (Yelp/Foursquare). Confirmed-real ones join the
     # plan as first-class stops — so the narrator may name them — and the rest
@@ -861,16 +902,6 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
 
     spread = route_km(stops)   # how spread out the plan ended up (for the UI / narration)
 
-    # Live events happening near here (concerts, games, comedy) — surfaced as
-    # options the guest can build around, not forced into the fixed stops.
-    events, seen_events = [], set()      # the special day's own events first
-    for e in _result(day_job, [], timeout=left()) + (_result(ev_job, [], timeout=left()) or []):
-        k = re.sub(r"[^a-z0-9]", "", (e.get("name") or "").lower())
-        if k and k not in seen_events:
-            seen_events.add(k)
-            events.append(e)
-    events = events[:3]
-
     plan = {
         "vibe": vibe, "budget": budget, "party_size": party_size, "currency": "USD",
         "estimated_cost": total(), "center": {"lat": lat, "lng": lng},
@@ -885,8 +916,40 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     if theme:
         plan["special_note"] = _theme_note(theme, stops)
     retime(plan)
-    _narrate(plan, interests, group_type, time_of_day, dietary, wx, events, avoid)
+    if curated:
+        plan["intro"] = curated["intro"] or _template_intro(plan)
+        plan["tip"] = curated["tip"]
+    elif chain and _narrate(plan, interests, group_type, time_of_day, dietary, wx, events, avoid):
+        pass                     # a walking plan: rule picks, described by the AI
+    else:
+        # The AI didn't choose (unavailable, over its limits, or no valid answer):
+        # these are the rule picks, and the plan says so.
+        plan["quick"] = True
+        plan["intro"] = _template_intro(plan)
+        for s in stops:
+            s.pop("why", None)
     return plan
+
+
+def _brief(vibe, group_type, party_size, budget, start, interests, avoid, dietary, wx, theme) -> str:
+    """The request in a few lines, for the curator."""
+    pp = budget / max(1, party_size) if budget else None
+    lines = [
+        f"Group: {group_type or 'not said'}, {party_size} {'person' if party_size == 1 else 'people'}.",
+        f"Budget: ${budget:g} in total" + (f" (about ${pp:.0f} each)." if pp else ".") if budget else "Budget: not set.",
+        f"Vibe: {str(vibe).replace('_', ' ')}. Starts {clock(start)}.",
+    ]
+    if interests:
+        lines.append(f"They asked for: {interests}.")
+    if avoid:
+        lines.append(f"They don't want: {avoid}.")
+    if dietary:
+        lines.append(f"Dietary: {dietary}.")
+    if wx and (wx.get("rainy") or wx.get("cold")):
+        lines.append(f"Weather: {wx['summary']} (indoor picks are better).")
+    if theme:
+        lines.append(f"Today is {theme[0]['name']}: lean into it where it fits.")
+    return "\n".join(lines)
 
 
 def _special_theme(lat, lng, slots, interests, avoid, no_alcohol):
@@ -1111,13 +1174,14 @@ def _narrate(plan, interests, group_type, time_of_day, dietary, wx=None, events=
                 if isinstance(extra, dict):
                     s["time"] = s.get("time") or extra.get("time")
                     s["why"] = extra.get("desc") or s.get("why")
-            return
+            return True
     # deterministic fallback
     plan["intro"] = _template_intro(plan)
     # No per-stop "why" without the narrator: the card already shows rating,
     # price and category, and repeating them read as clutter.
     for s in stops:
         s.pop("why", None)
+    return False
 
 
 def _template_intro(plan):
