@@ -1,4 +1,4 @@
-"""Outside APIs (Groq, Google Places, SendGrid...): paid products switched off,
+"""Outside APIs (Groq, Google Places, Resend...): paid products switched off,
 the free-tier blocker, and call counts for the admin dashboard.
 
 **Paid products are off.** Services in DISABLED are never called: their
@@ -48,8 +48,8 @@ FREE_TIER = {
                                            "Premium fields: billed from the first call ($18.75 per 1,000)."),
     "yelp":          ("month",    0,    0, "No free tier since 2024: a 30-day trial, then plans from "
                                            "$229 a month."),
-    "sendgrid":      ("day",    100,   95, "Free trial: 100 emails a day for 60 days, then a paid plan "
-                                           "is needed."),
+    "resend":        ("day",    100,   95, "Free plan: 3,000 emails a month, at most 100 a day "
+                                           "(95 a day stays under both). Never billed: past it Resend refuses."),
     "ticketmaster":  ("day",   5000, 4900, "Free: 5,000 calls a day (over it they refuse; never billed)."),
     "seatgeek":      ("day",   2000, 2000, "Free developer access. SeatGeek publishes no fixed limit, so this "
                                            "is Roamly's own daily cap (results are cached 10 minutes)."),

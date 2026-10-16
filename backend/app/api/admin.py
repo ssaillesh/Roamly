@@ -32,7 +32,7 @@ from app.services import ga4, llm, taste_profile, usage
 from app.services import events as events_svc
 from app.services import foursquare, google_places, seatgeek, yelp
 from app.services.analytics import RETENTION_DAYS, utc_today
-from app.services.email import email_enabled, send_email, send_password_reset
+from app.services.email import email_enabled, email_problem, send_email, send_password_reset
 from app.services.security import create_reset_token
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -183,7 +183,7 @@ def _live_status(db: Session) -> dict:
                          + usage.DISABLED["google_places"],
         "ticketmaster": None if events_svc.available() else missing("TICKETMASTER_API_KEY"),
         "seatgeek": None if seatgeek.available() else missing("SEATGEEK_CLIENT_ID") + " (Nightlife tab only)",
-        "email": None if email_enabled() else missing("SENDGRID_API_KEY", "EMAIL_FROM"),
+        "email": email_problem(),
         "ga4": ga4.problem(),
     }.items() if v}
     out["free_tier_only"] = settings.free_tier_only
@@ -582,7 +582,7 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
     # Counts from the last minute that haven't been flushed yet aren't included;
     # they appear within FLUSH_SECONDS. The blocker's own counters (quota) are live.
     configured = _live_status(db)["configured"]
-    configured["sendgrid"] = configured.pop("email")
+    configured["resend"] = configured.pop("email")
     quotas = usage.quota_status()
     providers = sorted({r.provider for r in rows} | set(usage.FREE_TIER) | set(_KEYLESS))
     out = []
@@ -729,9 +729,9 @@ def admin_reset_password(user_id: uuid.UUID, db: Session = Depends(get_db),
     u = _change_user(db, admin, user_id, "reset")
     if not email_enabled():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            "Email isn't configured (SENDGRID_API_KEY / EMAIL_FROM), so no reset can be sent")
+                            "Email isn't configured (RESEND_API_KEY / EMAIL_FROM), so no reset can be sent")
     if not send_password_reset(u.email, create_reset_token(str(u.id), u.password_hash)):
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "SendGrid didn't accept the email")
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Resend didn't accept the email")
     _audit(db, admin, "send_reset", u.email)
     db.commit()
     return {"sent": True}
@@ -774,7 +774,7 @@ class InviteBody(BaseModel):
 def invite(body: InviteBody, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
     if not body.mark_only and not email_enabled():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
-                            "Email isn't configured (SENDGRID_API_KEY / EMAIL_FROM). "
+                            "Email isn't configured (RESEND_API_KEY / EMAIL_FROM). "
                             "Set it up, or use “mark as invited” instead.")
     rows = db.scalars(select(WaitlistSignup).where(WaitlistSignup.id.in_(body.ids))).all()
     link = f"{settings.frontend_base_url}/auth?mode=register"

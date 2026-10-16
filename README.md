@@ -139,12 +139,12 @@ the stats unless the "Test accounts" toggle is on.
 - **Google Analytics 4** (visitors, traffic sources, website funnel steps):
   - Set `GA_MEASUREMENT_ID` in `webui/config.js`. Visitors get a cookie banner, and nothing loads until they accept.
   - On the API, set `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_JSON`: a service-account key with Viewer access on the property.
-- **Waitlist invites and admin password resets** need `SENDGRID_API_KEY` and `EMAIL_FROM`.
+- **Email** (password resets, waitlist invites) goes through [Resend](https://resend.com). It needs `RESEND_API_KEY` and `EMAIL_FROM`, an address on a domain verified in Resend (Resend → Domains).
 - **`METRICS_TOKEN`** lets a Prometheus scraper read `/metrics`. Otherwise `/metrics` is admin-only, and so is `/plan/debug`.
 
 **Paid products are off:** Foursquare, Yelp and Google Places are switched off in code (`DISABLED` in `backend/app/services/usage.py`). They're never called, even with a key set.
 
-**Free-tier blocker:** while `FREE_TIER_ONLY` is on (the default), the API never calls a metered free service (Groq, SendGrid, Ticketmaster, Open-Meteo) past a cap just under its free allowance. Caps and notes are in `FREE_TIER` in the same file; usage is shown under **Outside APIs** in the dashboard.
+**Free-tier blocker:** while `FREE_TIER_ONLY` is on (the default), the API never calls a metered free service (Groq, Resend, Ticketmaster, Open-Meteo) past a cap just under its free allowance. Caps and notes are in `FREE_TIER` in the same file; usage is shown under **Outside APIs** in the dashboard.
 
 ---
 

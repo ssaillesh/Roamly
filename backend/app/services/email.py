@@ -1,59 +1,77 @@
-"""Transactional email via the SendGrid Web API (HTTPS, no SMTP ports).
+"""Transactional email via Resend (resend.com), over HTTPS with its Python SDK.
 
-If SENDGRID_API_KEY / EMAIL_FROM are not configured, email_enabled() is False
-and callers fall back to other behavior (e.g. logging the reset link outside production).
+If RESEND_API_KEY / EMAIL_FROM aren't set, or EMAIL_FROM isn't a valid address,
+email_enabled() is False and callers fall back to other behavior (e.g. logging
+the reset link outside production). email_problem() says which.
 """
 import logging
+import re
 from urllib.parse import urlencode
 
-import httpx
+import resend
+from email_validator import EmailNotValidError, validate_email
+from resend.http_client_requests import RequestsClient
 
 from app.config import settings
 from app.services import usage
 
 logger = logging.getLogger(__name__)
 
-_SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
+# A slow email service mustn't hold up the request that sends (the SDK's default is 30 s).
+resend.default_http_client = RequestsClient(timeout=10)
+
+
+def email_problem() -> str | None:
+    """Why email can't be sent, or None when it's set up (shown on the admin dashboard)."""
+    missing = [name for name, value in (("RESEND_API_KEY", settings.resend_api_key),
+                                        ("EMAIL_FROM", settings.email_from)) if not value]
+    if missing:
+        return " and ".join(missing) + " not set on the API service"
+    try:
+        validate_email(settings.email_from, check_deliverability=False)
+    except EmailNotValidError:
+        return "EMAIL_FROM isn't a valid email address"
+    return None
 
 
 def email_enabled() -> bool:
-    return bool(settings.sendgrid_api_key and settings.email_from)
+    return email_problem() is None
+
+
+def _sender() -> str:
+    """'Name <address>', with nothing in the name that could break the header."""
+    name = re.sub(r'[<>"\r\n]', "", settings.email_from_name).strip()
+    return f"{name} <{settings.email_from}>" if name else settings.email_from
 
 
 def send_email(to_email: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Send one email. Returns True on success, False otherwise (never raises)."""
+    """Send one email. Returns True on success, False otherwise, and never raises:
+    "forgot password" must answer the same whether or not an email went out (an
+    error only for real accounts would reveal which addresses have one), and an
+    invite run counts failures instead of stopping."""
     if not email_enabled():
         logger.warning("Email not configured; skipping send to %s", to_email)
         return False
-    if not usage.allow("sendgrid"):
+    if not usage.allow("resend"):
         logger.warning("Daily free email allowance used up; skipping send to %s", to_email)
         return False
 
-    payload = {
-        "personalizations": [{"to": [{"email": to_email}]}],
-        "from": {"email": settings.email_from, "name": settings.email_from_name},
+    resend.api_key = settings.resend_api_key
+    params: resend.Emails.SendParams = {
+        "from": _sender(),
+        "to": [to_email],
         "subject": subject,
-        "content": [
-            {"type": "text/plain", "value": text or _strip_html(html)},
-            {"type": "text/html", "value": html},
-        ],
+        "html": html,
+        "text": text or _strip_html(html),
     }
     try:
-        resp = httpx.post(
-            _SENDGRID_URL,
-            json=payload,
-            headers={"Authorization": f"Bearer {settings.sendgrid_api_key}"},
-            timeout=10.0,
-        )
-    except httpx.HTTPError as exc:
-        logger.error("SendGrid request failed: %s", exc)
-        usage.record("sendgrid", ok=False)
+        sent = resend.Emails.send(params)
+    except Exception as exc:     # resend.exceptions.ResendError (refused, or the network failed), or anything else
+        logger.error("Resend didn't send the email to %s: %s", to_email, exc)
+        usage.record("resend", ok=False)
         return False
-    usage.record("sendgrid", ok=resp.status_code < 300)
-    if resp.status_code >= 300:
-        logger.error("SendGrid error %s: %s", resp.status_code, resp.text)
-        return False
-    return True
+    usage.record("resend", ok=True)
+    return bool(sent and sent.get("id"))
 
 
 def reset_link(reset_token: str) -> str:
@@ -76,5 +94,4 @@ def send_password_reset(to_email: str, reset_token: str) -> bool:
 
 
 def _strip_html(html: str) -> str:
-    import re
     return re.sub(r"<[^>]+>", "", html).strip()

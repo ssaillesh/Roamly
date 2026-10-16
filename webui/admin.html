@@ -724,7 +724,7 @@ async function renderHealth(seq){
 // ---- outside APIs
 const PROVIDER = { llm:'AI (LLM)', yelp:'Yelp', google_places:'Google Places', foursquare:'Foursquare',
   ticketmaster:'Ticketmaster', seatgeek:'SeatGeek (Nightlife only)', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding',
-  open_meteo:'Open-Meteo weather', sendgrid:'SendGrid email' };
+  open_meteo:'Open-Meteo weather', resend:'Resend email', sendgrid:'SendGrid email (replaced by Resend)' };
 const PER = { day:'today (UTC)', month:'this month' };
 function guardCell(r){
   const q = r.quota;
@@ -840,7 +840,7 @@ async function renderWaitlist(seq){
   const rows = d.signups;
   $('secSub').textContent = `${fmt(rows.length)} sign-ups · ${fmt(rows.filter(r => r.invited_at).length)} invited · ${fmt(rows.filter(r => r.joined_user_id).length)} made an account`;
   $('sec').innerHTML = `
-    ${d.email_enabled ? '' : notice('Email isn’t set up', 'Set SENDGRID_API_KEY and EMAIL_FROM on the API server to send invites. You can still mark people as invited.')}
+    ${d.email_enabled ? '' : notice('Email isn’t set up', 'Set RESEND_API_KEY and EMAIL_FROM on the API server to send invites. You can still mark people as invited.')}
     <div class="toolbar sec"><input class="input" id="wq" type="search" placeholder="Search email or name" value="${esc(wState.q)}" aria-label="Search waitlist" />
       <button class="btn btn-primary btn-sm" id="wInvite" disabled>Send invite</button>
       <button class="btn btn-ghost btn-sm" id="wMark" disabled>Mark as invited</button>

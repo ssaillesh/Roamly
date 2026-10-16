@@ -63,11 +63,19 @@ class Settings(BaseSettings):
     geocode_user_agent: str = "TrekRank/0.1 (mvp; contact dev@trekrank.app)"
     geocode_cache_ttl: int = 60 * 60 * 24 * 30  # 30 days
 
-    # Email (SendGrid Web API). Leave key blank to disable sending — the
-    # password-reset endpoint then returns the token directly (dev fallback).
-    sendgrid_api_key: str = ""
-    email_from: str = ""  # must be a SendGrid-verified sender (Single Sender or domain)
+    # Email (Resend, resend.com). Leave the key blank to disable sending: outside
+    # production the reset link then goes to the server log instead.
+    resend_api_key: str = ""
+    # The sender address: it must be on a domain verified in Resend (Resend → Domains).
+    email_from: str = ""
     email_from_name: str = "TrekRank"
+
+    @field_validator("resend_api_key", "email_from", "email_from_name", mode="before")
+    @classmethod
+    def _strip_email_settings(cls, v):
+        # Pasted into a dashboard, these often pick up a stray space or newline.
+        # (Never raise here: a validation error would print the API key.)
+        return v.strip() if isinstance(v, str) else v
     # Where the web UI is hosted; used to build the reset link in emails, and its
     # origin is the one browsers may call this API from (CORS). In production it must
     # be the live https site (check_production).
