@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Core
-    app_name: str = "TrekRank"
+    app_name: str = "Roamly"
     api_v1_prefix: str = "/api/v1"
     environment: str = "development"     # "production" on the live server (see check_production)
 
@@ -68,7 +68,7 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     # The sender address: it must be on a domain verified in Resend (Resend → Domains).
     email_from: str = ""
-    email_from_name: str = "TrekRank"
+    email_from_name: str = "Roamly"
 
     @field_validator("resend_api_key", "email_from", "email_from_name", mode="before")
     @classmethod

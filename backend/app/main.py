@@ -88,4 +88,4 @@ def health():
 
 @app.get("/", tags=["meta"])
 def root():
-    return {"name": "TrekRank API", "docs": "/docs", "version": "0.1.0"}
+    return {"name": "Roamly API", "docs": "/docs", "version": "0.1.0"}
