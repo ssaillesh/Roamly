@@ -2,12 +2,23 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<!-- No referrer from this page: a password-reset link carries its token in the URL. -->
+<meta name="referrer" content="no-referrer" />
 <script>
-  // Blocking, before first paint: an already-signed-in visitor should never see
-  // this page flash — send them straight on to their destination.
+  // Blocking, before first paint (and before config.js loads analytics):
+  // - a password-reset link (auth?reset_token=…): keep the token in memory for the
+  //   page script and take it out of the address bar, so it never reaches analytics,
+  //   the history or a referrer;
+  // - otherwise an already-signed-in visitor should never see this page flash —
+  //   send them straight on to their destination.
   try{
-    if (localStorage.getItem('trek_token')){
-      var __p = new URLSearchParams(location.search);
+    var __p = new URLSearchParams(location.search);
+    if (__p.has('reset_token')){
+      window.__resetToken = __p.get('reset_token');
+      __p.delete('reset_token');
+      var __q = __p.toString();
+      history.replaceState(null, '', location.pathname + (__q ? '?' + __q : '') + location.hash);
+    } else if (localStorage.getItem('trek_token')){
       location.replace(__p.get('redirect') || 'roamly.html');
     }
   }catch(e){}
@@ -270,6 +281,37 @@
         </button>
         <div class="msg-box" id="fpMsg" role="status"></div>
       </div>
+
+      <!-- RESET PASSWORD PANEL (the emailed link: auth?reset_token=…) -->
+      <div class="fp-panel" id="rpPanel">
+        <div class="card-head">
+          <h2>Choose a new password</h2>
+          <p>Pick a new password for your Roamly account.</p>
+        </div>
+        <form id="rpForm" novalidate>
+          <div class="fld" id="fRpPassword">
+            <label class="sr-only" for="rpPassword">New password</label>
+            <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>
+              <input class="input" id="rpPassword" type="password" placeholder="New password" autocomplete="new-password" />
+            </div>
+            <div class="hint"></div>
+          </div>
+          <div class="fld" id="fRpConfirm">
+            <label class="sr-only" for="rpConfirm">Confirm new password</label>
+            <div class="in-wrap"><svg class="ic" aria-hidden="true"><use href="#i-lock"/></svg>
+              <input class="input" id="rpConfirm" type="password" placeholder="Confirm new password" autocomplete="new-password" />
+            </div>
+            <div class="hint"></div>
+          </div>
+          <button type="submit" class="go submit" id="rpSubmit">
+            <span class="spin"></span><span class="lbl">Update password</span><svg class="ic" aria-hidden="true"><use href="#i-arrow"/></svg>
+          </button>
+        </form>
+        <div class="msg-box" id="rpMsg" role="alert"></div>
+        <div class="forgot" id="rpAgain" style="display:none">
+          <button type="button" class="link" id="rpNewLink">Request a new link</button>
+        </div>
+      </div>
     </div>
   </main>
 </div>
@@ -279,9 +321,12 @@ const $ = id => document.getElementById(id);
 const API = window.API_BASE;
 const params = new URLSearchParams(location.search);
 const REDIRECT = params.get('redirect') || 'roamly.html';
+/* A password-reset link: the head script took the token out of the URL (never logged or stored). */
+const RESET_TOKEN = typeof window.__resetToken === 'string' ? window.__resetToken : null;
+delete window.__resetToken;
 
 /* Already signed in? Skip straight through — this page is a gate, not a destination. */
-if (localStorage.getItem('trek_token')) location.replace(REDIRECT);
+if (RESET_TOKEN === null && localStorage.getItem('trek_token')) location.replace(REDIRECT);
 
 /* ---------- sign in ↔ create account ---------- */
 let mode = params.get('mode') === 'login' ? 'login' : (params.get('mode') === 'register' ? 'register' : 'login');
@@ -306,7 +351,7 @@ function applyMode(){
 function toggleMode(){
   mode = mode === 'login' ? 'register' : 'login';
   clearErrors(); applyMode();
-  $('fpPanel').classList.remove('on'); $('mainPanel').style.display = 'block';
+  $('fpPanel').classList.remove('on'); $('rpPanel').classList.remove('on'); $('mainPanel').style.display = 'block';
   (mode === 'register' ? $('displayName') : $('email')).focus();
 }
 $('barSwitch').onclick = toggleMode;
@@ -465,6 +510,72 @@ $('fpSubmit').onclick = async () => {
     setLoading(btn, false);
   }
 };
+
+/* ---------- reset password (the emailed link) ---------- */
+const TOKEN_RE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;   // the shape of a signed reset token
+function rpFail(text, linkDead){
+  $('rpMsg').className = 'msg-box err';
+  $('rpMsg').textContent = text;
+  if (linkDead){ $('rpForm').style.display = 'none'; $('rpAgain').style.display = ''; }
+}
+if (RESET_TOKEN !== null){
+  $('mainPanel').style.display = 'none';
+  $('rpPanel').classList.add('on');
+  document.title = 'Roamly — Choose a new password';
+  if (!RESET_TOKEN || RESET_TOKEN.length > 2048 || !TOKEN_RE.test(RESET_TOKEN))
+    rpFail('This reset link is incomplete. Open the link from your email again, or request a new one.', true);
+  else $('rpPassword').focus();
+}
+$('rpNewLink').onclick = () => {
+  $('rpPanel').classList.remove('on');
+  $('fpPanel').classList.add('on');
+  $('fpEmail').focus();
+};
+
+let rpBusy = false;
+$('rpForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (rpBusy || !RESET_TOKEN) return;            // one request at a time; none after success
+  const pw = $('rpPassword').value, again = $('rpConfirm').value;
+  $('rpMsg').className = 'msg-box'; $('rpMsg').textContent = '';
+  setField('fRpPassword', null, ''); setField('fRpConfirm', null, '');
+  if (pw.length < 6 || pw.length > 128){
+    setField('fRpPassword', 'err', pw.length < 6 ? 'At least 6 characters.' : 'At most 128 characters.');
+    shakeCard(); return;
+  }
+  if (again !== pw){ setField('fRpConfirm', 'err', 'The passwords don’t match.'); shakeCard(); return; }
+
+  rpBusy = true;
+  let done = false;
+  const btn = $('rpSubmit');
+  setLoading(btn, true);
+  try{
+    const { r, d } = await post('/auth/reset-password', { reset_token: RESET_TOKEN, new_password: pw });
+    if (!r.ok){
+      const detail = typeof d.detail === 'string' ? d.detail : null;
+      if (r.status === 401) rpFail(detail || 'This reset link is no longer valid. Request a new one.', true);
+      else if (r.status === 422) rpFail('Use 6 to 128 characters for your new password.');
+      else rpFail(detail || 'Something went wrong — try again.');
+      shakeCard();
+      return;
+    }
+    // The server changed the password and signed them in with a new session.
+    done = true;
+    $('rpPassword').value = ''; $('rpConfirm').value = '';
+    localStorage.setItem('trek_token', d.access_token);
+    localStorage.setItem('trek_user', d.user.username);
+    if (d.refresh_token) localStorage.setItem('trek_refresh', d.refresh_token);
+    track('password_reset');
+    $('successTitle').textContent = 'Password updated';
+    $('successSub').textContent = 'Taking you to your plan…';
+    $('success').classList.add('on');
+    setTimeout(() => { location.href = 'roamly.html'; }, 950);
+  }catch(err){
+    rpFail('Couldn’t reach the server — check your connection and try again.');
+  }finally{
+    if (!done){ rpBusy = false; setLoading(btn, false); }
+  }
+});
 </script>
 </body>
 </html>

@@ -11,6 +11,7 @@ from app.schemas.user import UserProfile, UserUpdate
 from app.schemas.profile import SurveyOut, TasteProfileOut, TasteProfileUpdate
 from app.legal import TERMS_VERSION
 from app.services import taste_profile
+from app.services.security import verify_password
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -39,8 +40,16 @@ def accept_terms(user: User = Depends(get_current_user), db: Session = Depends(g
 
 @router.patch("/me", response_model=UserProfile)
 def update_me(body: UserUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    data = body.model_dump(exclude_unset=True)
-    if "email" in data and data["email"] and data["email"] != user.email:
+    data = body.model_dump(exclude_unset=True, exclude={"current_password"})
+    if data.get("email") == user.email:
+        data.pop("email")                  # unchanged: nothing to confirm
+    if "email" in data:
+        # The email is where password resets go, so a stolen session alone mustn't be
+        # able to move it. Checked before the "in use" lookup so it can't probe emails.
+        if not body.current_password:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Enter your current password to change your email")
+        if not user.password_hash or not verify_password(body.current_password, user.password_hash):
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Current password is incorrect")
         if db.scalar(select(User.id).where(User.email == data["email"])):
             raise HTTPException(status.HTTP_409_CONFLICT, "Email already in use")
     for field, value in data.items():

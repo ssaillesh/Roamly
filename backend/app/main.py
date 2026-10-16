@@ -40,15 +40,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(RequestStatsMiddleware)
+# Added last, so it runs first: preflights are answered before the rate limit, and
+# a 429 still carries the headers the page needs to read it.
+# Only the web app's own origin(s) (config.cors_origins; localhost too outside
+# production). Sign-in is a bearer token in a header, never a cookie, so no
+# credentialed cross-origin requests.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins(),
+    allow_origin_regex=None if settings.environment == "production" else r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 # Prometheus: per-route request count + latency histograms (p95 etc. via
 # histogram_quantile in PromQL/Grafana). GET /metrics is admin-only, or open to a

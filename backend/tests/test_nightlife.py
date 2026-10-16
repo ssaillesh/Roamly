@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import select
 
+from app.config import settings
 from app.database import SessionLocal
 from app.models import AdminAuditLog, Area, NightlifeEvent, Venue
 from app.services import nightlife, planner, special_days, venue_index
@@ -126,7 +127,14 @@ def _ip():
     return {"X-Forwarded-For": f"203.0.113.{uuid.uuid4().int % 250}-{uuid.uuid4().hex[:6]}"}
 
 
-def test_venue_submissions_wait_for_review(client, monkeypatch):
+@pytest.fixture
+def behind_proxy(monkeypatch):
+    """Like production behind one proxy: X-Forwarded-For's last entry is the address
+    the proxy saw, so each test gets its own address (and its own daily count)."""
+    monkeypatch.setattr(settings, "trusted_proxy_hops", 1)
+
+
+def test_venue_submissions_wait_for_review(client, behind_proxy, monkeypatch):
     linked = {"id": "nl:club", "name": "Test Club", "lat": 43.65, "lng": -79.4, "address": "1 Club St"}
     monkeypatch.setattr(venue_index, "find_venue", lambda *a, **kw: linked)
     r = client.post("/api/v1/nightlife/submissions", json=_submission(), headers=_ip())
@@ -138,7 +146,7 @@ def test_venue_submissions_wait_for_review(client, monkeypatch):
         db.commit()
 
 
-def test_submission_checks(client):
+def test_submission_checks(client, behind_proxy):
     h = _ip()
     past = (datetime.now(timezone.utc) - timedelta(days=2)).isoformat()
     assert client.post("/api/v1/nightlife/submissions", json=_submission(starts_at=past), headers=h).status_code == 422
@@ -153,7 +161,7 @@ def test_submission_checks(client):
         assert not db.scalars(select(NightlifeEvent).where(NightlifeEvent.title == "Test Bot Spam")).first()
 
 
-def test_submissions_are_rate_limited(client):
+def test_submissions_are_rate_limited(client, behind_proxy):
     h = _ip()
     codes = [client.post("/api/v1/nightlife/submissions", json=_submission(title=f"Test Limit {i}"),
                          headers=h).status_code for i in range(7)]

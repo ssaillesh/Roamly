@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.middleware.auth import get_current_user
+from app.middleware.rate_limit import client_ip
 from app.models import NightlifeEvent, User
 from app.redis_client import redis_client
 from app.schemas.nightlife import NightlifeResponse, SubmissionIn
@@ -33,11 +34,6 @@ def get_nightlife(lat: float | None = None, lng: float | None = None,
     if lat is None or lng is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Set a location first.")
     return nightlife.feed(lat, lng, window=window, radius_km=radius_km, tz=tz)
-
-
-def _client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() or (request.client.host if request.client else "anon")
 
 
 def _as_utc(dt: datetime) -> datetime:
@@ -70,7 +66,8 @@ def submit_event(body: SubmissionIn, request: Request, db: Session = Depends(get
     """A venue or promoter lists an event. It waits for an admin's approval."""
     if body.website:                                   # the honeypot was filled: a bot
         return {"ok": True}
-    key = f"nl_submit:{_client_ip(request)}:{datetime.now(timezone.utc):%Y%m%d}"
+    # The address our proxies saw: the left of X-Forwarded-For is the client's to fake.
+    key = f"nl_submit:{client_ip(request)}:{datetime.now(timezone.utc):%Y%m%d}"
     try:
         n = redis_client.incr(key)
         redis_client.expire(key, 86400)

@@ -6,8 +6,11 @@
    email service was configured — anyone knowing an email could reset it.
 """
 import logging
+import uuid
 
 from app.config import settings
+from app.database import SessionLocal
+from app.models import User
 from app.services.security import create_reset_token
 from tests.conftest import make_user
 
@@ -51,7 +54,8 @@ def test_reset_link_only_logged_outside_production(client, monkeypatch, caplog):
 
 def test_emailed_token_still_resets_the_password(client):
     user, _ = make_user(client, "reset")
-    token = create_reset_token(user["id"])          # what the email would contain
+    with SessionLocal() as db:                      # what the email would contain
+        token = create_reset_token(user["id"], db.get(User, uuid.UUID(user["id"])).password_hash)
     r = client.post("/api/v1/auth/reset-password",
                     json={"reset_token": token, "new_password": "brand-new-pass"})
     assert r.status_code == 200, r.text

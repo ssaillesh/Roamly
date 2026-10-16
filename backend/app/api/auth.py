@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -11,16 +11,17 @@ from app.legal import TERMS_VERSION
 from app.database import get_db
 from app.models import User
 from app.middleware.auth import get_current_user
+from app.middleware.rate_limit import check_login_attempt, clear_login_attempts
 from app.schemas.auth import (
     RegisterRequest, LoginRequest, RefreshRequest, TokenResponse, AuthUser,
     ForgotPasswordRequest, ForgotPasswordResponse, ResetPasswordRequest, ChangePasswordRequest,
 )
 from app.services.security import (
     hash_password, verify_password, create_access_token, create_refresh_token, decode_token,
-    create_reset_token,
+    create_reset_token, decode_reset_token, reset_token_matches,
 )
 from app.services.analytics import looks_like_test, mark_active
-from app.services.email import email_enabled, send_password_reset
+from app.services.email import email_enabled, reset_link, send_password_reset
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 log = logging.getLogger(__name__)
@@ -62,12 +63,14 @@ def register(body: RegisterRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    check_login_attempt(request, body.email)       # 429 after too many tries (middleware/rate_limit.py)
     user = db.scalar(select(User).where(User.email == body.email))
     if not user or not user.password_hash or not verify_password(body.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid credentials")
     if user.is_disabled:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been disabled")
+    clear_login_attempts(body.email)
     mark_active(db, user)
     return _tokens(user, is_new=False)
 
@@ -99,25 +102,33 @@ def forgot_password(body: ForgotPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         return ForgotPasswordResponse(message=generic)
 
-    token = create_reset_token(str(user.id))
+    token = create_reset_token(str(user.id), user.password_hash)
     if email_enabled():
         send_password_reset(user.email, token)
     elif settings.environment != "production":
         # Local dev without an email service: the link goes to the server log
         # (never the HTTP response) so the reset flow can still be tested.
-        log.warning("Password reset for %s (email not configured): %s/?reset_token=%s",
-                    user.email, settings.frontend_base_url, token)
+        log.warning("Password reset for %s (email not configured): %s", user.email, reset_link(token))
     return ForgotPasswordResponse(message=generic)
+
+
+RESET_EXPIRED = "This reset link has expired. Request a new one."
+# One message for a forged token, a deleted account and an already-used link, so a
+# failure says nothing about the account behind it.
+RESET_INVALID = "This reset link is invalid or has already been used. Request a new one."
 
 
 @router.post("/reset-password", response_model=TokenResponse)
 def reset_password(body: ResetPasswordRequest, db: Session = Depends(get_db)):
-    payload = decode_token(body.reset_token, expected_type="reset")
+    payload, expired = decode_reset_token(body.reset_token)
+    if expired:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, RESET_EXPIRED)
     if not payload:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired reset token")
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, RESET_INVALID)
     user = db.get(User, uuid.UUID(payload["sub"]))
-    if not user:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found")
+    # Single use: the token is tied to the password it replaces (services/security.py).
+    if not user or not reset_token_matches(payload, user.password_hash):
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, RESET_INVALID)
     if user.is_disabled:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "This account has been disabled")
     user.password_hash = hash_password(body.new_password)

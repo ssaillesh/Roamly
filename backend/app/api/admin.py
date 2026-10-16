@@ -730,7 +730,7 @@ def admin_reset_password(user_id: uuid.UUID, db: Session = Depends(get_db),
     if not email_enabled():
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Email isn't configured (SENDGRID_API_KEY / EMAIL_FROM), so no reset can be sent")
-    if not send_password_reset(u.email, create_reset_token(str(u.id))):
+    if not send_password_reset(u.email, create_reset_token(str(u.id), u.password_hash)):
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "SendGrid didn't accept the email")
     _audit(db, admin, "send_reset", u.email)
     db.commit()

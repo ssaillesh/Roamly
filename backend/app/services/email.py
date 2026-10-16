@@ -1,9 +1,10 @@
 """Transactional email via the SendGrid Web API (HTTPS, no SMTP ports).
 
 If SENDGRID_API_KEY / EMAIL_FROM are not configured, email_enabled() is False
-and callers fall back to other behavior (e.g. returning the reset token).
+and callers fall back to other behavior (e.g. logging the reset link outside production).
 """
 import logging
+from urllib.parse import urlencode
 
 import httpx
 
@@ -55,16 +56,19 @@ def send_email(to_email: str, subject: str, html: str, text: str | None = None) 
     return True
 
 
+def reset_link(reset_token: str) -> str:
+    """The emailed link: the sign-in page (webui/auth.html, served at /auth), which
+    opens its "choose a new password" panel when it sees reset_token."""
+    return f"{settings.frontend_base_url.rstrip('/')}/auth?{urlencode({'reset_token': reset_token})}"
+
+
 def send_password_reset(to_email: str, reset_token: str) -> bool:
-    reset_link = f"{settings.frontend_base_url}/?reset_token={reset_token}"
     subject = "Reset your TrekRank password"
     html = f"""
       <p>Hi,</p>
       <p>We received a request to reset your TrekRank password.
          Click the link below to choose a new one. This link expires in 15 minutes.</p>
-      <p><a href="{reset_link}">Reset my password</a></p>
-      <p>If the link doesn't work, paste this code into the app:</p>
-      <p style="font-family:monospace;word-break:break-all">{reset_token}</p>
+      <p><a href="{reset_link(reset_token)}">Reset my password</a></p>
       <p>If you didn't request this, you can safely ignore this email.</p>
       <p>— TrekRank</p>
     """

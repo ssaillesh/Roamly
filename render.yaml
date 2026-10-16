@@ -43,6 +43,9 @@ services:
         generateValue: true
       - key: ENVIRONMENT
         value: production
+      # Required in production: the live https web app (reset-email links + CORS).
+      - key: FRONTEND_BASE_URL
+        sync: false
       # Nominatim asks for a descriptive UA with contact info — set your email.
       - key: GEOCODE_USER_AGENT
         value: "TrekRank/1.0 (your-email@example.com)"
