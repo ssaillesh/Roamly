@@ -4,49 +4,18 @@ venv doesn't have, so it is skipped there. Run it with a Python that has both:
 
     python3 -B -m pytest --noconftest -p no:cacheprovider backend/tests/frontend -q
 """
-import functools
-import http.server
 import json
-import threading
-from pathlib import Path
 
 import pytest
 
-sync_api = pytest.importorskip("playwright.sync_api")
+pytest.importorskip("playwright.sync_api")
 
-WEBUI = Path(__file__).resolve().parents[3] / "webui"
-API = "http://127.0.0.1:8001/api/v1"          # config.js's API on localhost
+from webui_fixtures import API, browser, site  # noqa: E402,F401  (fixtures)
+
 RESET = f"{API}/auth/reset-password"
 TOKEN = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4IiwidHlwZSI6InJlc2V0In0.c2lnbmF0dXJlLXBhcnQ"
 OK_BODY = {"access_token": "new-access", "refresh_token": "new-refresh", "token_type": "bearer",
            "user": {"id": "1", "username": "sam", "display_name": "Sam", "is_new_user": False}}
-
-
-class _CleanUrls(http.server.SimpleHTTPRequestHandler):
-    """Serves /auth as auth.html, like Vercel's cleanUrls (webui/vercel.json)."""
-
-    def translate_path(self, path):
-        local = Path(super().translate_path(path))
-        return str(local.with_suffix(".html")) if not local.suffix and local.with_suffix(".html").exists() else str(local)
-
-    def log_message(self, *args):
-        pass
-
-
-@pytest.fixture(scope="module")
-def site():
-    httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(_CleanUrls, directory=str(WEBUI)))
-    threading.Thread(target=httpd.serve_forever, daemon=True).start()
-    yield f"http://127.0.0.1:{httpd.server_address[1]}"
-    httpd.shutdown()
-
-
-@pytest.fixture(scope="module")
-def browser():
-    with sync_api.sync_playwright() as p:
-        b = p.chromium.launch(channel="chrome", headless=True)
-        yield b
-        b.close()
 
 
 class Page:

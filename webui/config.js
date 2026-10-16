@@ -8,6 +8,27 @@ window.API_BASE =
     ? 'http://127.0.0.1:8001/api/v1'
     : 'https://trekrank.onrender.com/api/v1';
 
+// Where to go after signing in, from a ?redirect= value — which anyone can put in a
+// link, so it's never used as is. Only a page on this site is accepted ("roamly.html",
+// "/admin.html", "roamly.html?q=…"); another site ("//evil.com", "/\evil.com",
+// "https://…") or a script URL ("javascript:", "data:", "vbscript:") gives `fallback`.
+// Returns a path from the site root, e.g. "/roamly.html?q=…".
+window.safeRedirect = function (value, fallback) {
+  fallback = fallback || '/roamly.html';
+  if (typeof value !== 'string' || !value || value.length > 2048) return fallback;
+  // No scheme, no leading "//", no backslashes (browsers read "\" as "/") and no
+  // whitespace or control characters (the URL parser drops some: "java\tscript:").
+  if (/^[a-z][a-z0-9+.\-]*:/i.test(value) || value.slice(0, 2) === '//' || /[\\\s\x00-\x1f\x7f]/.test(value)) return fallback;
+  try {
+    const url = new URL(value, location.origin + '/');
+    // Dot segments can still collapse into "//host" ("/.//evil.com"): re-check the result.
+    if (url.origin !== location.origin || url.pathname.slice(0, 2) === '//') return fallback;
+    return url.pathname + url.search + url.hash;
+  } catch (e) {
+    return fallback;
+  }
+};
+
 // Wake the API as soon as any page loads. Render's free tier sleeps after
 // ~15 min idle and takes ~30-60s to boot, so start that boot now — while the
 // visitor is still reading — instead of on their first click.

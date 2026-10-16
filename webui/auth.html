@@ -5,12 +5,9 @@
 <!-- No referrer from this page: a password-reset link carries its token in the URL. -->
 <meta name="referrer" content="no-referrer" />
 <script>
-  // Blocking, before first paint (and before config.js loads analytics):
-  // - a password-reset link (auth?reset_token=…): keep the token in memory for the
-  //   page script and take it out of the address bar, so it never reaches analytics,
-  //   the history or a referrer;
-  // - otherwise an already-signed-in visitor should never see this page flash —
-  //   send them straight on to their destination.
+  // Blocking, before config.js loads analytics: a password-reset link
+  // (auth?reset_token=…) — keep the token in memory for the page script and take it
+  // out of the address bar, so it never reaches analytics, the history or a referrer.
   try{
     var __p = new URLSearchParams(location.search);
     if (__p.has('reset_token')){
@@ -18,8 +15,6 @@
       __p.delete('reset_token');
       var __q = __p.toString();
       history.replaceState(null, '', location.pathname + (__q ? '?' + __q : '') + location.hash);
-    } else if (localStorage.getItem('trek_token')){
-      location.replace(__p.get('redirect') || 'roamly.html');
     }
   }catch(e){}
 </script>
@@ -37,6 +32,14 @@
 <link rel="preload" as="image" href="auth-santorini.jpg" />
 <link rel="stylesheet" href="/roamly.css?v=2026-10-11" />
 <script src="/config.js"></script>
+<script>
+  // Still before first paint: an already-signed-in visitor should never see this page
+  // flash — send them straight on to their destination (checked by safeRedirect).
+  try{
+    if (window.__resetToken === undefined && localStorage.getItem('trek_token'))
+      location.replace(safeRedirect(new URLSearchParams(location.search).get('redirect')));
+  }catch(e){}
+</script>
 <style>
   /* ==== the sunset terrace, full-bleed behind everything ==== */
   body{min-height:100vh; min-height:100dvh; background:#3a2a4f; color:#fff;}
@@ -320,7 +323,7 @@
 const $ = id => document.getElementById(id);
 const API = window.API_BASE;
 const params = new URLSearchParams(location.search);
-const REDIRECT = params.get('redirect') || 'roamly.html';
+const REDIRECT = safeRedirect(params.get('redirect'));   // a page on this site, never a script URL
 /* A password-reset link: the head script took the token out of the URL (never logged or stored). */
 const RESET_TOKEN = typeof window.__resetToken === 'string' ? window.__resetToken : null;
 delete window.__resetToken;

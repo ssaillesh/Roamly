@@ -148,7 +148,7 @@ const ic = (name, cls = '') => `<svg class="ic ${cls}" aria-hidden="true"><use h
 const token = () => localStorage.getItem('trek_token');
 const headers = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token() });
 const params = new URLSearchParams(location.search);
-const REDIRECT = params.get('redirect') || 'roamly.html';
+const REDIRECT = safeRedirect(params.get('redirect'));   // a page on this site, never a script URL
 
 let questions = [], answers = {}, profile = null, i = 0;
 let mode = 'summary';          // summary | survey (all questions) | one (a single answer, then back)
