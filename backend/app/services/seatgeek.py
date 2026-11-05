@@ -22,7 +22,7 @@ from app.services import usage
 _URL = "https://api.seatgeek.com/2/events"
 _TTL = 60 * 10
 # Some APIs turn away anonymous traffic from cloud servers; say who's asking.
-_HEADERS = {"User-Agent": "Roamly/1.0 (outing planner; Nightlife tab)", "Accept": "application/json"}
+_HEADERS = {"User-Agent": "Rova/1.0 (outing planner; Nightlife tab)", "Accept": "application/json"}
 
 
 def available() -> bool:

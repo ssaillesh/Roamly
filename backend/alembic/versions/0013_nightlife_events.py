@@ -1,4 +1,4 @@
-"""nightlife_events: club nights and special events Roamly lists itself
+"""nightlife_events: club nights and special events Rova lists itself
 (added by an admin, or submitted by a venue and approved by an admin)
 
 Revision ID: 0013_nightlife_events

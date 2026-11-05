@@ -1,4 +1,4 @@
-"""The Nightlife tab: club nights from Ticketmaster and Roamly's own approved
+"""The Nightlife tab: club nights from Ticketmaster and Rova's own approved
 listings, the club index from the stored venue list, special days, the public
 "list your event" form and the admin review queue. Plus plans on a special day."""
 import uuid
@@ -81,12 +81,12 @@ def _own(title, status, when, **kw):
 
 
 def test_feed_merges_club_nights_and_the_club_index(town, ticketmaster):
-    _own("Approved Roamly Night", "approved", ST_PATRICKS_EVE + timedelta(hours=1), kind="special_guest")
+    _own("Approved Rova Night", "approved", ST_PATRICKS_EVE + timedelta(hours=1), kind="special_guest")
     _own("Not Reviewed Yet", "pending", ST_PATRICKS_EVE + timedelta(hours=1))
     f = nightlife.feed(LAT, LNG, window="tonight", radius_km=10, now=ST_PATRICKS_EVE)
 
     names = [e["name"] for e in f["events"]]
-    assert {"DJ Nova All Night", "The Fiddlers", "St. Patrick's Bash", "Approved Roamly Night"} <= set(names)
+    assert {"DJ Nova All Night", "The Fiddlers", "St. Patrick's Bash", "Approved Rova Night"} <= set(names)
     assert "Symphony No. 5" not in names and "Not Reviewed Yet" not in names
     bash = next(e for e in f["events"] if e["name"] == "St. Patrick's Bash")
     assert bash["special_day"] == "st_patricks"

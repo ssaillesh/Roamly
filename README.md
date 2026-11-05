@@ -1,4 +1,4 @@
-# Roamly
+# Rova
 
 An AI outing planner. Tell it what you're after — or tap the controls — and it builds a
 real, timed plan from live venues and events nearby, with a route map of the stops. See
@@ -38,24 +38,24 @@ everything runs in the API process, with Redis for caching and rate limiting.
 - `profile.html` — **My taste**: a summary of the taste profile (tap any row to change just that
   answer) plus the optional 14-question survey, autosaved per answer, ending in a profile result
   ("🌙 Cozy Foodie Explorer").
-- `roamly.html` — the AI planner chat, built as *chat + quick controls*. A **Planning around**
+- `rova.html` — the AI planner chat, built as *chat + quick controls*. A **Planning around**
   bar (📍 where · 📏 radius · 💸 budget · 🕖 when · 👥 who · ✨ mood · 🚶 transport) shows what
-  Roamly is working with; tapping it opens one settings sheet, and typed requests update it
+  Rova is working with; tapping it opens one settings sheet, and typed requests update it
   (changed values flash). The home screen offers ✨ Plan my night · 🔴 What's on now · 🎲 Surprise
   me; tapped settings skip the LLM entirely. Live location is opt-in. Plans come from real nearby
   venues with a mini route map; "what's on" lists live events (Ticketmaster + the City of
   Toronto festivals feed) with on-now status, free/price badges and *plan around it*.
   Views: Home · Chat · What's on · Saved (bottom nav on phones, sidebar on tablet/desktop; on
   desktop the settings are an always-open side panel). Typed messages send the bar's settings as
-  `defaults`, so what you type wins, the bar fills the gaps, and "Roamly heard" shows what changed.
+  `defaults`, so what you type wins, the bar fills the gaps, and "Rova heard" shows what changed.
 - `admin.html` — the **admin dashboard** (admins only): users & retention, sign-up funnel,
   traffic sources, where users are, planner quality, taste insights, server health, outside-API
   usage, user management, waitlist invites, admin activity and CSV exports.
-- `brand/` — the Roamly logo ("Fold Spark"):
-  - `roamly.svg` holds the star (`#mark`) and the wordmark (`#wordmark`) as symbols. Their neutral parts take the text colour, so the logo turns white on photos and ink on light pages; the orange `#FF5A20` stays fixed.
+- `brand/` — the Rova logo (the wordmark R O A with a route mark for the V):
+  - `rova.svg` holds the route mark (`#mark`) and the wordmark (`#wordmark`) as symbols. Their ink parts take the text colour (ink on ivory, ivory on charcoal); the accent reads the CSS variable `--rova-accent` (brass `#8C6A2F` by default, champagne `#D4B47A` on dark).
   - `logo.svg` / `logo-white.svg` are the full lockups.
   - `icon.svg`, `favicon-32.png`, `apple-touch-icon.png` and `icon-192/512.png` are the app icon.
-- `roamly.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
+- `rova.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
   planner, My taste and sign-in pages.
 
 **Tests:** `./run_local.sh test` — pytest against the local Postgres + Redis (auth security,
@@ -176,9 +176,9 @@ cd backend && .venv/bin/pip install -r requirements-venues.txt   # duckdb, loade
 
 `GET /api/v1/nightlife` powers the planner's **Nightlife** tab:
 
-- **Club nights & special guests** for tonight, this weekend or this week. They come from Ticketmaster and from Roamly's own listings:
+- **Club nights & special guests** for tonight, this weekend or this week. They come from Ticketmaster and from Rova's own listings:
   - Ticketmaster events count as nightlife when they're dance/electronic, hip-hop, R&B, Latin or reggae, when they're named like a party, or when they're at a known night spot.
-  - Roamly's own listings come from the `nightlife_events` table (migration `0013`).
+  - Rova's own listings come from the `nightlife_events` table (migration `0013`).
 - **Special days**, from `backend/app/services/special_days.py`: St. Patrick's, Valentine's, Lunar New Year, Cinco de Mayo, Pride, Canada Day, Caribbean Carnival, Nuit Blanche, Halloween, Diwali and New Year's Eve.
   - A banner appears a few days ahead.
   - The places that fit the day are listed, such as Irish pubs on St. Patrick's.
@@ -186,7 +186,7 @@ cd backend && .venv/bin/pip install -r requirements-venues.txt   # duckdb, loade
   - Lunar New Year and Diwali come from a date table; a test fails when the table needs another year.
 - **Club guide:** clubs, LGBTQ+ bars, live music, comedy and karaoke, lounges, and bars and pubs from the stored venue list. They're grouped by neighbourhood, with places that have an event that night first. *Plan a night here* builds a plan around the place.
 
-**Roamly's own listings:**
+**Rova's own listings:**
 - Venues and promoters submit events at `/submit-event` (public, rate-limited, with a spam trap).
 - Nothing shows until an admin approves it in **Admin → Nightlife events**, where admins can also add events by hand.
 
@@ -232,10 +232,10 @@ Sway/
 ├── webui/
 │   ├── index.html            marketing landing page + waitlist
 │   ├── auth.html             sign-in / create-account page
-│   ├── roamly.html           AI planner (home · chat · what's on · saved)
+│   ├── rova.html           AI planner (home · chat · what's on · saved)
 │   ├── profile.html          My taste + taste survey
 │   ├── admin.html            admin dashboard
-│   ├── roamly.css            shared design system
+│   ├── rova.css            shared design system
 │   ├── config.js              API_BASE (single source of truth)
 │   └── vercel.json            static-site deploy (Vercel)
 ├── docker-compose.yml            legacy local stack (see CLEANUP.md)

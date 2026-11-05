@@ -6,6 +6,11 @@
 # Railway injects $PORT; fall back to 8080 for local `docker run`.
 :{$PORT:8080} {
 	root * /srv
+	# The planner was roamly.html before the rename to Rova: old links and bookmarks still land.
+	@oldPlanner path /roamly /roamly.html
+	redir @oldPlanner /rova.html{?query} permanent
+	# A shared plan (/n/<code>) is one page that reads the code from the URL.
+	rewrite /n/* /n.html
 	file_server
 	try_files {path} {path}.html /index.html
 	encode gzip

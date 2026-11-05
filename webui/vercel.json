@@ -3,6 +3,11 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
-    { "source": "/app", "destination": "/roamly", "permanent": false }
+    { "source": "/app", "destination": "/rova", "permanent": false },
+    { "source": "/roamly", "destination": "/rova", "permanent": true },
+    { "source": "/roamly.html", "destination": "/rova", "permanent": true }
+  ],
+  "rewrites": [
+    { "source": "/n/:code", "destination": "/n" }
   ]
 }

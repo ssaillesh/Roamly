@@ -28,14 +28,3 @@ def test_friends_feed_shows_friend_activity(client):
     assert b_user["username"] in usernames
     trip_items = [i for i in feed["items"] if i["event_type"] == "new_trip"]
     assert any(i["trip"]["dest_city"] == "Montreal" for i in trip_items)
-
-
-def test_share_card_generation(client):
-    user, token = make_user(client, "share")
-    client.post("/api/v1/trips", json={
-        "dest_city": "Tokyo", "dest_country": "JP", "start_date": "2026-03-15",
-    }, headers=auth_headers(token))
-    resp = client.post("/api/v1/share/card", json={"card_type": "year_recap", "year": 2026},
-                       headers=auth_headers(token))
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["image_url"].endswith(".png")

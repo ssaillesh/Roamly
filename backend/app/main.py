@@ -1,4 +1,4 @@
-"""Roamly FastAPI application entrypoint."""
+"""Rova FastAPI application entrypoint."""
 import asyncio
 import contextlib
 import hmac
@@ -17,7 +17,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, require_admin
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_stats import RequestStatsMiddleware
-from app.api import admin, auth, nightlife, users, waitlist, plan
+from app.api import admin, auth, nightlife, users, waitlist, plan, share
 from app.services import analytics
 
 
@@ -73,11 +73,11 @@ def metrics(request: Request, db: Session = Depends(get_db)):
 
 
 # Only what the web app uses is exposed. The travel-logging features (trips,
-# friends, feed, leaderboards, challenges, share cards) have no screens yet, so
-# their routes are switched off to keep the public API small; their code and
-# tables stay. To bring one back, import it above and add it here.
+# friends, feed, leaderboards, challenges) have no screens yet, so their routes
+# are switched off to keep the public API small; their code and tables stay. To
+# bring one back, import it above and add it here. `share` is Share the night.
 P = settings.api_v1_prefix
-for r in (auth, users, waitlist, plan, nightlife, admin):
+for r in (auth, users, waitlist, plan, nightlife, admin, share):
     app.include_router(r.router, prefix=P)
 
 

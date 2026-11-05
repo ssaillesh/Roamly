@@ -1,4 +1,4 @@
-"""Live end-to-end smoke test against a running Roamly API (default :8001).
+"""Live end-to-end smoke test against a running Rova API (default :8001).
 
 Exercises what the web app actually uses: register -> taste survey (autosave +
 complete) -> one-tap structured plan -> free-text plan -> password-reset request

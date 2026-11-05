@@ -1,6 +1,6 @@
 # Codebase cleanup notes
 
-Roamly started life as **TrekRank**, a travel-logging app (trips, badges, leaderboards, friends, feed, share cards). This file tracks removing that history, so it doesn't affect the outing planner.
+Rova started life as **TrekRank**, a travel-logging app (trips, badges, leaderboards, friends, feed, share cards). This file tracks removing that history, so it doesn't affect the outing planner.
 
 **How "not in use" was decided:**
 - **Import graph.** Built from what production runs: the API, `start.sh` and Alembic.
@@ -38,7 +38,7 @@ Roamly started life as **TrekRank**, a travel-logging app (trips, badges, leader
 | `app/models/user.py` | The 9 dropped columns removed. **Must deploy with the migration**, which `start.sh` guarantees because it migrates before starting the API. |
 | `app/api/users.py` | Keeps `GET/PATCH /me` and the three `/me/profile` routes. Removed: featured badges, user search, public profiles, badges, stats, map. |
 | `app/schemas/user.py` | Just the account fields |
-| `app/main.py` | `/media` mount removed; title and description now say Roamly |
+| `app/main.py` | `/media` mount removed; title and description now say Rova |
 | `app/config.py` | Share-card storage / S3 / MinIO settings removed. Old env vars are ignored (`extra="ignore"`). |
 | `start.sh` | Migrations, then uvicorn. **No Celery worker, badge seeding or trip healing**, so less memory on the 512 MB instance. |
 | `requirements.txt` | `celery` and `Pillow` removed (`redis` stays for the planner cache) |

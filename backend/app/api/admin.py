@@ -407,7 +407,7 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
     dims["radius_km"].pop(None, None)
 
     # Conversations (one session_id per conversation on the page): how long they run,
-    # and whether Roamly ever asked the same question twice in one.
+    # and whether Rova ever asked the same question twice in one.
     per_session = (select(base.c.session_id, func.count().label("turns"))
                    .where(base.c.session_id.is_not(None)).group_by(base.c.session_id).subquery())
     s_count, s_turns = db.execute(select(func.count(), func.avg(per_session.c.turns))

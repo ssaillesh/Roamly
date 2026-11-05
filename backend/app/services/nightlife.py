@@ -3,7 +3,7 @@ day (if one is on or coming up), the places that fit it, and the club index.
 
 Sources, merged: Ticketmaster and SeatGeek (music events that are nightlife by
 genre, by name, by being 19+ or by being at a known night spot; plus a Ticketmaster
-keyword search on special days), Roamly's own approved events (admin-added or
+keyword search on special days), Rova's own approved events (admin-added or
 venue-submitted), and the stored venue list for the places themselves. SeatGeek
 events stay in this tab: their terms don't allow passing them to an AI model. No scraping: Resident Advisor's terms
 forbid it and Eventbrite has no public search.
@@ -41,7 +41,7 @@ def _local(dt: datetime | None) -> datetime | None:
 
 
 def own_events(start_utc: datetime, end_utc: datetime) -> list[dict]:
-    """Approved Roamly-listed events overlapping the window, shaped like other events."""
+    """Approved Rova-listed events overlapping the window, shaped like other events."""
     with SessionLocal() as db:
         rows = db.scalars(select(NightlifeEvent).where(
             NightlifeEvent.status == "approved", NightlifeEvent.starts_at < end_utc,
@@ -56,7 +56,7 @@ def own_events(start_utc: datetime, end_utc: datetime) -> list[dict]:
             "start": e.starts_at.astimezone(timezone.utc).isoformat(),
             "end": e.ends_at.astimezone(timezone.utc).isoformat() if e.ends_at else None,
             "free": e.free, "price_min": e.price_min, "price_max": e.price_max, "url": e.url,
-            "source": "roamly", "category": KIND_LABELS.get(e.kind, "Nightlife"), "kind": e.kind,
+            "source": "rova", "category": KIND_LABELS.get(e.kind, "Nightlife"), "kind": e.kind,
             "special_day": e.special_day, "description": e.description,
         })
     return out

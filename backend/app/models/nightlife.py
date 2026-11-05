@@ -1,4 +1,4 @@
-"""Nightlife events Roamly lists itself: ones an admin adds (a special-guest night,
+"""Nightlife events Rova lists itself: ones an admin adds (a special-guest night,
 a St. Patrick's party) and ones clubs/promoters submit. Nothing shows in the app
 until an admin approves it (status "approved")."""
 import uuid

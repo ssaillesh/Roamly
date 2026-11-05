@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+<title>A night, planned with Rova</title>
+<meta name="description" content="A night out, planned with Rova: every stop, the times, the walk between them and what it costs." />
+<meta name="theme-color" content="#141311" />
+<meta name="robots" content="noindex" />
+<meta property="og:title" content="A night, planned with Rova" />
+<meta property="og:description" content="Every stop, the times, the walk between them and what it costs." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@1&display=swap" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
+<link rel="stylesheet" href="/itinerary.css" />
+<script src="/config.js"></script>
+<style>
+  html,body{margin:0; background:#141311; color:#F2EDE4;}
+  .own{display:inline-flex; align-items:center; gap:8px; height:40px; padding:0 18px; border-radius:999px; background:#D9BC85; color:#111110 !important;
+    font-size:14px; font-weight:600;}
+  .own:hover{background:#E3C994;}
+  .cta-box{border-radius:22px; background:#F2EDE4; color:#161513; padding:22px; display:flex; flex-direction:column; gap:12px;}
+  .cta-box b{font-size:17px; font-weight:600; letter-spacing:-.01em;}
+  .cta-box p{margin:0; font-size:14px; color:#6B665D;}
+  .cta-box a{align-self:flex-start; display:inline-flex; align-items:center; gap:8px; height:44px; padding:0 20px; border-radius:999px; background:#161513;
+    color:#F2EDE4 !important; font-size:14px; font-weight:500;}
+  .gone{min-height:100vh; display:grid; place-items:center; padding:24px; text-align:center; font-family:"Inter",system-ui,sans-serif;}
+  .gone h1{margin:0 0 10px; font-size:32px; font-weight:600; letter-spacing:-.03em;}
+  .gone p{margin:0 0 22px; color:#A8A295;}
+  .toast{position:fixed; z-index:70; left:50%; bottom:28px; transform:translate(-50%,12px); opacity:0; pointer-events:none; padding:10px 18px;
+    border-radius:999px; background:#F2EDE4; color:#141311; font:500 13.5px "Inter",system-ui,sans-serif; transition:opacity .2s, transform .2s;}
+  .toast.on{opacity:1; transform:translate(-50%,0);}
+</style>
+</head>
+<body>
+<main id="root"><div class="itin"><section class="it-hero it-wrap it-status"><p class="it-wait"><span class="it-dots" aria-hidden="true"><i></i><i></i><i></i></span> Opening the plan…</p></section></div></main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="/itinerary.js"></script>
+<script>
+(async function(){
+  const root = document.getElementById('root');
+  const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  // /n/<code> (rewritten to this page by the host), or /n.html?c=<code>
+  const code = ((location.pathname.match(/\/n\/([a-z0-9]{6,16})\/?$/) || [])[1]) || new URLSearchParams(location.search).get('c') || '';
+  const gone = (title, text) => {
+    root.innerHTML = `<div class="gone"><div><h1>${esc(title)}</h1><p>${esc(text)}</p><a class="own" href="/">Plan your own night</a></div></div>`;
+  };
+  const toast = msg => { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); };
+  if (!/^[a-z0-9]{6,16}$/.test(code)){ gone('That link looks incomplete', 'Check the link you were sent, or plan a night of your own.'); return; }
+
+  let data;
+  try{
+    const r = await apiFetch(`${window.API_BASE}/share/plan/${code}`);
+    if (r.status === 404){ gone("This plan isn't here any more", 'Whoever shared it may have deleted their account. Plan a night of your own instead.'); return; }
+    if (!r.ok) throw new Error();
+    data = await r.json();
+  }catch(e){ gone("Couldn't open this plan", 'Check your connection and try again in a moment.'); return; }
+
+  const plan = data.plan;
+  document.title = `${data.title} · Rova`;
+  const pp = plan.party_size || 1;
+  const day = plan.date ? new Date(plan.date + 'T12:00') : null;
+  const kicker = (short) => [day ? day.toLocaleDateString(undefined, short ? { weekday:'short', month:'short', day:'numeric' } : { weekday:'long', month:'long', day:'numeric' }) : '',
+    plan.area || '', pp === 1 ? 'Just one' : pp === 2 ? 'For two' : `For ${pp}`].filter(Boolean).join(' · ');
+  const like = `A night like "${data.title}"${plan.area ? ' in ' + plan.area : ''}${pp > 1 ? ` for ${pp}` : ''}`;
+  const share = async () => {
+    const url = location.href;
+    if (navigator.share){ try{ await navigator.share({ title:data.title, text:`${data.title}, planned with Rova`, url }); return; }catch(e){ if (e && e.name === 'AbortError') return; } }
+    try{ await navigator.clipboard.writeText(url); toast('Link copied'); }catch(e){ toast(url); }
+  };
+  RovaItin.render(root, plan, {
+    title: data.title, kicker: kicker(false), kickerShort: kicker(true), readOnly: true, transport: plan.transport,
+    barRight: `<a class="own" href="/rova.html?q=${encodeURIComponent(like)}">Plan your own</a>`,
+    sideExtra: `<div class="cta-box"><b>Want a night like this?</b><p>Tell Rova the mood, the budget and where. It times every stop and keeps the night on budget.</p>
+      <a href="/rova.html?q=${encodeURIComponent(like)}">Plan mine</a></div>`,
+    on: { share },
+  });
+})();
+</script>
+</body>
+</html>

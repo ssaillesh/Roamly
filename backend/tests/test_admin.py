@@ -33,7 +33,7 @@ def make_real_user(client):
     """An account that counts in the stats (not an @example.com test account)."""
     uid = uuid.uuid4().hex[:8]
     r = client.post("/api/v1/auth/register", json={
-        "email": f"real_{uid}@roamly-tests.dev", "username": f"real_{uid}",
+        "email": f"real_{uid}@rova-tests.dev", "username": f"real_{uid}",
         "display_name": "Real", "password": "password123", "accept_terms": True})
     assert r.status_code == 201, r.text
     return r.json()["user"], r.json()["access_token"]

@@ -26,6 +26,5 @@ celery.conf.update(
 
 # Ensure task modules are imported & registered.
 celery.autodiscover_tasks(
-    ["app.workers.trip_processor", "app.workers.badge_worker",
-     "app.workers.share_worker"]
+    ["app.workers.trip_processor", "app.workers.badge_worker"]
 )

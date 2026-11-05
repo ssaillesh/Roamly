@@ -1,6 +1,6 @@
 """drop the TrekRank travel-logging tables and user columns
 
-Roamly is an outing planner now. The old travel-logging features (trips, visited
+Rova is an outing planner now. The old travel-logging features (trips, visited
 places, badges, challenges, friends, activity feed, share cards) have no routes,
 no screens and no code any more, so their tables and the cached per-user travel
 stats go too. `apple_id` goes with them: Apple sign-in was removed earlier.

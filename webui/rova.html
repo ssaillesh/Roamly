@@ -8,36 +8,41 @@
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <title>Rova — your night, planned</title>
 <meta name="description" content="See what's open and on near you tonight, add what you like, and Rova fills in the rest." />
-<meta name="theme-color" content="#161826" />
+<meta name="theme-color" content="#F4EFE6" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Instrument+Serif:ital@1&display=swap" />
 <link rel="preconnect" href="https://unpkg.com" />
 <link rel="preconnect" href="https://trekrank.onrender.com" crossorigin />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
+<link rel="stylesheet" href="itinerary.css" />
 <script src="/config.js"></script>
 <style>
-  /* ================= Nocturne tokens (from the Rova Redesign design system) ================= */
+  /* ================= Rova tokens (design 4b): ivory by day ================= */
+  /* The planner keeps its token names; they now hold the ivory system. Champagne is
+     the one accent (main action / active state), brass is the same accent as text. */
   :root{
-    --color-bg:#161826; --color-surface:#232532; --color-text:#e9e9ed;
-    --color-accent:#9184d9;
-    --color-divider:color-mix(in srgb,#e9e9ed 16%,transparent);
-    --color-neutral-100:#f3f5fe; --color-neutral-200:#e4e7f5; --color-neutral-300:#cfd3e5; --color-neutral-400:#b2b6ca;
-    --color-neutral-500:#9397ab; --color-neutral-600:#75798c; --color-neutral-700:#595d6c; --color-neutral-800:#3f424d; --color-neutral-900:#292b31;
-    --color-accent-100:#f5f4ff; --color-accent-200:#e7e5fe; --color-accent-300:#d2cefd; --color-accent-400:#b5abfc;
-    --color-accent-500:#968ae0; --color-accent-600:#796cbf; --color-accent-700:#5d5294; --color-accent-800:#423a6a; --color-accent-900:#2b2741;
-    --color-danger:#f2a0b0; --color-ok:#9fdcbc;
+    --ink:#161513; --ivory:#F4EFE6; --paper:#FBF8F3; --fill:#F1ECE3; --line:#E4DDD0; --line-2:#D8D0C1;
+    --stone:#6B665D; --muted:#8A8478; --champagne:#D9BC85; --brass:#8C6A2F;
+    --color-bg:var(--ivory); --color-surface:var(--paper); --color-text:var(--ink);
+    --color-accent:var(--brass);
+    --color-divider:var(--line);
+    --color-neutral-100:#161513; --color-neutral-200:#2A2824; --color-neutral-300:#4A463F; --color-neutral-400:#6B665D;
+    --color-neutral-500:#8A8478; --color-neutral-600:#A8A295; --color-neutral-700:#D8D0C1; --color-neutral-800:#E9E3D8; --color-neutral-900:#F1ECE3;
+    --color-accent-100:#161513; --color-accent-200:#6E5222; --color-accent-300:#8C6A2F; --color-accent-400:#A8844A;
+    --color-accent-500:#B89A62; --color-accent-600:#C9AC74; --color-accent-700:#D9BC85; --color-accent-800:#F0E4CC; --color-accent-900:#F6EEDD;
+    --color-danger:#B4432F; --color-ok:#3F7A4E;
     --font-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --shadow-sm:0 0 0 1px #3f424d;
-    --shadow-md:0 0 0 1px #595d6c, 0 6px 18px rgba(0,0,0,.55);
-    --shadow-lg:0 0 0 1px #9397ab, 0 16px 40px rgba(0,0,0,.65);
-    /* Floating panels sit over a moving map. Near-opaque fills stand in for
-       frosted glass: backdrop-filter over Leaflet tiles caused lag before. */
-    --glass:color-mix(in srgb,var(--color-surface) 95%,transparent);
+    --shadow-sm:0 4px 14px rgba(40,30,10,.12);
+    --shadow-md:0 24px 60px -20px rgba(40,30,10,.25), 0 0 0 1px var(--line);
+    --shadow-lg:0 30px 70px -20px rgba(40,30,10,.35), 0 0 0 1px var(--line);
+    /* Floating panels sit over a moving map: solid fills, not backdrop blur
+       (backdrop-filter over Leaflet tiles caused lag before). */
+    --glass:var(--paper);
     --ease:cubic-bezier(.22,1,.36,1);
-    --gap:24px; --panel-w:392px; --plan-w:440px;
+    --gap:24px; --panel-w:404px;
   }
   *,*::before,*::after{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
   html,body{margin:0; height:100%;}
@@ -105,8 +110,8 @@
   .app{position:fixed; inset:0;}
   #map{position:absolute; inset:0; background:var(--color-bg); z-index:0;}
   .leaflet-container{background:var(--color-bg); font-family:var(--font-body);}
-  /* OpenStreetMap tiles, turned night-side to sit under the Nocturne panels */
-  .leaflet-tile-pane{filter:invert(1) hue-rotate(195deg) saturate(.28) brightness(.82) contrast(.92);}
+  /* OpenStreetMap tiles, quieted and warmed to sit under the ivory panels */
+  .leaflet-tile-pane{filter:grayscale(.85) sepia(.22) brightness(1.06) contrast(.86);}
   .leaflet-control-attribution{background:color-mix(in srgb,var(--color-bg) 80%,transparent) !important; color:var(--color-neutral-500) !important; font-size:10px;}
   .leaflet-control-attribution a{color:var(--color-neutral-400) !important;}
   .leaflet-bar{border:0 !important; box-shadow:var(--shadow-sm) !important; border-radius:10px !important; overflow:hidden;}
@@ -115,19 +120,23 @@
   .leaflet-top.leaflet-right{top:64px; right:calc(var(--gap) - 10px);}
   .leaflet-bottom.leaflet-right{transition:right .3s var(--ease);}
 
-  /* map pins */
-  .pin{display:block; width:12px; height:12px; border-radius:50%; background:var(--color-neutral-500); box-shadow:0 0 0 3px var(--color-bg);
-    transition:transform .15s var(--ease), background-color .15s;}
-  .pin.on{background:var(--color-accent-300); box-shadow:0 0 0 3px var(--color-bg),0 0 14px color-mix(in srgb,var(--color-accent) 60%,transparent);}
-  .pin.ev{border-radius:4px; transform:rotate(45deg) scale(.9);}
-  .pin.hot,.pin.sel{transform:scale(1.5); background:var(--color-accent); z-index:2;}
-  .pin.ev.hot,.pin.ev.sel{transform:rotate(45deg) scale(1.35);}
-  .pin.in{background:var(--color-accent); box-shadow:0 0 0 3px var(--color-bg),0 0 0 5px var(--color-accent-600);}
+  /* map pins (4b): price pills like a booking app; picked places are numbered ink pins */
+  .pin{position:absolute; left:0; top:0; transform:translate(-50%,-50%); display:block; width:12px; height:12px; border-radius:50%;
+    background:var(--ink); box-shadow:0 0 0 3px var(--paper),0 2px 6px rgba(40,30,10,.25); transition:transform .15s var(--ease), background-color .15s;}
+  .pin.tag{width:auto; height:auto; padding:5px 10px; border-radius:999px; background:var(--paper); color:var(--ink);
+    font:600 12px/1.2 var(--font-body); white-space:nowrap; box-shadow:0 4px 14px rgba(40,30,10,.16);}
+  .pin.on:not(.tag){background:var(--brass);}
+  .pin.on.tag{color:var(--brass); box-shadow:0 0 0 1.5px var(--brass),0 4px 14px rgba(40,30,10,.14);}
+  .pin.ev:not(.tag){border-radius:3px; transform:translate(-50%,-50%) rotate(45deg) scale(.9);}
+  .pin.hot,.pin.sel{transform:translate(-50%,-50%) scale(1.15); z-index:2;}
+  .pin.tag.hot,.pin.tag.sel{background:var(--ink); color:var(--ivory); box-shadow:0 6px 16px rgba(30,20,0,.3);}
+  .pin.in{width:34px; height:34px; padding:0; border-radius:50%; display:grid; place-items:center; background:var(--ink); color:var(--ivory);
+    font:600 13px var(--font-body); box-shadow:0 0 0 3px var(--paper),0 6px 16px rgba(30,20,0,.25); transform:translate(-50%,-50%);}
+  .pin.in.hot,.pin.in.sel{transform:translate(-50%,-50%) scale(1.12);}
   .pin.off{display:none;}
-  .npin{width:32px; height:32px; border-radius:50%; background:var(--color-bg); display:grid; place-items:center; font:500 13px var(--font-body);
-    color:var(--color-accent-200); box-shadow:0 0 0 2px var(--color-accent),0 0 24px color-mix(in srgb,var(--color-accent) 55%,transparent);}
-  .npin.cur{background:var(--color-accent); color:var(--color-bg); font-weight:600;
-    box-shadow:0 0 0 4px color-mix(in srgb,var(--color-accent) 25%,transparent),0 0 30px color-mix(in srgb,var(--color-accent) 70%,transparent);}
+  .npin{width:34px; height:34px; border-radius:50%; background:var(--ink); color:var(--ivory); display:grid; place-items:center; font:600 13px var(--font-body);
+    box-shadow:0 0 0 3px var(--paper),0 6px 16px rgba(30,20,0,.25);}
+  .npin.cur{background:var(--champagne); color:#111110;}
 
   .float{background:var(--glass); box-shadow:var(--shadow-md);}
 
@@ -284,61 +293,9 @@
   .nb-t span{color:var(--color-neutral-400); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .nb-acts{display:flex; gap:8px;}
 
-  /* ================= your night: the spec sheet (review step) ================= */
-  .plan{position:absolute; z-index:8; right:var(--gap); top:var(--gap); bottom:var(--gap); width:var(--plan-w); border-radius:18px;
-    background:var(--color-bg); box-shadow:var(--shadow-lg); display:flex; flex-direction:column; overflow:hidden; animation:slide .3s var(--ease) both;}
-  @keyframes slide{from{opacity:0; transform:translateX(16px);} to{opacity:1; transform:none;}}
-  .plan-scroll{flex:1; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:24px 32px 20px; scrollbar-width:thin; scrollbar-color:var(--color-neutral-800) transparent;}
-  .plan-top{display:flex; align-items:center; justify-content:space-between; margin:-6px -12px 18px -8px;}
-  .plan-top .ibtn{font-size:18px;}
-  .plan-h{display:flex; flex-direction:column; gap:6px;}
-  .plan-h h2{margin:0; font-size:36px; line-height:1.05; letter-spacing:-.03em; font-weight:500; text-wrap:balance;}
-  .ctxline{margin:0; font-size:14px; color:var(--color-neutral-400); line-height:1.9;}
-  .ctxline button{border:0; background:none; padding:0; color:var(--color-text); border-bottom:1px dashed var(--color-accent); font-size:14px; line-height:1.3;}
-  .ctxline button:hover{color:var(--color-accent-300);}
-  .spec{margin-top:24px; display:grid; grid-template-columns:repeat(3,1fr); padding:18px 0;
-    background:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat top/100% 1px,
-               linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent) no-repeat bottom/100% 1px;}
-  .spec div{display:flex; flex-direction:column; gap:4px;}
-  .spec b{font-size:28px; font-weight:400; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.15;}
-  .spec b small{font-size:15px; color:var(--color-neutral-400);}
-  .intro{margin:18px 0 0; font-size:14px; color:var(--color-neutral-300); line-height:1.6;}
-  .stops{list-style:none; margin:14px 0 0; padding:0; display:flex; flex-direction:column;}
-  .stop{border-radius:12px;}
-  .stop-h{width:100%; display:grid; grid-template-columns:40px 1fr auto; align-items:baseline; gap:0; padding:12px 0; border:0; background:none; text-align:left;}
-  .stop-h .n{font-size:13px; color:var(--color-accent-300); font-variant-numeric:tabular-nums;}
-  .stop-h .t{display:flex; flex-direction:column; min-width:0;}
-  .stop-h .t b{font-size:17px; font-weight:400;}
-  .stop-h .t small{font-size:13px; color:var(--color-neutral-500);}
-  .stop-h .tm{font-size:14px; color:var(--color-neutral-300); font-variant-numeric:tabular-nums;}
-  .stop-d{display:none; padding:0 0 14px 40px; gap:10px;}
-  .stop.open .stop-d{display:flex; flex-direction:column;}
-  .stop-d .row2{display:flex; gap:12px;}
-  .stop-d .art{width:72px; height:72px; border-radius:8px;}
-  .stop-d p{margin:0; font-size:13px; color:var(--color-neutral-400);}
-  .stop-d .acts{display:flex; flex-wrap:wrap; gap:4px 16px; font-size:13px;}
-  .stop-d .acts a,.stop-d .acts button{display:inline-flex; align-items:center; gap:5px; background:none; border:0; padding:2px 0; color:var(--color-accent-300); text-decoration:none; font-size:13px;}
-  .stop-d .acts .rm{color:var(--color-neutral-400);}
-  .walk{display:flex; align-items:center; gap:6px; padding:0 0 0 40px; margin:-4px 0; font-size:12px; color:var(--color-neutral-600);}
-  .sub-h{margin:26px 0 10px;}
-  .fits{list-style:none; margin:0; padding:0; display:grid; gap:7px;}
-  .fits li{display:flex; gap:9px; font-size:13.5px; color:var(--color-neutral-300);}
-  .fits li .ph{color:var(--color-ok); margin-top:2px;}
-  .fits li.warn .ph{color:var(--color-danger);}
-  .tip{margin:14px 0 0; padding:12px 14px; border-radius:10px; border:1px dashed var(--color-neutral-700); font-size:13.5px; color:var(--color-neutral-300);}
-  .tweaks{display:flex; flex-wrap:wrap; gap:6px;}
-  .also{display:flex; flex-direction:column; gap:10px;}
-  .also-row{display:flex; align-items:center; gap:12px;}
-  .also-row .art{width:48px; height:48px; border-radius:8px;}
-  .also-row div{flex:1; min-width:0; display:flex; flex-direction:column;}
-  .also-row b{font-size:14px; font-weight:500;}
-  .also-row small{font-size:12px; color:var(--color-neutral-400);}
-  .plan-foot{flex:none; padding:14px 32px 22px; display:flex; gap:10px;}
-  .plan-foot .btn{flex:1;}
-  .plan-foot .btn-primary{flex:2;}
-  .day-h{margin:28px 0 0; font-size:20px; font-weight:500;}
-  .wait-note{font-size:14px; color:var(--color-neutral-300);}
-  .wait-late{margin:8px 0 0; font-size:12.5px; color:var(--color-neutral-500);}
+  /* ================= your night: the itinerary, full screen (4c/4d; see itinerary.css) ================= */
+  .plan{position:fixed; inset:0; z-index:30; overflow-y:auto; overscroll-behavior:contain; background:#141311; animation:fade .25s var(--ease) both;}
+  .plan:focus{outline:none;}
 
   /* ================= settings: one sheet for the dashed values ================= */
   .sheet-bg{position:fixed; inset:0; z-index:40; background:color-mix(in srgb,#08090f 60%,transparent);}
@@ -403,14 +360,9 @@
   .tg-card p{margin:0 0 18px; color:var(--color-neutral-300); font-size:15px;}
   .tg-acts{display:flex; flex-wrap:wrap; gap:8px;}
 
-  /* ---- plan open: the map gives way on the right ---- */
+  body.plan-open{overflow:hidden;}
   body.plan-open .pop{display:none;}
-  body.pop-open:not(.plan-open) .leaflet-top.leaflet-right{display:none;}
-  body.plan-open .dock{right:calc(var(--gap) + var(--plan-w) + 16px);}
-  body.plan-open .nb{display:none;}          /* the plan panel is the review — the dial gets the room */
-  body.plan-open .where{right:calc(var(--gap) + var(--plan-w) + 16px);}
-  body.plan-open .leaflet-top.leaflet-right{right:calc(var(--gap) + var(--plan-w) + 6px);}
-  @media (max-width:1279px) and (min-width:860px){ body.plan-open .dock{display:none;} }
+  body.pop-open .leaflet-top.leaflet-right{display:none;}
   @media (max-width:1100px) and (min-width:860px){ .nb-t{max-width:170px;} .dial{padding:12px 16px 8px;} }
 
   /* ================= phones: map on top, list below, plan full screen ================= */
@@ -443,25 +395,145 @@
     .pop{position:fixed; top:auto; right:12px; left:12px; bottom:12px; width:auto; margin:0; z-index:30; max-height:70vh; overflow-y:auto;
       background:var(--color-surface);}
     .pop .art{height:120px;}
-    .plan{position:fixed; inset:0; width:auto; border-radius:0; z-index:35; padding-top:env(safe-area-inset-top);}
-    .plan-scroll{padding:18px 20px 16px;}
-    .plan-h h2{font-size:30px;}
-    .plan-foot{padding:12px 20px calc(14px + env(safe-area-inset-bottom));}
-    body.plan-open .where{right:var(--gap);}
     .sheet{left:0; right:0; top:auto; bottom:0; transform:none; width:auto; max-height:88vh; border-radius:18px 18px 0 0; padding-bottom:env(safe-area-inset-bottom);}
+  }
+  /* ================= Rova 4b: the planner in ivory ================= */
+  .leaflet-container{background:#E8E2D6;}
+  .leaflet-control-attribution{background:rgba(251,248,243,.85) !important; color:var(--muted) !important;}
+  .leaflet-control-attribution a{color:var(--stone) !important;}
+  .leaflet-bar{box-shadow:var(--shadow-sm) !important; border-radius:12px !important;}
+  .leaflet-bar a{background:var(--paper) !important; color:var(--ink) !important; border-color:var(--line) !important;}
+  .btn{border-radius:999px;}
+  .btn-primary{background:var(--ink); color:var(--ivory); border-color:var(--ink);}
+  .btn-primary:hover:not(:disabled){background:#2A2824; color:var(--ivory);}
+  .btn-primary:active:not(:disabled){background:#000;}
+  .btn-primary.done{background:var(--paper); color:var(--ink); border-color:var(--line-2);}
+  .btn-secondary{border-color:var(--line-2);}
+  .chip{border-color:var(--line); color:var(--ink);}
+  .chip:hover{border-color:var(--line-2); color:var(--ink); background:var(--fill);}
+  .chip.on,.chip[aria-pressed="true"]{background:var(--ink); color:var(--ivory); border-color:var(--ink); box-shadow:none;}
+  .avatar{width:32px; height:32px; background:var(--ink); color:var(--ivory); font-weight:600;}
+  .ibtn{color:var(--stone); font-size:19px;}
+  .ibtn:hover{color:var(--ink); background:var(--fill);}
+  .ibtn .count{background:var(--champagne); color:#111110;}
+  .kicker{letter-spacing:.12em; color:var(--muted);}
+  .kicker.acc{color:var(--brass);}
+  .tag{background:var(--fill); color:var(--ink); border-radius:999px; padding:4px 10px;}
+  .where{background:var(--paper); box-shadow:var(--shadow-sm); font-weight:500; padding:0 15px; min-height:38px;}
+  .where .ph{color:var(--ink);}
+
+  .panel{border-radius:24px; border:1px solid var(--line); box-shadow:0 24px 60px -20px rgba(40,30,10,.25);}
+  .p-head{padding:22px 22px 0; gap:16px;}
+  .brandrow img{height:19px;}
+  .brandrow .acts{gap:10px;}
+  .search{height:46px; border-radius:999px; background:var(--fill); padding:0 6px 0 18px;}
+  .search:focus-within{box-shadow:inset 0 0 0 1.5px var(--line-2);}
+  .search > .ph{color:var(--ink); font-size:17px;}
+  .search input::placeholder{color:var(--muted);}
+  .search .go{width:34px; height:34px; border-radius:50%; background:var(--ink); color:var(--ivory);}
+  .seg3{padding:4px; gap:4px; border-radius:999px; background:var(--fill);}
+  .seg3 button{border-radius:999px; min-height:30px; color:var(--stone);}
+  .seg3 button:hover{color:var(--ink);}
+  .seg3 button[aria-selected="true"]{background:var(--paper); color:var(--ink); font-weight:500; box-shadow:0 1px 3px rgba(40,30,10,.12);}
+  .reply{background:var(--fill);}
+  .p-body{padding:0 12px 12px; scrollbar-color:var(--line-2) transparent;}
+  .lh{padding:18px 10px 8px;}
+  .lh-top{display:flex; justify-content:space-between; align-items:baseline; gap:12px; font-size:12px; color:var(--muted);}
+  .lh-top .kicker{font-size:12px;}
+  .lh h2{font-size:20px; font-weight:600;}
+  .filters{padding:4px 10px 8px;}
+  .day-note{background:var(--fill); color:var(--stone);}
+  .row{border-radius:16px;}
+  .row:hover{background:var(--fill);}
+  .row.sel{background:var(--fill); box-shadow:inset 0 0 0 1px var(--line-2);}
+  .row-main{gap:14px; padding:10px;}
+  .row-main .art{width:72px; height:72px; border-radius:12px;}
+  .row-t{gap:2px;}
+  .row-t .top{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .row-t .top.acc{color:var(--brass); font-weight:500;}
+  .row-t .top.live::before{content:''; display:inline-block; width:6px; height:6px; margin-right:6px; border-radius:50%; background:var(--brass); vertical-align:1px;}
+  .row-t b{font-size:15px; font-weight:600;}
+  .row-t small{font-size:13px; color:var(--stone);}
+  .row-add{width:38px; height:38px; margin-right:10px; border-radius:50%; border:1.5px solid var(--line-2); color:var(--ink); font-size:17px; transition:all .2s;}
+  .row-add:hover{border-color:var(--ink); color:var(--ink);}
+  .row-add.in{background:var(--ink); border-color:var(--ink); color:var(--ivory);}
+  .foot-note a{color:var(--ink);}
+  .saved-row .row-main .date{background:var(--fill);}
+  .empty .e-ic{background:var(--fill); color:var(--ink);}
+
+  .pop{width:300px; margin-top:62px; border-radius:22px; background:var(--paper); box-shadow:0 30px 70px -20px rgba(40,30,10,.35),0 0 0 1px var(--line);}
+  .pop .art{height:170px;}
+  .pop-x{background:rgba(251,248,243,.92); color:var(--ink);}
+  .pop-b{padding:16px 18px 18px; gap:12px;}
+  .pop-b .kicker{font-size:11px; letter-spacing:.14em;}
+  .pop-b h3{font-size:22px; font-weight:600; letter-spacing:-.02em;}
+  .pop-b p{font-size:13px; line-height:1.5; color:var(--stone);}
+  .pop-acts .btn{min-height:42px;}
+  .pop-walk{display:inline-flex; align-items:center; gap:6px; padding:0 12px; font-size:13px; color:var(--stone);}
+  .pop-links a,.pop-links button{color:var(--ink);}
+  .pop-links a:hover,.pop-links button:hover{color:var(--brass);}
+  .pop-src{color:var(--muted);} .pop-src a{color:var(--stone);}
+  .sg-logo{filter:none; opacity:.85;}
+
+  /* the dock: the time dial on paper, tonight's tray as a charcoal pill */
+  .dock{background:none; box-shadow:none; gap:12px; align-items:flex-end; pointer-events:none;}
+  .dock > *{pointer-events:auto;}
+  .dial,.dial-flat{border-radius:18px; background:var(--paper); box-shadow:0 24px 60px -20px rgba(40,30,10,.25),0 0 0 1px var(--line);}
+  .nb{background:var(--ink); color:#F2EDE4; border-radius:999px; padding:8px 8px 8px 22px; gap:18px; box-shadow:0 20px 40px -12px rgba(20,15,5,.45);}
+  .nb-t b{font-weight:600;}
+  .nb-t span{color:#A8A295;}
+  .nb .btn{min-height:42px;}
+  .nb .btn-primary{background:var(--champagne); border-color:var(--champagne); color:#111110; font-weight:600;}
+  .nb .btn-primary:hover:not(:disabled){background:#E3C994; color:#111110;}
+  .nb .btn-secondary{border-color:rgba(242,237,228,.22); color:#F2EDE4;}
+  .nb .btn-secondary:hover:not(:disabled){background:rgba(242,237,228,.08);}
+
+  .sheet-bg{background:rgba(20,15,5,.45);}
+  .sheet{background:var(--paper);}
+  .input,.money{background:var(--ivory);}
+  .switch-row{background:var(--ivory);}
+  .terms-gate{background:rgba(20,15,5,.55);}
+
+  /* Share the night (4f): the story card and its link */
+  .share-bg{position:fixed; inset:0; z-index:50; background:rgba(20,15,5,.55); animation:fade .2s both;}
+  .share{position:fixed; z-index:51; left:50%; top:50%; transform:translate(-50%,-50%); width:min(700px,calc(100% - 32px)); max-height:calc(100% - 32px);
+    overflow:auto; display:grid; grid-template-columns:240px minmax(0,1fr); gap:28px; padding:24px; border-radius:22px; background:var(--paper);
+    box-shadow:0 30px 70px -20px rgba(20,15,5,.5); animation:fade .2s var(--ease) both;}
+  .share-card{position:relative; aspect-ratio:9/16; border-radius:16px; overflow:hidden; background:#141311;}
+  .share-card img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover;}
+  .share-card .skel{position:absolute; inset:0; border-radius:0; background:#1C1B18;}
+  .share-r{display:flex; flex-direction:column; gap:14px; min-width:0;}
+  .share-top{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+  .share-top h2{margin:0; font-size:24px; font-weight:600; letter-spacing:-.02em;}
+  .share-r > p{margin:0; font-size:14px; color:var(--stone);}
+  .share-link{display:flex; align-items:center; gap:8px; height:48px; padding:0 6px 0 18px; border-radius:999px; background:var(--fill); font-size:14px;}
+  .share-link span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  .share-acts{display:flex; flex-wrap:wrap; gap:8px; margin-top:auto; align-items:center;}
+  @media (max-width:640px){
+    .share{left:0; right:0; top:auto; bottom:0; transform:none; width:auto; max-height:92vh; grid-template-columns:1fr; gap:18px;
+      border-radius:22px 22px 0 0; padding:20px 20px calc(20px + env(safe-area-inset-bottom));}
+    .share-card{width:160px; justify-self:center;}
+  }
+
+  @media (max-width:859px){
+    .panel{border:0; border-radius:22px 22px 0 0;}
+    .dock{background:var(--paper); gap:0; pointer-events:auto; box-shadow:0 -1px 0 var(--line);}
+    .dial,.dial-flat{border-radius:0; box-shadow:none; background:none;}
+    .nb{margin:0 10px 10px; padding:6px 6px 6px 18px; border-radius:999px;}
+    .nb-t span{max-width:46vw;}
   }
   @media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms !important; transition-duration:.01ms !important;} }
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
   <div id="map" role="region" aria-label="Map of places and events"></div>
   <button class="where" id="wherePill" aria-label="Where Rova looks. Change"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Set a place</span></button>
 
   <aside class="panel float" aria-label="What's on near you">
     <div class="p-head">
       <div class="brandrow">
-        <a href="/" aria-label="Rova home"><img src="/brand/logo-white.svg" alt="Rova" width="76" height="18"></a>
+        <a href="/" aria-label="Rova home"><img src="/brand/logo.svg" alt="Rova" width="80" height="19"></a>
         <div class="acts">
           <button class="ibtn" id="savedBtn" aria-label="Saved plans" aria-pressed="false"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span class="count" data-saved-count></span></button>
           <button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">R</button>
@@ -484,9 +556,12 @@
     <div class="dial" id="dial"></div>
     <div class="nb" id="nb"></div>
   </div>
-
-  <aside class="plan" id="plan" hidden aria-label="Your night"></aside>
 </div>
+<!-- your night: the itinerary (4c/4d), full screen over the map -->
+<div class="plan" id="plan" hidden role="region" aria-label="Your night" tabindex="-1"></div>
+<!-- Share the night (4f) -->
+<div class="share-bg" id="shareBg" hidden></div>
+<section class="share" id="share" role="dialog" aria-modal="true" aria-labelledby="shareTitle" hidden></section>
 
 <!-- settings: the dashed values in "For 2 · walking · $100" -->
 <div class="sheet-bg" id="sheetBg" hidden></div>
@@ -515,6 +590,7 @@
 <div class="sr-only" id="sr" aria-live="polite"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="itinerary.js"></script>
 <script>
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
@@ -945,8 +1021,8 @@ function initMap(){
 // The map's open area: around the floating panels, not under them.
 function fitPad(){
   if (phone()) return { paddingTopLeft:[24, 56], paddingBottomRight:[24, 28] };
-  const right = planUi.open ? 440 + 48 : selected ? 340 + 40 : 60;
-  return { paddingTopLeft:[392 + 48, 60], paddingBottomRight:[right, 190] };
+  const right = selected ? 300 + 48 : 60;
+  return { paddingTopLeft:[404 + 48, 60], paddingBottomRight:[right, 190] };
 }
 function fitTo(pts, maxZoom = 16){
   if (!map || !pts.length) return;
@@ -957,12 +1033,20 @@ function pinClass(it){
   return ['pin', it.type === 'event' ? 'ev' : '', it.lit ? 'on' : '', inNight(it) ? 'in' : '',
           selected && selected.id === it.id ? 'sel' : '', hot === it.id ? 'hot' : '', it.vis === false ? 'off' : ''].filter(Boolean).join(' ');
 }
+/* 4b: a price pill where there's a price, a dot where there isn't; picked places get their number. */
+function pinLabel(it){ return it.type === 'event' ? evPrice(it.raw) : (it.raw.price || ''); }
+function pinHtml(it){
+  const n = night.findIndex(x => x.id === it.id);
+  if (n >= 0) return `<span class="${pinClass(it)}">${n + 1}</span>`;
+  const l = pinLabel(it);
+  return `<span class="${pinClass(it)}${l ? ' tag' : ''}">${esc(l)}</span>`;
+}
 function syncMarkers(){
   if (!map) return;
   itemLayer.clearLayers();
   srcItems().forEach(it => {
     if (it.lat == null || it.lng == null) return;
-    const m = L.marker([it.lat, it.lng], { icon:L.divIcon({ className:'', html:`<span class="${pinClass(it)}"></span>`, iconSize:[14,14], iconAnchor:[7,7] }),
+    const m = L.marker([it.lat, it.lng], { icon:L.divIcon({ className:'', html:pinHtml(it), iconSize:[0,0], iconAnchor:[0,0] }),
       keyboard:false, title:it.name, riseOnHover:true });
     m.on('click', e => { L.DomEvent.stopPropagation(e); select(it, { fromMap:true }); });
     m.on('mouseover', () => setHot(it.id, { fromMap:true }));
@@ -970,7 +1054,7 @@ function syncMarkers(){
     m.addTo(itemLayer); it.m = m;
   });
 }
-function paintPin(it){ const el = it.m && it.m.getElement(); if (el && el.firstChild) el.firstChild.className = pinClass(it); }
+function paintPin(it){ const el = it.m && it.m.getElement(); if (el) el.innerHTML = pinHtml(it); }
 function paintPins(){ srcItems().forEach(paintPin); }
 function drawRoute(){
   if (!map) return;
@@ -980,10 +1064,10 @@ function drawRoute(){
   const stops = (plan.stops || []).filter(s => s.lat != null && s.lng != null);
   if (!stops.length) return;
   const pts = stops.map(s => [s.lat, s.lng]);
-  if (pts.length > 1) L.polyline(pts, { color:'#9184d9', weight:2, opacity:.9, dashArray:'1 7', lineCap:'round' }).addTo(routeLayer);
+  if (pts.length > 1) L.polyline(pts, { color:'#161513', weight:3, opacity:.9, lineJoin:'round', lineCap:'round' }).addTo(routeLayer);
   stops.forEach((s, i) => {
     const m = L.marker([s.lat, s.lng], { zIndexOffset:1000, title:s.name,
-      icon:L.divIcon({ className:'', html:`<span class="npin${openStop === i ? ' cur' : ''}">${i + 1}</span>`, iconSize:[32,32], iconAnchor:[16,16] }) });
+      icon:L.divIcon({ className:'', html:`<span class="npin${openStop === i ? ' cur' : ''}">${i + 1}</span>`, iconSize:[34,34], iconAnchor:[17,17] }) });
     m.on('click', () => toggleStop(i, true));
     m.addTo(routeLayer);
   });
@@ -999,7 +1083,7 @@ const WINDOW_TEXT = { now:'right now', tonight:'tonight', weekend:'this weekend'
 const NL_WIN = { now:'tonight', tonight:'tonight', weekend:'weekend' };
 const KIND = { clubs:['disco-ball','Club'], lgbtq:['rainbow','LGBTQ+ bar'], music:['music-notes','Live music'], comedy:['microphone-stage','Comedy & karaoke'],
                lounges:['martini','Lounge'], bars:['beer-stein','Bar'] };
-const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar', roamly:'Listed on Rova', seatgeek:'' };
+const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar', rova:'Listed on Rova', seatgeek:'' };
 /* SeatGeek's API terms: their logo, linked to their home page, on everything of theirs we show. */
 const SG_LOGO = () => `<a class="sg-link" href="https://seatgeek.com" target="_blank" rel="noopener" aria-label="SeatGeek"><img class="sg-logo" src="seatgeek-logo.svg" alt="SeatGeek"></a>`;
 const LIST_PAGE = 50;
@@ -1073,23 +1157,19 @@ function itemAt(it, at){
   if (!o) return { ok: it.raw.open_tonight !== false, lit:false, unknown:true };
   return { ok:o.open, lit:o.open, end:o.end };
 }
-function spotLine(it, at){
-  const s = it.raw, kind = (KIND[s.kind] || [])[1] || (s.categories && s.categories[0] ? cap(String(s.categories[0]).replace(/_/g, ' ')) : 'Night spot');
-  let when = '';
-  if (at){
-    const o = openAt(s.hours, at);
-    if (o && o.open) when = `open till ${fmtClock(o.end)}`;
-    else if (o) when = 'closed then';
-  } else if (s.open_tonight === true) when = 'open tonight';
-  const ev = (s.events || [])[0];
-  return [kind, ev ? ev.name : when].filter(Boolean).join(' · ');
-}
-function rowSub(it, at){
+function rowParts(it, at){
   if (it.type === 'event'){
     const ev = it.raw, st = evStatus(ev);
-    return { text:[ev.venue, st.text, evPrice(ev)].filter(Boolean).join(' · '), live:st.live };
+    const cat = ev.genre || (ev.category ? ev.category.split(',')[0].trim() : '');
+    return { top: st.text, live: st.live, acc: st.live || /^Starts in/.test(st.text),
+             sub: [ev.venue || cat, evPrice(ev), walkText(it.km)].filter(Boolean).join(' · ') };
   }
-  return { text:spotLine(it, at), live:false };
+  const s = it.raw;
+  const kind = (KIND[s.kind] || [])[1] || (s.categories && s.categories[0] ? cap(String(s.categories[0]).replace(/_/g, ' ')) : 'Night spot');
+  const o = openAt(s.hours, at || new Date());
+  let top = o && o.open ? `Open till ${fmtClock(o.end)}` : (at && o ? 'Closed then' : s.open_tonight === true ? 'Open tonight' : '');
+  const ev = (s.events || [])[0];
+  return { top: ev ? ev.name : top, acc: !!ev, live: false, sub: [kind, s.price, walkText(it.km)].filter(Boolean).join(' · ') };
 }
 function visibleItems(){
   const at = dialActive() ? atDial(dial.v) : null;
@@ -1191,13 +1271,13 @@ function photoCredit(src){
   return `Photo: ${esc(u.hostname.replace(/^www\./, ''))}`;
 }
 function rowHtml(it, at){
-  const sub = rowSub(it, at), on = inNight(it);
+  const p = rowParts(it, at), on = inNight(it);
   return `<div class="row${selected && selected.id === it.id ? ' sel' : ''}" data-id="${esc(it.id)}">
     <button class="row-main" data-sel>${artHtml(it)}
-      <span class="row-t"><b>${esc(it.name)}</b><small class="${sub.live ? 'live' : ''}">${esc(sub.text)}</small></span>
-      <span class="row-end num">${esc(walkText(it.km))}</span></button>
+      <span class="row-t">${p.top ? `<span class="top${p.acc ? ' acc' : ''}${p.live ? ' live' : ''}">${esc(p.top)}</span>` : ''}
+        <b>${esc(it.name)}</b><small>${esc(p.sub)}</small></span></button>
     <button class="row-add${on ? ' in' : ''}" data-add ${it.sg ? 'disabled title="SeatGeek events can\'t go into a plan — use Tickets"' : ''}
-      aria-pressed="${on}" aria-label="${on ? 'Remove ' + esc(it.name) + ' from your night' : 'Add ' + esc(it.name) + ' to your night'}">${on ? icf('check-circle') : ic('plus-circle')}</button>
+      aria-pressed="${on}" aria-label="${on ? 'Remove ' + esc(it.name) + ' from tonight' : 'Add ' + esc(it.name) + ' to tonight'}">${on ? ic('check') : ic('plus')}</button>
   </div>`;
 }
 
@@ -1227,8 +1307,9 @@ function renderList(){
   } else {
     const n = vis.length, nEv = vis.filter(i => i.type === 'event').length;
     const what = nEv === n ? (n === 1 ? 'thing on' : 'things on') : nEv ? 'open or on' : (n === 1 ? 'place open' : 'places open');
-    const title = loading ? 'Looking around…' : at ? `${n} ${what}` : feed.win === 'weekend' ? 'Worth it this weekend' : 'Worth it tonight';
-    html += `<div class="lh"><span class="kicker${at ? ' acc' : ''}">${at ? `At ${esc(fmtClock(minOfDay(at)))}` : esc(cap(WINDOW_TEXT[feed.win]))}</span><h2>${esc(title)}</h2></div>`;
+    const label = at ? `At ${fmtClock(minOfDay(at))}` : feed.win === 'weekend' ? 'Worth it this weekend' : 'Worth it tonight';
+    html += `<div class="lh"><div class="lh-top"><span class="kicker${at ? ' acc' : ''}">${esc(label)}</span>
+      <span class="num">${loading ? 'Looking around…' : n ? esc(`${n} ${what}`) : ''}</span></div></div>`;
     if (feed.day){
       const d = feed.day;
       html += `<div class="day-note" role="note"><b>${esc(d.today ? `${d.name} is today` : d.days_until === 1 ? `${d.name} is tomorrow` : `${d.name} in ${d.days_until} days`)}</b> · ${esc(d.blurb || '')}</div>`;
@@ -1343,8 +1424,8 @@ function renderPop(){
     <div class="pop-b">
       <div style="display:flex;flex-direction:column;gap:3px"><span class="kicker acc">${esc(kicker)}</span><h3>${esc(it.name)}</h3>${body ? `<p>${esc(body)}</p>` : ''}</div>
       ${tags.length ? `<div class="pop-tags">${tags.map(t => `<span class="tag">${esc(t)}</span>`).join('')}</div>` : ''}
-      <div class="pop-acts">${it.sg ? '' : `<button class="btn btn-primary${on ? ' done' : ''}" data-add aria-pressed="${on}">${on ? `${ic('check')} In your night` : `${ic('plus')} Add to your night`}</button>`}
-        ${it.km != null ? `<span class="btn btn-secondary" style="cursor:default" title="Walking time">${ic('person-simple-walk')} ${esc(walkText(it.km))}</span>` : ''}</div>
+      <div class="pop-acts">${it.sg ? '' : `<button class="btn btn-primary${on ? ' done' : ''}" data-add aria-pressed="${on}">${on ? `${ic('check')} In your night` : `${ic('plus')} Add to tonight`}</button>`}
+        ${it.km != null ? `<span class="pop-walk" title="Walking time">${ic('person-simple-walk')} ${esc(walkText(it.km))}</span>` : ''}</div>
       <div class="pop-links">${links.join('')}</div>
       ${src ? `<div class="pop-src">${src}</div>` : ''}
     </div>`;
@@ -1367,10 +1448,10 @@ function toggleNight(it){
   const i = night.findIndex(x => x.id === it.id);
   if (i >= 0) night.splice(i, 1); else night.push(it);
   picksDirty = true;
-  paintPin(it);
+  paintPins();             // the picks are numbered in order
   const row = document.querySelector(`#pbody .row[data-id="${CSS.escape(it.id)}"] [data-add]`);
-  if (row){ const on = inNight(it); row.classList.toggle('in', on); row.setAttribute('aria-pressed', on); row.innerHTML = on ? icf('check-circle') : ic('plus-circle');
-    row.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + it.name + (on ? ' from your night' : ' to your night')); }
+  if (row){ const on = inNight(it); row.classList.toggle('in', on); row.setAttribute('aria-pressed', on); row.innerHTML = on ? ic('check') : ic('plus');
+    row.setAttribute('aria-label', (on ? 'Remove ' : 'Add ') + it.name + (on ? ' from tonight' : ' to tonight')); }
   if (selected && selected.id === it.id) renderPop();
   announce(inNight(it) ? `${it.name} added to your night` : `${it.name} removed`);
   renderDock();
@@ -1476,7 +1557,7 @@ function renderNightBar(){
     const n = lastItin.days ? lastItin.days.reduce((s, d) => s + d.stops.length, 0) : plan.stops.length;
     t = lastItin.days ? lastItin.title : `${when} · ${n} stop${n === 1 ? '' : 's'}`;
     sub = [nightSpan(), planUi.saved ? 'saved' : ''].filter(Boolean).join(' · ') || planName(plan);
-    acts = `<button class="btn btn-primary btn-pill" data-review>Review ${ic('arrow-right')}</button>`;
+    acts = `<button class="btn btn-primary btn-pill" data-review>Review plan ${ic('arrow-right')}</button>`;
   } else {
     t = 'Your night'; sub = 'Add places from the list, or let Rova plan it';
     acts = `<button class="btn btn-secondary btn-pill btn-icon" data-surprise aria-label="Surprise me" title="Surprise me">${ic('shuffle')}</button>
@@ -1527,14 +1608,16 @@ const SLOT_ICON = { dinner:'fork-knife', lunch:'fork-knife', cafe:'coffee', acti
 
 function openPlan(){
   if (!lastItin && planUi.state !== 'loading' && planUi.state !== 'error') return;
-  planUi.open = true; if (selected && !phone()) select(null);
+  planUi.open = true; if (selected) select(null);
   renderPlanPanel();
   setTimeout(() => { drawRoute(); fitRoute(); }, 40);
 }
 function closePlan(){
   planUi.open = false; openStop = -1;
-  $('plan').hidden = true; document.body.classList.remove('plan-open');
+  $('plan').hidden = true; $('plan').innerHTML = ''; document.body.classList.remove('plan-open'); $('app').inert = false;
+  waitTimers.forEach(clearTimeout); waitTimers = [];
   drawRoute(); renderDock();
+  if (map) setTimeout(() => map.invalidateSize(), 30);
 }
 let waitTimers = [];
 const WAIT = {
@@ -1570,55 +1653,35 @@ function setTrip(days, title, o = {}){
   renderPlanPanel(); renderDock();
   setTimeout(() => { drawRoute(); fitRoute(); }, 40);
 }
-function durationOf(plan){
-  const ts = plan.stops.map(s => parseClock(s.time)).filter(x => x != null);
-  if (ts.length < 1) return null;
-  const mins = relClock(ts[ts.length - 1]) + 60 - relClock(ts[0]);   // ~an hour at the last stop
-  if (mins <= 0) return null;
-  return `${Math.floor(mins / 60)}h${mins % 60 ? ' ' + pad(mins % 60) : ''}`;
+/* "Dinner, live music and a last drink": the night in its own words, from its stops. */
+function nightTitle(plan){
+  const stops = plan.stops || [], n = stops.length;
+  const word = (s, i) => {
+    const cat = [s.label, ...(s.categories || [])].join(' ').toLowerCase();
+    switch (s.slot){
+      case 'dinner': return 'dinner';
+      case 'lunch': return 'lunch';
+      case 'cafe': return 'coffee';
+      case 'dessert': return 'dessert';
+      case 'drinks': return i === n - 1 && n > 1 ? 'a last drink' : 'drinks';
+      case 'scenic': return 'a walk';
+      case 'event': return /music|concert|jazz|band|gig/.test(cat) ? 'live music' : /comedy/.test(cat) ? 'comedy' : 'a show';
+      case 'leisure': return /music|jazz|club|dj/.test(cat) ? 'live music' : 'a night out';
+      default: return null;
+    }
+  };
+  const words = stops.map(word).filter((w, i, a) => w && a.indexOf(w) === i).slice(0, 3);
+  if (words.length < 2) return planName(plan);
+  const t = words.length === 2 ? `${words[0]} and ${words[1]}` : `${words[0]}, ${words[1]} and ${words[2]}`;
+  return cap(t);
 }
-function stopHtml(s, i, pp, n){
-  const cat = s.categories && s.categories[0] ? cap(String(s.categories[0]).replace(/_/g, ' ')) : '';
-  const sub = [s.label && s.label !== cat ? s.label : '', cat, s.price, s.est_cost != null ? `~$${s.est_cost}${pp > 1 ? ' each' : ''}` : ''].filter(Boolean).join(' · ');
-  const gmaps = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.name + ' ' + (s.address || ''))}`;
-  const site = safeUrl(s.url), img = safeUrl(s.image);
-  const t = parseClock(s.time);
-  return `<li class="stop${openStop === i ? ' open' : ''}" data-stop="${i}">
-    <button class="stop-h" aria-expanded="${openStop === i}"><span class="n">${pad(i + 1)}</span>
-      <span class="t"><b>${esc(s.name)}</b><small>${esc(sub)}</small></span>
-      <span class="tm">${t != null ? esc(fmtClock(t, true)) : ''}</span></button>
-    <div class="stop-d">
-      <div class="row2">${img ? `<span class="art" style="width:72px;height:72px;border-radius:8px"><span class="ph-art">${ic(SLOT_ICON[s.slot] || 'map-pin')}</span>${imgTag(img)}</span>` : ''}
-        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">${s.why ? `<p>${esc(s.why)}</p>` : ''}${s.address ? `<p>${esc(s.address)}</p>` : ''}${s.rating ? `<p>★ ${esc(s.rating)}</p>` : ''}</div></div>
-      <div class="acts"><a href="${gmaps}" target="_blank" rel="noopener">${ic('navigation-arrow')} Directions</a>
-        ${site ? `<a href="${esc(site)}" target="_blank" rel="noopener">${s.source === 'yelp' ? 'Yelp' : 'Website'} ${ic('arrow-up-right')}</a>` : ''}
-        ${lastItin && lastItin.plan ? `<button data-swap="${i}">${ic('arrows-clockwise')} Swap it</button>${n > 1 ? `<button class="rm" data-rm="${i}">${ic('x')} Remove</button>` : ''}` : ''}</div>
-    </div></li>`;
-}
-function walkBetween(a, b, transport){
-  if (a.lat == null || b.lat == null) return '';
-  const R = 6371, toR = x => x * Math.PI / 180;
-  const dLat = toR(b.lat - a.lat), dLng = toR(b.lng - a.lng);
-  const km = 2 * R * Math.asin(Math.sqrt(Math.sin(dLat / 2) ** 2 + Math.cos(toR(a.lat)) * Math.cos(toR(b.lat)) * Math.sin(dLng / 2) ** 2)) * 1.25;
-  if (transport === 'walk' || km < 1.6) return `<li class="walk">${ic('person-simple-walk')} ${Math.max(1, Math.round(km * 12.5))} min walk</li>`;
-  return `<li class="walk">${ic(transport === 'car' ? 'car' : 'train-simple')} ${(Math.round(km * 10) / 10)} km</li>`;
-}
-function planBody(plan, o = {}){
-  const pp = Math.max(1, plan.party_size || 1);
-  const dur = durationOf(plan);
-  const fits = fitsFor(plan);
-  const stops = plan.stops.map((s, i) => stopHtml(s, i, pp, plan.stops.length) + (i < plan.stops.length - 1 ? walkBetween(s, plan.stops[i + 1], ready.transport) : '')).join('');
-  return `
-    <div class="spec">
-      <div><b>${dur ? esc(dur) : plan.stops.length}</b><span class="kicker">${dur ? 'Duration' : 'Stops'}</span></div>
-      <div><b>${plan.walk_km != null ? esc(plan.walk_km) : '—'}<small> km</small></b><span class="kicker">${ready.transport === 'walk' ? 'On foot' : 'Stop to stop'}</span></div>
-      <div><b>$${Math.round((plan.estimated_cost || 0) / pp)}</b><span class="kicker">${pp > 1 ? 'Each' : 'Total'}</span></div>
-    </div>
-    ${o.intro ? `<p class="intro">${esc(o.intro)}</p>` : ''}
-    <ol class="stops">${stops}</ol>
-    ${fits.length ? `<div class="sub-h kicker">Why this fits</div><ul class="fits">${fits.map(f =>
-      `<li class="${f.ok ? '' : 'warn'}">${ic(f.ok ? 'check' : 'warning-circle')}<span>${esc(f.t)}</span></li>`).join('')}</ul>` : ''}
-    ${plan.tip ? `<div class="tip">${esc(plan.tip)}</div>` : ''}`;
+function itinKicker(plan, short){
+  const d = new Date();
+  const day = short ? d.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' })
+                    : d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+  const pp = Math.max(1, plan.party_size || ready.party_size || 1);
+  const where = ready.location || (plan._meta && plan._meta.where && plan._meta.where !== 'Near you' ? plan._meta.where : '');
+  return [day, where, pp === 1 ? 'Just you' : pp === 2 ? 'For two' : `For ${pp}`].filter(Boolean).join(' · ');
 }
 /* "Make it more…": each changes the shared planning state and re-plans from it. */
 const round5 = n => Math.max(5, Math.round(n / 5) * 5);
@@ -1634,108 +1697,148 @@ const TWEAKS = [
 ];
 function renderPlanPanel(){
   const el = $('plan');
-  if (!planUi.open){ el.hidden = true; document.body.classList.remove('plan-open'); return; }
-  el.hidden = false; document.body.classList.add('plan-open');
+  if (!planUi.open){ el.hidden = true; document.body.classList.remove('plan-open'); $('app').inert = false; return; }
+  const was = el.hidden;
+  el.hidden = false; document.body.classList.add('plan-open'); $('app').inert = true;
   waitTimers.forEach(clearTimeout); waitTimers = [];
-  const d = new Date();
-  const dateK = `${d.toLocaleDateString(undefined, { weekday:'long' })} · ${d.toLocaleDateString(undefined, { month:'short', day:'numeric' })}`;
-  const top = `<div class="plan-top"><button class="ibtn" data-close aria-label="Back to the map">${ic(phone() ? 'arrow-left' : 'x')}</button>
-    ${lastItin && planUi.state === 'result' ? `<button class="ibtn" data-settings aria-label="Plan settings">${ic('sliders-horizontal')}</button>` : ''}</div>`;
-  let scroll = '', foot = '';
   if (planUi.state === 'loading'){
     const lines = WAIT[planUi.kind] || WAIT.plan;
-    scroll = `${top}<div class="plan-h"><span class="kicker">${esc(dateK)}</span><h2>Your night</h2><p class="ctxline" data-ctxline></p></div>
-      <div class="spec" aria-hidden="true">${[0,1,2].map(() => `<div><div class="skel" style="height:28px;width:70%"></div><div class="skel" style="height:9px;width:46%;margin-top:6px"></div></div>`).join('')}</div>
-      <p class="wait-note" role="status" id="waitNote"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>&nbsp; ${esc(lines[0])}</p>
-      <div aria-hidden="true">${[0,1,2].map(() => `<div style="display:grid;grid-template-columns:40px 1fr 40px;gap:0;padding:14px 0"><div class="skel" style="height:11px;width:18px"></div>
-        <div style="display:grid;gap:7px"><div class="skel" style="height:14px;width:64%"></div><div class="skel" style="height:10px;width:40%"></div></div><div class="skel" style="height:11px"></div></div>`).join('')}</div>`;
+    RovaItin.status(el, { title:'Your night', kicker:itinKicker({}), ctxHtml:ctxLineHtml(), line:lines[0], on:{ close:closePlan } });
     let k = 1;
     waitTimers.push(setTimeout(function next(){
-      const n = $('waitNote'); if (!n || k >= lines.length) return;
-      n.innerHTML = `<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>&nbsp; ${esc(lines[k++])}`; waitTimers.push(setTimeout(next, 2800));
+      const n = $('itWait'); if (!n || k >= lines.length) return;
+      n.innerHTML = `<span class="it-dots" aria-hidden="true"><i></i><i></i><i></i></span> ${esc(lines[k++])}`; waitTimers.push(setTimeout(next, 2800));
     }, 2400));
     waitTimers.push(setTimeout(() => {
-      const n = $('waitNote'); if (!n) return;
-      n.insertAdjacentHTML('afterend', '<p class="wait-late">Taking longer than usual — venue search can be slow the first time in a new area.</p>');
+      const n = $('itWait'); if (!n) return;
+      n.insertAdjacentHTML('afterend', '<p class="it-wait" style="font-size:13px;color:#8A8478">Taking longer than usual — venue search can be slow the first time in a new area.</p>');
     }, 15000));
   } else if (planUi.state === 'error'){
     const e = planUi.err, slow = /too long/i.test((e && e.message) || '');
-    scroll = `${top}<div class="plan-h"><span class="kicker">${esc(dateK)}</span><h2>Your night</h2></div>
-      <div class="notice" style="margin:20px 0 0">${ic('warning-circle')}<div><b>${esc(e && e.title || (slow ? 'Hmm — that took longer than usual' : "Couldn't reach Rova"))}</b>
-        <p>${esc(e && e.text || (slow ? 'Venue search can be slow right now. Your settings are kept, so nothing needs retyping.' : 'Check your connection and try again. Your settings are kept.'))}</p>
-        <div class="acts">${planUi.retry ? `<button class="btn btn-secondary" data-retry>${ic('arrow-clockwise')} Try again</button>` : ''}
-          <button class="btn btn-ghost" data-settings>${ic('sliders-horizontal')} Adjust settings</button></div></div></div>`;
-  } else if (lastItin && lastItin.days){
-    scroll = `${top}<div class="plan-h"><span class="kicker">${lastItin.days.length}-day trip</span><h2>${esc(lastItin.title)}</h2>${planUi.intro ? `<p class="intro" style="margin:4px 0 0">${esc(planUi.intro)}</p>` : ''}</div>
-      ${lastItin.days.map(day => `<h3 class="day-h">Day ${esc(day.day)} <span class="muted" style="font-size:14px">· ~$${esc(day.estimated_cost)}</span></h3>${planBody(day)}`).join('')}`;
-    foot = `<button class="btn btn-secondary btn-lg" data-again>${ic('arrows-clockwise')} Another</button>
-      <button class="btn btn-primary btn-lg${planUi.saved ? ' done' : ''}" data-save>${planUi.saved ? `${ic('check')} Saved` : `${ic('bookmark-simple')} Save this trip`}</button>`;
-  } else if (lastItin && lastItin.plan){
-    const plan = lastItin.plan;
-    const tweaks = TWEAKS.filter(t => t.vibe ? ready.vibe !== t.vibe : t.show()).slice(0, 5);
-    const also = (plan.events || []).filter(e => e.source !== 'seatgeek').slice(0, 2);
-    scroll = `${top}<div class="plan-h"><span class="kicker">${esc(dateK)}${plan.quick ? ' · quick version' : ''}</span><h2>${esc(planName(plan))}</h2>
-        <p class="ctxline" data-ctxline></p></div>
-      ${planBody(plan, { intro: planUi.intro })}
-      ${also.length ? `<div class="sub-h kicker">Also on nearby</div><div class="also">${also.map((e, i) => `<div class="also-row">
-          ${artHtml({ icon:'ticket', img:safeUrl(e.image) })}<div><b>${esc(e.name)}</b><small>${esc([e.venue, evWhen(e), evPrice(e)].filter(Boolean).join(' · '))}</small></div>
-          <button class="btn btn-secondary" data-also="${i}">${ic('plus')} Add</button></div>`).join('')}</div>` : ''}
-      ${planUi.saved ? '' : `<div class="sub-h kicker">Make it more…</div><div class="tweaks">${tweaks.map((t, i) => `<button class="chip" data-tw="${i}">${esc(t.label)}</button>`).join('')}
-        <button class="chip" data-again>${ic('arrows-clockwise')} Try another</button><button class="chip" data-surprise>${ic('shuffle')} Surprise me</button></div>`}`;
-    foot = `<button class="btn btn-secondary btn-lg" data-share>${ic('share-network')} Share</button>
-      <button class="btn btn-primary btn-lg${planUi.saved ? ' done' : ''}" data-save>${planUi.saved ? `${ic('check')} Saved` : `${ic('bookmark-simple')} Save this night`}</button>`;
-    el._tweaks = tweaks; el._also = also;
-  } else {
-    closePlan(); return;
-  }
-  el.innerHTML = `<div class="plan-scroll">${scroll}</div>${foot ? `<div class="plan-foot">${foot}</div>` : ''}`;
+    RovaItin.status(el, { title:'Your night', kicker:itinKicker({}),
+      error:{ title: e && e.title || (slow ? 'Hmm — that took longer than usual' : "Couldn't reach Rova"),
+              text: e && e.text || (slow ? 'Venue search can be slow right now. Your settings are kept, so nothing needs retyping.' : 'Check your connection and try again. Your settings are kept.') },
+      on:{ close:closePlan, settings:() => openSheet(),
+           retry: planUi.retry ? () => { const r = planUi.retry; planLoading(planUi.kind); r(); } : null } });
+  } else if (lastItin){
+    const trip = !!lastItin.days, plan = currentPlan();
+    const tweaks = trip || planUi.saved ? [] : TWEAKS.filter(t => t.vibe ? ready.vibe !== t.vibe : t.show()).slice(0, 5);
+    const also = trip ? [] : (plan.events || []).filter(e => e.source !== 'seatgeek').slice(0, 2);
+    const quiet = text => send(text, { quiet:true });
+    RovaItin.render(el, plan, {
+      title: trip ? lastItin.title : nightTitle(plan),
+      kicker: trip ? `${lastItin.days.length}-day trip` : itinKicker(plan) + (plan.quick ? ' · Quick version' : ''),
+      kickerShort: trip ? `${lastItin.days.length}-day trip` : itinKicker(plan, true),
+      ctxHtml: trip ? '' : ctxLineHtml(),
+      intro: planUi.intro, fits: trip ? [] : fitsFor(plan),
+      tweaks: tweaks.map(t => t.label),
+      also: also.map(e => ({ name:e.name, sub:[e.venue, evWhen(e), evPrice(e)].filter(Boolean).join(' · '), img:safeUrl(e.image) })),
+      days: trip ? lastItin.days : null, saved: planUi.saved, transport: ready.transport, coming: true,
+      on: {
+        close: closePlan, share: shareNight, settings: () => openSheet(),
+        save: () => { saveItin(lastItin); el.querySelectorAll('[data-save]').forEach(b => {
+          b.classList.add('done'); b.innerHTML = b.classList.contains('it-round') ? ic('check') : `${ic('check')} Saved`; }); },
+        swap: trip ? null : i => quiet(`swap ${plan.stops[i].name} for something similar`),
+        remove: trip ? null : removeStop,
+        tweak: i => tweak(tweaks[i]),
+        again: () => trip ? send('plan a different trip') : reroll(),
+        surprise: trip ? null : () => planIt({ surprise:true }),
+        ask: trip ? null : quiet,
+        also: i => { const ev = also[i]; addEventToPlan(plan, ev); planUi.saved = false; renderPlanPanel(); drawRoute(); renderDock(); toast(`${ev.name} is in your night`); },
+        lateBite: trip ? null : () => quiet('add a late-night bite at the end of the night'),
+      },
+    });
+  } else { closePlan(); return; }
   el.querySelectorAll('[data-ctxline]').forEach(c => { c.innerHTML = ctxLineHtml(); wireCtxLine(c); });
-  const on = (sel, fn) => el.querySelectorAll(sel).forEach(b => b.onclick = fn);
-  on('[data-close]', closePlan);
-  on('[data-settings]', () => openSheet());
-  on('[data-retry]', () => { const r = planUi.retry; if (r){ planLoading(planUi.kind); r(); } });
-  on('[data-save]', e => saveItin(lastItin, e.currentTarget));
-  on('[data-again]', () => lastItin && lastItin.days ? send('plan a different trip') : reroll());
-  on('[data-surprise]', () => planIt({ surprise:true }));
-  on('[data-share]', sharePlan);
-  el.querySelectorAll('[data-tw]').forEach(b => b.onclick = () => tweak(el._tweaks[+b.dataset.tw]));
-  el.querySelectorAll('[data-also]').forEach(b => b.onclick = () => {
-    const ev = el._also[+b.dataset.also]; addEventToPlan(lastItin.plan, ev); planUi.saved = false;
-    renderPlanPanel(); drawRoute(); renderDock(); toast(`${ev.name} is in your night`);
-  });
-  el.querySelectorAll('.stop').forEach(li => {
-    const i = +li.dataset.stop;
-    li.querySelector('.stop-h').onclick = () => toggleStop(i);
-    const sw = li.querySelector('[data-swap]'); if (sw) sw.onclick = () => send(`swap ${lastItin.plan.stops[i].name} for something similar`, { quiet:true });
-    const rm = li.querySelector('[data-rm]'); if (rm) rm.onclick = () => removeStop(i);
-  });
+  if (was){ el.scrollTop = 0; el.focus({ preventScroll:true }); }   // keyboard focus moves into the plan
   renderDock();
 }
-function toggleStop(i, force){
-  openStop = force ? i : (openStop === i ? -1 : i);
-  if (!planUi.open){ openPlan(); return; }
-  document.querySelectorAll('#plan .stop').forEach(li => {
-    const on = +li.dataset.stop === openStop; li.classList.toggle('open', on); li.querySelector('.stop-h').setAttribute('aria-expanded', on);
-    if (on && force) li.scrollIntoView({ block:'nearest', behavior:'smooth' });
-  });
-  drawRoute();
-  const s = currentPlan() && currentPlan().stops[openStop];
-  if (s && s.lat != null && map){ const p = fitPad(); map.panInside([s.lat, s.lng], { paddingTopLeft:p.paddingTopLeft, paddingBottomRight:p.paddingBottomRight }); }
+function toggleStop(i){
+  openStop = i;
+  if (!planUi.open){ openPlan(); setTimeout(() => RovaItin.focus(i), 120); return; }
+  RovaItin.focus(i); drawRoute();
 }
 function removeStop(i){
   const plan = lastItin.plan, [gone] = plan.stops.splice(i, 1);
   const pp = Math.max(1, plan.party_size || 1);
   plan.estimated_cost = Math.max(0, (plan.estimated_cost || 0) - (gone.est_cost || 0) * pp);
-  planUi.saved = false; openStop = -1;
+  planUi.saved = false; openStop = -1; shareCache = {};
   renderPlanPanel(); drawRoute();
   toast(`${gone.name} removed`, { label:'Undo', onclick: () => {
     plan.stops.splice(i, 0, gone); plan.estimated_cost += (gone.est_cost || 0) * pp; renderPlanPanel(); drawRoute(); } });
 }
-function sharePlan(){
-  const plan = lastItin && lastItin.plan; if (!plan) return;
-  const text = `${planName(plan)} — ` + plan.stops.map((s, i) => `${i + 1}. ${s.time ? s.time + ' ' : ''}${s.name}`).join(' · ');
-  if (navigator.share) navigator.share({ title:'My night, planned with Rova', text }).catch(() => {});
-  else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('Copied — paste it anywhere'), () => toast("Couldn't copy that"));
+/* ---- Share the night (4f): a public link and a story card, made by the API ---- */
+let shareCache = {};
+function sharePayload(itin){
+  const plans = itin.days || [itin.plan], p0 = plans[0];
+  const num = v => (typeof v === 'number' && isFinite(v)) ? v : (v != null && isFinite(parseFloat(v)) ? parseFloat(v) : null);
+  const stops = plans.flatMap(p => p.stops || []).slice(0, 12).map(s => ({
+    name:s.name, time:s.time || null, slot:s.slot || null, label:s.label || null, categories:(s.categories || []).slice(0, 4),
+    address:s.address || null, why:s.why || null, price:s.price || null, image:safeUrl(s.image), url:safeUrl(s.url),
+    lat:num(s.lat), lng:num(s.lng), est_cost:num(s.est_cost), rating:num(s.rating) }));
+  const d = new Date();
+  return { title: itin.days ? itin.title : nightTitle(p0),
+    area: ready.location || (p0._meta && p0._meta.where && p0._meta.where !== 'Near you' ? p0._meta.where : null),
+    date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+    party_size: clamp(Math.round(p0.party_size || ready.party_size || 1), 1, 20),
+    estimated_cost: plans.reduce((a, p) => a + (p.estimated_cost || 0), 0),
+    budget: itin.days ? null : num(p0.budget), walk_km: itin.days ? null : num(p0.walk_km),
+    transport: ready.transport || null, tip: itin.days ? null : (p0.tip || null), stops };
+}
+async function shareNight(){
+  if (!lastItin) return;
+  if (!token()){ requireSignIn(); return; }
+  const body = JSON.stringify(sharePayload(lastItin));
+  if (shareCache.body === body && shareCache.res){ openShare({ res:shareCache.res }); return; }
+  openShare({ loading:true });
+  try{
+    const r = await apiFetch(`${API}/share/plan`, { method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() }, body });
+    if (r.status === 401){ closeShare(); requireSignIn(); return; }
+    if (!r.ok) throw new Error('share failed');
+    const res = await r.json();
+    shareCache = { body, res };
+    track('plan_shared');
+    if (!$('share').hidden) openShare({ res });
+  }catch(e){ if (!$('share').hidden) openShare({ error:true }); }
+}
+let shareFrom = null;
+function openShare(o){
+  const el = $('share'), bg = $('shareBg');
+  if (el.hidden) shareFrom = document.activeElement;
+  bg.hidden = false; el.hidden = false;
+  const img = o.res ? `${API}${o.res.image_path}` : null;
+  el.innerHTML = `<div class="share-card">${img ? `<img src="${esc(img)}" alt="The story card for this night">` : '<i class="skel"></i>'}</div>
+    <div class="share-r">
+      <div class="share-top"><h2 id="shareTitle">Share the night</h2><button class="ibtn" data-x aria-label="Close">${ic('x')}</button></div>
+      <p>${o.error ? "Couldn't make a link just now. Check your connection and try again."
+        : 'A story-sized card and a link back to this plan. Anyone with the link can see the plan, not your account.'}</p>
+      ${o.res ? `<div class="share-link"><span>${esc(o.res.url)}</span><button class="btn btn-secondary" data-copy>${ic('copy')} Copy</button></div>` : ''}
+      <div class="share-acts">${o.res
+        ? `${navigator.share ? `<button class="btn btn-primary btn-lg" data-sys>${ic('export')} Share…</button>` : ''}
+           <a class="btn btn-secondary btn-lg" href="${esc(img)}" target="_blank" rel="noopener">${ic('image')} Open the card</a>
+           <a class="btn btn-ghost" href="${esc(o.res.url)}" target="_blank" rel="noopener">See the page ${ic('arrow-up-right')}</a>`
+        : o.error ? `<button class="btn btn-primary btn-lg" data-retry>${ic('arrow-clockwise')} Try again</button>`
+        : `<span class="muted"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span>&nbsp; Making your link…</span>`}</div>
+    </div>`;
+  el.querySelector('[data-x]').onclick = closeShare;
+  const on = (sel, fn) => { const b = el.querySelector(sel); if (b) b.onclick = fn; };
+  on('[data-retry]', shareNight);
+  on('[data-copy]', () => navigator.clipboard ? navigator.clipboard.writeText(o.res.url).then(() => toast('Link copied'), () => toast("Couldn't copy that")) : toast(o.res.url));
+  on('[data-sys]', async () => {
+    const title = lastItin ? (lastItin.days ? lastItin.title : nightTitle(lastItin.plan)) : 'My night';
+    try{
+      const blob = await (await fetch(img)).blob();
+      const file = new File([blob], 'rova-night.jpg', { type:'image/jpeg' });
+      if (navigator.canShare && navigator.canShare({ files:[file] })){ await navigator.share({ files:[file], title, url:o.res.url }); return; }
+    }catch(e){ if (e && e.name === 'AbortError') return; }
+    navigator.share({ title, text:`${title}, planned with Rova`, url:o.res.url }).catch(() => {});
+  });
+  bg.onclick = closeShare;
+  const f = el.querySelector('[data-sys],[data-copy],[data-retry],[data-x]'); if (f) f.focus();
+}
+function closeShare(){
+  $('share').hidden = true; $('shareBg').hidden = true; $('share').innerHTML = '';
+  if (shareFrom && shareFrom.isConnected) shareFrom.focus();
 }
 
 function addEventToPlan(plan, ev){
@@ -1963,7 +2066,7 @@ function requireSignIn(){
   // Session expired — a soft nudge (not a hard redirect) so nothing on screen is lost.
   busy = false;
   showReply({ text:"Looks like you got signed out — sign back in and you'll land right back here.",
-    actions:[{ label:'Sign in again', icon:'sign-in', onclick: () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=roamly.html'; } }] });
+    actions:[{ label:'Sign in again', icon:'sign-in', onclick: () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=rova.html'; } }] });
 }
 
 /* ================= saved plans (localStorage, no account needed) ================= */
@@ -1974,13 +2077,12 @@ function syncSavedCount(){
   const n = getSaved().length;
   document.querySelectorAll('[data-saved-count]').forEach(el => { el.textContent = n || ''; });
 }
-function saveItin(itin, btn){
+function saveItin(itin){
   if (!itin || planUi.saved) return;
   const a = getSaved();
   a.unshift({ id:Date.now(), title:itin.title, ts:new Date().toISOString(), plan:itin.plan || null, days:itin.days || null });
   setSaved(a);
   planUi.saved = true;
-  if (btn){ btn.classList.add('done'); btn.innerHTML = `${ic('check')} Saved`; }
   renderNightBar();
   toast('Saved to your plans', { label:'View', onclick: () => setPanel('saved') });
 }
@@ -2076,6 +2178,7 @@ $('searchForm').addEventListener('submit', e => { e.preventDefault(); send($('q'
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape'){
     if (!$('menu').hidden){ closeMenu(); if (menuFrom) menuFrom.focus(); return; }
+    if (!$('share').hidden){ closeShare(); return; }
     if (sheetOpen){ pending = null; closeSheet(); return; }
     if (selected){ select(null); return; }
     if (planUi.open && planUi.state !== 'loading'){ closePlan(); return; }
@@ -2122,7 +2225,7 @@ function termsGate(){
       me = await r.json(); el.remove();
     }catch(err){ e.target.disabled = false; toast("Couldn't save that — try again."); }
   };
-  $('tgOut').onclick = () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=roamly.html'; };
+  $('tgOut').onclick = () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=rova.html'; };
 }
 
 function initialOf(){ const n = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'R'; return n.trim().charAt(0).toUpperCase(); }
@@ -2140,7 +2243,7 @@ function syncIdentity(){
 // so a sleeping server never leaves a blank screen.
 (async function boot(){
   if (!token()){
-    location.replace('auth.html?redirect=' + encodeURIComponent('roamly.html' + location.search + location.hash));
+    location.replace('auth.html?redirect=' + encodeURIComponent('rova.html' + location.search + location.hash));
     return;
   }
   const want = (location.hash || '').slice(1);
@@ -2164,7 +2267,7 @@ function syncIdentity(){
   ]);
   if (pr.status === 'fulfilled' && pr.value.status === 401){
     localStorage.removeItem('trek_token');           // expired — sign in again, then come straight back
-    location.replace('auth.html?redirect=roamly.html'); return;
+    location.replace('auth.html?redirect=rova.html'); return;
   }
   if (mr.status === 'fulfilled' && mr.value.ok){ try{ me = await mr.value.json(); }catch(e){} syncIdentity(); }
   if (me && me.is_admin) $('adminLink').hidden = false;

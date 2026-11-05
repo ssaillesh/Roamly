@@ -12,12 +12,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="/roamly.css?v=2026-10-11" />
+<link rel="stylesheet" href="/rova.css?v=2026-10-11" />
 <script src="/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
-  /* ============ admin dashboard: layout on top of roamly.css ============ */
+  /* ============ admin dashboard: layout on top of rova.css ============ */
   :root{
     /* chart roles: the dataviz reference palette (validated light-mode set) */
     --viz-surface:#fcfcfb; --viz-grid:#e1e0d9; --viz-axis:#c3c2b7; --viz-muted:#898781;
@@ -345,9 +345,9 @@ function shell(){
     groups += `<a href="#${s.id}" data-sec="${s.id}"><span class="dot" aria-hidden="true"></span>${esc(s.title)}</a>`;
   }
   $('app').innerHTML = `<div class="shell">
-    <aside class="aside"><a class="logo" href="roamly.html" aria-label="Rova admin"><svg class="wordmark" width="85" height="20" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg><small>Admin</small></a>
+    <aside class="aside"><a class="logo" href="rova.html" aria-label="Rova admin"><svg class="wordmark" width="85" height="20" aria-hidden="true"><use href="/brand/rova.svg#wordmark"/></svg><small>Admin</small></a>
       <nav class="nav" aria-label="Dashboard sections">${groups}</nav>
-      <div class="aside-foot">Signed in as <b>@${esc(state.me.username)}</b><br><a href="roamly.html">Back to the app</a></div></aside>
+      <div class="aside-foot">Signed in as <b>@${esc(state.me.username)}</b><br><a href="rova.html">Back to the app</a></div></aside>
     <main class="content"><div class="topbar"><h1 id="secTitle">Overview<span class="sub" id="secSub"></span></h1>
       <div class="seg" id="rangeSeg" role="group" aria-label="Date range">${RANGES.map(([d, l]) =>
         `<button data-days="${d}" aria-pressed="${state.days === d}">${l}</button>`).join('')}</div>
@@ -1032,7 +1032,7 @@ async function renderAudit(seq){
   if (!state.me.is_admin){
     $('app').innerHTML = `<div class="center-msg"><div class="empty"><div class="e-art" aria-hidden="true">🔒</div>
       <h3>Admins only</h3><p>You're signed in as @${esc(state.me.username)}, which isn't an admin account.</p>
-      <a class="btn btn-dark" href="roamly.html">Back to Rova</a></div></div>`;
+      <a class="btn btn-dark" href="rova.html">Back to Rova</a></div></div>`;
     return;
   }
   shell();

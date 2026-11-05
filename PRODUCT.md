@@ -1,6 +1,6 @@
-# Roamly: product overview
+# Rova: product overview
 
-**Roamly is an AI outing planner.** Tell it what you're in the mood for, and it builds a real, timed plan from places near you. Or ask what's happening right now, and it lists live events around you. It's for date nights, days out with friends, solo adventures, family outings, and "I'm bored, what should I do?"
+**Rova is an AI outing planner.** Tell it what you're in the mood for, and it builds a real, timed plan from places near you. Or ask what's happening right now, and it lists live events around you. It's for date nights, days out with friends, solo adventures, family outings, and "I'm bored, what should I do?"
 
 > **How to read this document.** It describes the product as it's meant to be, not only what exists today. Every feature is marked:
 > - ✅ **Built:** works today (locally, and live once pushed)
@@ -15,11 +15,11 @@
 
 > **Chat when you want to talk. Tap when you want to control.**
 
-Planning apps usually fall into one of two traps: a long form of questions, or a chatbot that makes you explain everything in words. Roamly does both jobs:
+Planning apps usually fall into one of two traps: a long form of questions, or a chatbot that makes you explain everything in words. Rova does both jobs:
 - **You can just talk:** "cheap sushi date in Kensington", or "what's on tonight?"
 - **You can see and adjust what it's working with.** A slim **Planning around** bar shows the settings it's using (where, how far, budget, when, who, mood, getting there), and one tap changes any of them.
 
-The bar is a live picture of what Roamly has understood. When you type something, the bar updates, and the values that changed flash briefly. So you can check that it understood you correctly, at a glance.
+The bar is a live picture of what Rova has understood. When you type something, the bar updates, and the values that changed flash briefly. So you can check that it understood you correctly, at a glance.
 
 ---
 
@@ -60,16 +60,16 @@ The bar is a live picture of what Roamly has understood. When you type something
 ## 4. The user journey
 
 ### 4.1 First visit
-1. **Landing page** (`index.html`) ✅: what Roamly does, a demo, and an early-access waitlist.
+1. **Landing page** (`index.html`) ✅: what Rova does, a demo, and an early-access waitlist.
 2. **Sign up / sign in** (`auth.html`) ✅: email and password. Anything that needs an account sends you here first and brings you back afterwards.
 3. **Taste survey** (`profile.html`) ✅, **optional**:
    - New accounts are offered it; **Skip for now** is always there.
    - Answers save as you go, so you can leave and pick up where you left off.
    - It ends with a fun result, e.g. "🌙 Cozy Foodie Explorer".
    - Afterwards **My taste** shows a summary of every answer. Tap any row to change just that one; it saves immediately.
-4. **Planner** (`roamly.html`) ✅: straight to the home screen.
+4. **Planner** (`rova.html`) ✅: straight to the home screen.
 
-**One design system ✅** (`webui/roamly.css`), shared by the planner, My taste and sign-in pages, with the landing page using the same palette:
+**One design system ✅** (`webui/rova.css`), shared by the planner, My taste and sign-in pages, with the landing page using the same palette:
 - cream background, deep-navy text, violet→magenta gradient only on primary actions and the hero
 - Plus Jakarta Sans
 - rounded cards and pills, soft layered shadows, and a compass-star logo
@@ -83,7 +83,7 @@ The bar is a live picture of what Roamly has understood. When you type something
 ### 4.2 The planner screen
 ```
 ┌──────────────────────────────────────┐
-│ ✦ Roamly                         (A) │  ← dusk skyline hero; (A) = account menu
+│ ✦ Rova                         (A) │  ← dusk skyline hero; (A) = account menu
 │ Good evening, Alex ✨                 │
 │ What are we up to?                   │
 │ ┌ PLANNING AROUND ───────── Adjust ┐ │
@@ -93,7 +93,7 @@ The bar is a live picture of what Roamly has understood. When you type something
 │ └──────────────────────────────────┘ │
 │ ┌ ✦ Plan my night ─────────────── › ┐ │  ← the primary action
 │ [What's on now][Surprise me][Pick my spots]
-│ ┌ ✦ Ask Roamly…                 ↑ ┐ │
+│ ┌ ✦ Ask Rova…                 ↑ ┐ │
 │ [🍣 Cheap sushi date][🎶 What's on tonight?]…  ← tap to ask
 │ Pick up where you left off ›         │
 │ Your saved plans  ▸ ▸ ▸              │
@@ -102,7 +102,7 @@ The bar is a live picture of what Roamly has understood. When you type something
 └──────────────────────────────────────┘
 ```
 
-**Home screen ✅:** a greeting, the Planning-around card, and one big **Plan my night** with three smaller choices under it. There's an "Ask Roamly" box with example questions to tap, and "Pick up where you left off" and your saved plans when you have them. Nothing to fill in first.
+**Home screen ✅:** a greeting, the Planning-around card, and one big **Plan my night** with three smaller choices under it. There's an "Ask Rova" box with example questions to tap, and "Pick up where you left off" and your saved plans when you have them. Nothing to fill in first.
 
 **Chat screen ✅:** any action or typed message opens the conversation, with a back arrow to Home, **Start over**, and the Planning-around bar across the top.
 
@@ -121,9 +121,9 @@ The bar is a live picture of what Roamly has understood. When you type something
 
 Changes apply as you tap. **Reset to my defaults** goes back to your profile's values. If an action was waiting for a place (Plan my night with no location), it carries on by itself once you set one.
 
-**Typing ✅:** say it however you like. Roamly works out the budget ("$60", "50 each"), the vibe, who's coming, the time of day, transport, distance ("within 3 km", "under 2 miles"), what you're looking for ("sushi"), places to include by name, and things to avoid ("no clubs").
+**Typing ✅:** say it however you like. Rova works out the budget ("$60", "50 each"), the vibe, who's coming, the time of day, transport, distance ("within 3 km", "under 2 miles"), what you're looking for ("sushi"), places to include by name, and things to avoid ("no clubs").
 - **One set of settings.** A typed message also sends the bar's current settings. What you say wins, the bar fills in what you didn't say, and your profile fills in the rest. The chat, the bar and the planner never disagree.
-- **"Roamly heard"** appears under your message, showing exactly which settings it changed (e.g. `3 km · $60 · Walking`). Tap one to correct it. The changed chips in the bar flash once.
+- **"Rova heard"** appears under your message, showing exactly which settings it changed (e.g. `3 km · $60 · Walking`). Tap one to correct it. The changed chips in the bar flash once.
 
 **Waiting ✅:** short status lines describing what the planner is doing ("Checking what's nearby…", "Finding places that fit…"), with a plan-shaped placeholder. After 15 seconds, a "taking longer than usual" note appears. It never shows a fake progress bar.
 
@@ -146,7 +146,7 @@ Changes apply as you tap. **Reset to my defaults** goes back to your profile's v
 
 ✅ **After a plan:**
 - **Save plan** and **Try another** (new places, same settings).
-- **"Make it more…"** chips: Cheaper · Closer · Fancier · More relaxed · More adventurous · More romantic · More social · Surprise me. Each one changes the actual settings (the bar flashes) and re-plans from them, without an AI call. If the same places still win, Roamly says so instead of pretending.
+- **"Make it more…"** chips: Cheaper · Closer · Fancier · More relaxed · More adventurous · More romantic · More social · Surprise me. Each one changes the actual settings (the bar flashes) and re-plans from them, without an AI call. If the same places still win, Rova says so instead of pretending.
 - Up to two nearby events offered as "want me to add it?"
 
 🔜 **Planned additions:**
@@ -222,10 +222,10 @@ Taste is stored on your account and deleted along with it.
    - No invented statistics, venues or events.
    - Costs are estimates and shown that way.
    - 🔜 "Open now" only when opening hours are actually known.
-   - When the data source is struggling, Roamly says so.
+   - When the data source is struggling, Rova says so.
 2. **Your location is yours.**
    - Live location is **off until you turn it on**, with plain-language status.
-   - Roamly never says "I know where you are".
+   - Rova never says "I know where you are".
    - A typed place always works instead.
 3. **Controls, not questionnaires.** You can start immediately. The survey is optional, and questions are asked only when truly needed, one at a time with tappable answers.
 4. **Fast and light.**
@@ -300,7 +300,7 @@ Eventbrite no longer offers public event search, and Meetup's API requires a pai
 
 ---
 
-## 10. Not part of Roamly (removed or switched off)
+## 10. Not part of Rova (removed or switched off)
 
 - **The hidden-gems map app:** removed entirely, including the gem catalog and "hidden gem" ranking.
 - **Travel logging** (trips, friends, feed, leaderboards, challenges, badges, share cards): these came from an earlier project ("TrekRank"). Removed: migration `0009` drops their tables and the travel columns on `users`, and their code is gone (see `CLEANUP.md`).
@@ -348,5 +348,5 @@ Eventbrite no longer offers public event search, and Meetup's API requires a pai
 - **Venue quality depends on the data source.** On OpenStreetMap alone, you can get odd picks, such as a coffee shop as a "fancy dinner". Geoapify should help.
 - **Toronto's festival feed is down.** Worth reporting to Toronto Open Data (opendata@toronto.ca).
 - **"When" is four time slots,** not an exact start time. An exact time needs a planner change.
-- **The name "Roamly" appears to be used by another travel product** (roamly.io). Check for trademark conflicts before publishing.
+- **The product is now called Rova** (it was Roamly, a name already used by another travel product, roamly.io). Check "Rova" for trademark conflicts before publishing.
 - **The travel-logging features** from the earlier project: bring them back with real screens, or remove them for good?

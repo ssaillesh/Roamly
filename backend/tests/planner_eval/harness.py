@@ -1,5 +1,5 @@
 """Planner evaluation harness: a small fake downtown Toronto, and a client that
-talks to /plan/chat exactly the way webui/roamly.html does — whole history,
+talks to /plan/chat exactly the way webui/rova.html does — whole history,
 `turn_start`, the plan on screen, the questions already asked, and a settings
 bar that mirrors `understood` — so conversations can be replayed and checked.
 

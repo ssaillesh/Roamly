@@ -24,7 +24,7 @@ class Page:
     def __init__(self, browser, site, *, signed_in=False, consent="yes"):
         self.ctx = browser.new_context(viewport={"width": 390, "height": 844})
         self.ctx.add_init_script(
-            f"try{{localStorage.setItem('roamly_consent','{consent}');"
+            f"try{{localStorage.setItem('rova_consent','{consent}');"
             + ("localStorage.setItem('trek_token','old-session');" if signed_in else "") + "}catch(e){}")
         self.requests, self.reset_calls, self.held = [], [], []
         self.reply = (200, OK_BODY)
@@ -185,10 +185,10 @@ def test_failed_requests_never_claim_success(ui, reply, text):
 
 def test_signed_in_visitor_is_not_bounced_away_from_the_link(ui):
     p = ui(signed_in=True)
-    page = p.open(f"?reset_token={TOKEN}&redirect=roamly.html")
+    page = p.open(f"?reset_token={TOKEN}&redirect=rova.html")
     assert page.url.split("?")[0].endswith("/auth")
     assert _visible(page, "#rpForm")
-    assert "redirect=roamly.html" in page.url                  # other parameters are kept
+    assert "redirect=rova.html" in page.url                  # other parameters are kept
 
 
 def test_plain_sign_in_page_is_unchanged(ui):
@@ -197,4 +197,4 @@ def test_plain_sign_in_page_is_unchanged(ui):
     assert _visible(page, "#mainPanel") and not _visible(page, "#rpPanel")
     q = ui(signed_in=True)
     page = q.open("")
-    page.wait_for_url("**/roamly.html")                         # a signed-in visitor still skips through
+    page.wait_for_url("**/rova.html")                         # a signed-in visitor still skips through

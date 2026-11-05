@@ -11,7 +11,7 @@ say yes before any metered API is called. Each provider gets a cap a little unde
 its free allowance; past it, `allow()` says no and the caller behaves as if the
 service weren't set up (the planner falls back to OpenStreetMap, the AI to the
 rule-based planner, email to "not sent"). Services whose free tier doesn't cover
-the way Roamly calls them have a cap of 0, so they're never called. The counters
+the way Rova calls them have a cap of 0, so they're never called. The counters
 live in Redis so every process shares them; if Redis is unreachable `allow()`
 says no, because an uncounted call could be a billed one.
 
@@ -35,7 +35,7 @@ from app.redis_client import redis_client
 
 log = logging.getLogger(__name__)
 
-# What each metered service gives away (checked 2026-10) and where Roamly stops.
+# What each metered service gives away (checked 2026-10) and where Rova stops.
 # period: "day" = UTC day; "month" = calendar month in US Pacific time, which is
 # when Google Maps Platform resets its free monthly usage.
 #   provider:       (period,  free,  cap,  note shown on the dashboard)
@@ -57,14 +57,14 @@ FREE_TIER = {
 }
 # Daily token allowances, checked alongside the request caps (Groq's free tier
 # runs out of tokens long before requests: ~3k tokens per plan → ~60 plans a day).
-#   provider: (free tokens a day, Roamly stops at)
+#   provider: (free tokens a day, Rova stops at)
 TOKEN_CAPS = {"llm": (200_000, 190_000)}
 # Estimated $ per call past the free allowance, for the dashboard's cost column.
 COST_PER_CALL = {"google_places": 0.035, "foursquare": 0.01875}
 
 _PACIFIC = ZoneInfo("America/Los_Angeles")
 
-# Paid products Roamly doesn't use (yet). Each can charge a card on file, so
+# Paid products Rova doesn't use (yet). Each can charge a card on file, so
 # they're switched off in code. To use one later, remove it here on purpose.
 DISABLED = {
     "foursquare":    "Paid product: the fields Rova needs are billed from the first call.",

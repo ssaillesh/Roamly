@@ -10,6 +10,8 @@ passlib[bcrypt]==1.7.4
 bcrypt==4.2.1
 python-multipart==0.0.20
 httpx==0.28.1
+# Draws the "Share the night" story card (app/services/share_card.py).
+Pillow==11.3.0
 resend==2.48.0
 redis==5.2.1
 prometheus-client==0.21.1

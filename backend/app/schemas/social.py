@@ -121,14 +121,3 @@ class ChallengeOut(BaseModel):
     is_global: bool
     participants: list[ChallengeParticipantOut] = []
     my_progress: int | None = None
-
-
-# ---- Share ----
-class ShareCardRequest(BaseModel):
-    card_type: str = "year_recap"  # year_recap | all_time
-    year: int | None = None
-
-
-class ShareCardResponse(BaseModel):
-    image_url: str
-    expires_at: datetime

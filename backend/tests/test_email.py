@@ -19,8 +19,8 @@ KEY = "re_test_0123456789abcdef"
 @pytest.fixture
 def configured(monkeypatch):
     monkeypatch.setattr(settings, "resend_api_key", KEY)
-    monkeypatch.setattr(settings, "email_from", "hello@roamly.example")
-    monkeypatch.setattr(settings, "email_from_name", "Roamly")
+    monkeypatch.setattr(settings, "email_from", "hello@rova.example")
+    monkeypatch.setattr(settings, "email_from_name", "Rova")
     monkeypatch.setattr(usage, "allow", lambda provider: True)
     recorded = []
     monkeypatch.setattr(usage, "record", lambda provider, ok=True: recorded.append((provider, ok)))
@@ -42,11 +42,11 @@ def outbox(monkeypatch):
 
 @pytest.mark.parametrize("key, sender, problem", [
     ("", "", "RESEND_API_KEY and EMAIL_FROM not set"),
-    ("", "hello@roamly.example", "RESEND_API_KEY not set"),
+    ("", "hello@rova.example", "RESEND_API_KEY not set"),
     (KEY, "", "EMAIL_FROM not set"),
     (KEY, "not-an-address", "EMAIL_FROM isn't a valid email address"),
-    (KEY, "Roamly <hello@roamly.example>", "EMAIL_FROM isn't a valid email address"),   # name goes in EMAIL_FROM_NAME
-    (KEY, "hello@roamly.example", None),
+    (KEY, "Rova <hello@rova.example>", "EMAIL_FROM isn't a valid email address"),   # name goes in EMAIL_FROM_NAME
+    (KEY, "hello@rova.example", None),
 ])
 def test_email_is_only_on_when_properly_configured(monkeypatch, key, sender, problem):
     monkeypatch.setattr(settings, "resend_api_key", key)
@@ -58,9 +58,9 @@ def test_email_is_only_on_when_properly_configured(monkeypatch, key, sender, pro
 
 def test_settings_trim_pasted_whitespace_and_read_resend_variables(monkeypatch):
     monkeypatch.setenv("RESEND_API_KEY", f"  {KEY}\n")
-    monkeypatch.setenv("EMAIL_FROM", " hello@roamly.example ")
+    monkeypatch.setenv("EMAIL_FROM", " hello@rova.example ")
     s = Settings(_env_file=None)
-    assert (s.resend_api_key, s.email_from) == (KEY, "hello@roamly.example")
+    assert (s.resend_api_key, s.email_from) == (KEY, "hello@rova.example")
     assert not hasattr(s, "sendgrid_api_key")
 
 
@@ -79,7 +79,7 @@ def test_requests_time_out_quickly():
 def test_send_email_goes_through_resend(configured, outbox):
     assert email_svc.send_email("sam@example.com", "Hi", "<p>Hello <b>Sam</b></p>") is True
     params, key_used = outbox[0]
-    assert params == {"from": "Roamly <hello@roamly.example>", "to": ["sam@example.com"], "subject": "Hi",
+    assert params == {"from": "Rova <hello@rova.example>", "to": ["sam@example.com"], "subject": "Hi",
                       "html": "<p>Hello <b>Sam</b></p>", "text": "Hello Sam"}
     assert key_used == KEY
     assert configured == [("resend", True)]
@@ -103,13 +103,13 @@ def test_the_real_sdk_sends_the_expected_request(configured, monkeypatch):
     call = net.calls[0]
     assert (call["method"].lower(), call["url"]) == ("post", "https://api.resend.com/emails")
     assert call["headers"]["Authorization"] == f"Bearer {KEY}"
-    assert call["json"] == {"from": "Roamly <hello@roamly.example>", "to": ["sam@example.com"],
+    assert call["json"] == {"from": "Rova <hello@rova.example>", "to": ["sam@example.com"],
                             "subject": "Hi", "html": "<p>Hello</p>", "text": "Hello"}
 
 
 def test_the_real_sdk_reports_a_refusal_as_not_sent(configured, monkeypatch, caplog):
     net = _FakeNetwork(403, b'{"statusCode": 403, "name": "validation_error", '
-                            b'"message": "The roamly.example domain is not verified."}')
+                            b'"message": "The rova.example domain is not verified."}')
     monkeypatch.setattr(resend, "default_http_client", net)
     with caplog.at_level(logging.ERROR):
         assert email_svc.send_email("sam@example.com", "Hi", "<p>x</p>") is False
@@ -118,10 +118,10 @@ def test_the_real_sdk_reports_a_refusal_as_not_sent(configured, monkeypatch, cap
 
 
 def test_sender_name_cannot_inject_headers(configured, outbox, monkeypatch):
-    monkeypatch.setattr(settings, "email_from_name", 'Roamly <x@evil.example>\r\nBcc: all@evil.example')
+    monkeypatch.setattr(settings, "email_from_name", 'Rova <x@evil.example>\r\nBcc: all@evil.example')
     email_svc.send_email("sam@example.com", "Hi", "<p>x</p>")
     sender = outbox[0][0]["from"]
-    assert sender.endswith(" <hello@roamly.example>")
+    assert sender.endswith(" <hello@rova.example>")
     assert "\r" not in sender and "\n" not in sender and sender.count("<") == 1
 
 

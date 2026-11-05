@@ -9,12 +9,12 @@ window.API_BASE =
     : 'https://trekrank.onrender.com/api/v1';
 
 // Where to go after signing in, from a ?redirect= value — which anyone can put in a
-// link, so it's never used as is. Only a page on this site is accepted ("roamly.html",
-// "/admin.html", "roamly.html?q=…"); another site ("//evil.com", "/\evil.com",
+// link, so it's never used as is. Only a page on this site is accepted ("rova.html",
+// "/admin.html", "rova.html?q=…"); another site ("//evil.com", "/\evil.com",
 // "https://…") or a script URL ("javascript:", "data:", "vbscript:") gives `fallback`.
-// Returns a path from the site root, e.g. "/roamly.html?q=…".
+// Returns a path from the site root, e.g. "/rova.html?q=…".
 window.safeRedirect = function (value, fallback) {
-  fallback = fallback || '/roamly.html';
+  fallback = fallback || '/rova.html';
   if (typeof value !== 'string' || !value || value.length > 2048) return fallback;
   // No scheme, no leading "//", no backslashes (browsers read "\" as "/") and no
   // whitespace or control characters (the URL parser drops some: "java\tscript:").
@@ -94,9 +94,14 @@ window.track = function (name, params) {
 (function () {
   const ID = window.GA_MEASUREMENT_ID;
   if (!ID || /\/admin(\.html)?$/.test(location.pathname)) return;
-  const KEY = 'roamly_consent';
+  const KEY = 'rova_consent';
   let choice = null;
-  try { choice = localStorage.getItem(KEY); } catch (e) {}
+  try {
+    choice = localStorage.getItem(KEY);
+    // A choice made before the rename to Rova carries over, so nobody is asked twice.
+    const old = localStorage.getItem('roamly_consent');
+    if (old !== null){ if (choice === null){ choice = old; localStorage.setItem(KEY, old); } localStorage.removeItem('roamly_consent'); }
+  } catch (e) {}
 
   function load() {
     window.dataLayer = window.dataLayer || [];
@@ -118,16 +123,16 @@ window.track = function (name, params) {
     el.setAttribute('aria-label', 'Cookie choice');
     el.style.cssText =
       'position:fixed;left:16px;right:16px;bottom:16px;z-index:99998;max-width:520px;margin:0 auto;' +
-      'padding:16px 18px;border-radius:20px;background:#fff;color:#17153a;' +
-      'box-shadow:0 2px 6px rgba(23,21,58,.05),0 30px 64px -26px rgba(62,40,140,.34);' +
-      'border:1px solid rgba(23,21,58,.10);font:500 14px/1.45 "Plus Jakarta Sans",system-ui,sans-serif;';
+      'padding:16px 18px;border-radius:20px;background:#FBF8F3;color:#161513;' +
+      'box-shadow:0 30px 64px -26px rgba(40,30,10,.38);' +
+      'border:1px solid #E4DDD0;font:400 14px/1.45 "Inter",system-ui,-apple-system,sans-serif;';
     el.innerHTML =
       '<div style="margin-bottom:12px">We use Google Analytics cookies to see how people find and use Rova. ' +
       'Okay with that?</div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
       '<button type="button" data-no style="min-height:40px;padding:0 16px;border-radius:999px;border:1px solid ' +
-      'rgba(23,21,58,.12);background:#fff;font:inherit;font-weight:700;cursor:pointer">No thanks</button>' +
+      '#D8D0C1;background:transparent;color:#161513;font:inherit;font-weight:500;cursor:pointer">No thanks</button>' +
       '<button type="button" data-yes style="min-height:40px;padding:0 16px;border-radius:999px;border:0;' +
-      'background:#17153a;color:#fff;font:inherit;font-weight:700;cursor:pointer">Accept</button></div>';
+      'background:#161513;color:#F4EFE6;font:inherit;font-weight:500;cursor:pointer">Accept</button></div>';
     el.querySelector('[data-yes]').onclick = () => { remember('yes'); el.remove(); load(); };
     el.querySelector('[data-no]').onclick = () => { remember('no'); el.remove(); };
     document.body.appendChild(el);

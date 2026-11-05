@@ -38,7 +38,7 @@ from app.database import SessionLocal, engine
 from app.models import Area, Venue
 from app.services.venue_index import CITIES, readable, slots_for, wikidata_slots
 
-UA = "Roamly-venue-loader/1.0 (+https://github.com/ssaillesh/Roamly)"
+UA = "Rova-venue-loader/1.0 (+https://github.com/ssaillesh/Roamly)"
 S3 = "s3://overturemaps-us-west-2/release/{release}/theme={theme}/type={type}/*"
 OVERPASS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter",
             "https://overpass.private.coffee/api/interpreter"]

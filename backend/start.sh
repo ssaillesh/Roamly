@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Production entrypoint: apply DB migrations, then start the API. (The old
 # TrekRank background worker, badge seeding and trip healing are gone — nothing
-# in Roamly needs a worker; the planner caches in Redis directly.)
+# in Rova needs a worker; the planner caches in Redis directly.)
 set -e
 
 # Log which database host this deploy will use (host only — never the password)

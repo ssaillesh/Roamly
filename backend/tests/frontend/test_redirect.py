@@ -38,11 +38,11 @@ ATTACKS = [
     "x" * 3000,
 ]
 LEGIT = {
-    "roamly.html": "/roamly.html",
-    "/roamly.html": "/roamly.html",
+    "rova.html": "/rova.html",
+    "/rova.html": "/rova.html",
     "admin.html": "/admin.html",
-    "roamly.html?q=date%20night#top": "/roamly.html?q=date%20night#top",
-    "profile.html?redirect=roamly.html": "/profile.html?redirect=roamly.html",
+    "rova.html?q=date%20night#top": "/rova.html?q=date%20night#top",
+    "profile.html?redirect=rova.html": "/profile.html?redirect=rova.html",
     "/": "/",
 }
 
@@ -55,7 +55,7 @@ def ctx(browser, site):
 
     def make(signed_in=False):
         c = browser.new_context()
-        c.add_init_script("try{localStorage.setItem('roamly_consent','no');"
+        c.add_init_script("try{localStorage.setItem('rova_consent','no');"
                           + (f"localStorage.setItem('trek_token','{TOKEN}');" if signed_in else "") + "}catch(e){}")
         c.dialogs, c.offsite = [], []
 
@@ -66,7 +66,7 @@ def ctx(browser, site):
                 return r.fulfill(status=200, json=OK)
             if req.url.startswith(site):
                 path = urlsplit(req.url).path
-                if path in ("/roamly", "/roamly.html", "/admin", "/admin.html", "/profile", "/profile.html") \
+                if path in ("/rova", "/rova.html", "/admin", "/admin.html", "/profile", "/profile.html") \
                         and req.is_navigation_request() and c.stub_landing:
                     return r.fulfill(status=200, content_type="text/html", body="<title>landed</title>")
                 return r.continue_()
@@ -99,9 +99,9 @@ def test_safe_redirect_rejects_attacks_and_keeps_real_pages(ctx, site):
     page = _page(ctx())
     page.goto(f"{site}/auth?mode=login")
     got = page.evaluate("xs => xs.map(x => safeRedirect(x))", ATTACKS)
-    assert got == ["/roamly.html"] * len(ATTACKS)
+    assert got == ["/rova.html"] * len(ATTACKS)
     assert page.evaluate("() => [safeRedirect(null), safeRedirect(undefined), safeRedirect(''), safeRedirect(42)]") \
-        == ["/roamly.html"] * 4
+        == ["/rova.html"] * 4
     assert page.evaluate("xs => xs.map(x => safeRedirect(x))", list(LEGIT)) == list(LEGIT.values())
     assert page.evaluate("() => safeRedirect('javascript:x', '/profile.html')") == "/profile.html"
 
@@ -113,13 +113,13 @@ def test_signed_in_visitor_is_never_sent_off_site_or_to_a_script(ctx, site, atta
     c = ctx(signed_in=True)
     page = _page(c)
     page.goto(f"{site}/auth?redirect={quote(attack, safe='')}")
-    assert _landed(page, site, "/roamly.html") == "/roamly.html"
+    assert _landed(page, site, "/rova.html") == "/rova.html"
     assert c.dialogs == []
     assert not [u for u in c.offsite if EVIL in u]
 
 
-@pytest.mark.parametrize("value, path", [("admin.html", "/admin.html"), ("roamly.html?q=date%20night", "/roamly.html?q=date%20night"),
-                                         ("/roamly.html#saved", "/roamly.html#saved")])
+@pytest.mark.parametrize("value, path", [("admin.html", "/admin.html"), ("rova.html?q=date%20night", "/rova.html?q=date%20night"),
+                                         ("/rova.html#saved", "/rova.html#saved")])
 def test_signed_in_visitor_still_goes_where_the_link_meant(ctx, site, value, path):
     page = _page(ctx(signed_in=True))
     page.goto(f"{site}/auth?redirect={quote(value, safe='')}")
@@ -144,7 +144,7 @@ def test_signing_in_from_a_crafted_link_is_safe(ctx, site, attack):
     c = ctx()
     page = _page(c)
     _sign_in(page, site, attack)
-    assert _landed(page, site, "/roamly.html") == "/roamly.html"
+    assert _landed(page, site, "/rova.html") == "/rova.html"
     assert c.dialogs == [] and not [u for u in c.offsite if EVIL in u]
 
 
@@ -158,15 +158,15 @@ def test_signing_up_hands_only_a_safe_page_to_the_taste_survey(ctx, site):
     c = ctx()
     page = _page(c)
     _sign_in(page, site, "javascript:alert(document.domain)", mode="register")
-    assert _landed(page, site, "") == "/profile.html?redirect=%2Froamly.html"
+    assert _landed(page, site, "") == "/profile.html?redirect=%2Frova.html"
     assert c.dialogs == []
 
 
 # ---- the taste page's own ?redirect= -------------------------------------------------------
 
-@pytest.mark.parametrize("value, expect", [("javascript:alert(localStorage.getItem('trek_token'))", "/roamly.html"),
-                                           (f"//{EVIL}/steal", "/roamly.html"),
-                                           ("roamly.html?q=brunch", "/roamly.html?q=brunch")])
+@pytest.mark.parametrize("value, expect", [("javascript:alert(localStorage.getItem('trek_token'))", "/rova.html"),
+                                           (f"//{EVIL}/steal", "/rova.html"),
+                                           ("rova.html?q=brunch", "/rova.html?q=brunch")])
 def test_taste_page_only_links_back_to_this_site(ctx, site, value, expect):
     c = ctx(signed_in=True)
     c.stub_landing = False                       # load the real taste page (its API calls just fail)
