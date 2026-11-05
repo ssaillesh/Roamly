@@ -36,6 +36,9 @@ class Venue(Base):
     # How well known: Wikipedia language editions covering it (Wikidata sitelinks); 0 = none
     notability: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     wikidata: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # A photo URL: the website's preview image (og:image), else the Wikimedia Commons
+    # photo. "" = the loader looked and found none; None = not looked at yet.
+    image: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

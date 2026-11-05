@@ -3,6 +3,9 @@ name: Refresh venues
 # Reloads the stored venue list the planner picks from (backend/scripts/load_venues.py):
 # Overture Maps places + Wikidata (how well known) + OpenStreetMap opening hours, all
 # free open data. Monthly is plenty: Overture publishes about once a month.
+# Photos: each venue website's own preview image, else its Wikimedia Commons photo,
+# in a step capped at 10 minutes; sites already checked keep last month's result.
+# Needs migration 0015_venue_images on the database (the API runs it on deploy).
 #
 # Needs one repository secret, VENUES_DATABASE_URL = the production database's
 # connection string (Neon → project → Connect, the same one as DATABASE_URL on Render). The loader
@@ -16,7 +19,8 @@ jobs:
   load:
     runs-on: ubuntu-24.04
     # ~3 min download + up to 8 min for opening hours (the public OSM servers are often slow)
-    timeout-minutes: 30
+    # + up to 10 min for photos
+    timeout-minutes: 35
     defaults:
       run:
         working-directory: backend

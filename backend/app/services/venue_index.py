@@ -208,7 +208,7 @@ def covers(lat: float, lng: float) -> bool:
 def _row_dict(v: Venue) -> dict:
     return {"source": "overture", "id": v.id, "name": v.name, "lat": v.lat, "lng": v.lng,
             "rating": None, "review_count": None, "price": None,
-            "categories": list(v.categories or [v.category]), "address": v.address, "image": None,
+            "categories": list(v.categories or [v.category]), "address": v.address, "image": v.image or None,
             "url": v.website, "notability": v.notability, "chain": v.chain, "fast_food": v.fast_food,
             "hours": v.hours}
 

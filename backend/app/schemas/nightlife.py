@@ -24,6 +24,7 @@ class Spot(BaseModel):
     categories: list[str] = []
     url: str | None = None
     address: str | None = None
+    image: str | None = None                   # the venue's photo (website preview or Wikimedia Commons)
     hours: str | None = None
     notability: float = 0
     open_tonight: bool | None = None           # None = hours unknown

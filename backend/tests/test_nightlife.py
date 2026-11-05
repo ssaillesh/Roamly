@@ -29,7 +29,7 @@ def _v(key, name, cats, dlat=0.001, slots=("leisure", "drinks")):
 @pytest.fixture
 def town():
     rows = [
-        _v("club", "Neon Club", ["dance club", "bar"]),
+        {**_v("club", "Neon Club", ["dance club", "bar"]), "image": "https://neonclub.example/og.jpg"},
         _v("pub", "Kelly's Irish Pub", ["irish pub", "pub", "bar"], 0.002),
         _v("gay", "Rainbow Room", ["gay bar", "bar"], 0.0025),
         _v("hall", "Grand Concert Hall", ["music venue", "performing arts venue"], 0.003),
@@ -111,6 +111,9 @@ def test_nightlife_endpoint(client, town, ticketmaster):
     assert r.status_code == 200, r.text
     body = r.json()
     assert body["covered"] and body["window"] == "weekend" and body["spots"]
+    photos = {sp["name"]: sp["image"] for sp in body["spots"]}
+    assert photos["Neon Club"] == "https://neonclub.example/og.jpg"     # the loader's photo reaches the page
+    assert photos["Kelly's Irish Pub"] is None                          # none stored → the page's icon
     assert client.get("/api/v1/nightlife?lat=10&lng=10&window=forever",
                       headers=auth_headers(token)).status_code == 422
 

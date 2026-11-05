@@ -65,3 +65,77 @@ def test_junk_stays_out_and_only_lively_neighbourhoods_count():
     assert "Scotiabank Arena" not in by_name             # events, not a drinks stop
     assert by_name["Kensington Market"]["slots"] == ["scenic"]
     assert "Willowdale" not in by_name                   # nothing to do there
+
+
+# ---- photos: website preview image, else Wikimedia Commons ----
+
+def test_og_image_is_read_resolved_and_made_https():
+    page = """<head><meta name="twitter:image" content="/tw.jpg">
+      <meta content="http://cdn.example.com/a&amp;b/room.jpg" property="og:image"></head>"""
+    assert L.og_image(page, "https://bar.example.com/menu/") == "https://cdn.example.com/a&b/room.jpg"
+    # og:image missing → twitter:image, relative to the page
+    assert L.og_image('<meta name="twitter:image" content="img/tw.jpg">', "https://bar.example.com/menu/") \
+        == "https://bar.example.com/menu/img/tw.jpg"
+    assert L.og_image("<head><title>No preview</title></head>", "https://x.example") is None
+
+
+def test_logos_and_placeholders_are_not_photos():
+    logo = '<meta property="og:image" content="https://x.example/wp-content/uploads/LOGO-dark.png">'
+    svg = '<meta property="og:image" content="https://x.example/brand.svg">'
+    assert L.og_image(logo, "https://x.example") is None
+    assert L.og_image(svg, "https://x.example") is None
+    # …but a real photo after a logo candidate still counts
+    both = logo.replace("og:image", "og:image:secure_url") + '<meta property="og:image" content="/patio.jpg">'
+    assert L.og_image(both, "https://x.example") == "https://x.example/patio.jpg"
+
+
+def test_social_and_aggregator_links_are_not_fetched():
+    assert not L.own_site("https://www.instagram.com/barraval/")
+    assert not L.own_site("https://m.facebook.com/somebar")
+    assert L.own_site("https://www.barraval.com/")
+    assert L.fetch_og_image(None, "instagram.com/barraval") == ""      # never touches the network
+
+
+def test_commons_thumbnail():
+    p18 = "http://commons.wikimedia.org/wiki/Special:FilePath/Massey%20Hall%202021.jpg"
+    assert L.commons_thumb(p18) == "https://commons.wikimedia.org/wiki/Special:FilePath/Massey%20Hall%202021.jpg?width=640"
+    assert L.commons_thumb("http://commons.wikimedia.org/wiki/Special:FilePath/Map.svg") is None
+    assert L.commons_thumb(None) is None
+
+
+def _v(vid, website=None, wd=None, slots=("drinks",), notability=0.0):
+    return {"id": vid, "website": website, "_wd_image": wd, "slots": list(slots), "notability": notability}
+
+
+def test_earlier_results_are_reused_and_only_new_sites_fetched():
+    commons = "https://commons.wikimedia.org/wiki/Special:FilePath/X.jpg?width=640"
+    prev = {"a": ("https://a.example", "https://a.example/og.jpg"),   # found last time
+            "b": ("https://b.example", ""),                           # looked, nothing
+            "c": ("https://old-c.example", "https://old-c.example/og.jpg"),  # website changed
+            "d": ("https://d.example", None),                         # never reached
+            "e": ("https://e.example", commons)}                      # website gave nothing usable then
+    venues = [_v("a", "https://a.example"), _v("b", "https://b.example"), _v("c", "https://c.example"),
+              _v("d", "https://d.example"), _v("e", "https://e.example", wd=commons), _v("f"),
+              _v("g", "https://c.example", slots=("activity",))]
+    assert L.sites_to_fetch(venues, prev) == ["https://c.example", "https://d.example", "https://e.example"]
+    fetched = {"https://c.example": "https://c.example/new.jpg", "https://d.example": None, "https://e.example": ""}
+    L.assign_images(venues, prev, fetched)
+    got = {v["id"]: v["image"] for v in venues}
+    assert got == {"a": "https://a.example/og.jpg", "b": "", "c": "https://c.example/new.jpg",
+                   "d": None,                      # still unreached: look again next month
+                   "e": commons,                   # the website had nothing → Commons photo
+                   "f": "",                        # no website, no Commons photo
+                   "g": "https://c.example/new.jpg"}   # same website, fetched once
+    assert all("_wd_image" not in v for v in venues)
+
+
+def test_night_spots_are_looked_at_first():
+    venues = [_v("museum", "https://m.example", slots=("activity",), notability=40),
+              _v("diner", "https://d.example", slots=("dinner",)),
+              _v("bar", "https://b.example", slots=("drinks",))]
+    assert L.sites_to_fetch(venues, {}) == ["https://b.example", "https://d.example", "https://m.example"]
+
+
+def test_wikidata_photo_follows_the_fame_match():
+    by_name, rows = _build()
+    assert all("_wd_image" in v for v in rows)
