@@ -177,6 +177,15 @@ def test_request_stats_group_by_route_template(client):
     assert "unmatched" in stats
 
 
+def test_health_pings_are_not_recorded(client):
+    # The uptime pinger hits /health every 5 min; recording it would write to the
+    # database every few minutes and stop Neon's free compute from ever idling.
+    request_stats.drain()
+    assert client.get("/health").status_code == 200
+    client.head("/health")
+    assert request_stats.drain() == {}
+
+
 def test_usage_counter_counts_errors():
     usage.drain()
     usage.record("yelp", ok=True)

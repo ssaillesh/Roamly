@@ -3,7 +3,7 @@
 Plain ASGI (not BaseHTTPMiddleware) so it adds next to nothing per request.
 Stats pile up in memory and services/analytics.flush_stats() saves them to
 `health_snapshots` once a minute, which survives Render sleeping the server
-(Prometheus' /metrics counters don't).
+(Prometheus' /metrics counters don't). A minute with no requests writes nothing.
 """
 import threading
 import time
@@ -12,6 +12,7 @@ from collections import defaultdict
 _lock = threading.Lock()
 _window: dict[str, list] = defaultdict(lambda: [[], 0, 0])   # route -> [latencies_ms, 4xx, 5xx]
 _paths: dict = {}   # endpoint function -> route path, filled in lazily
+SKIP_PATHS = frozenset({"/health"})   # never recorded (see RequestStatsMiddleware)
 
 
 def _route_of(scope) -> str:
@@ -52,7 +53,11 @@ class RequestStatsMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope.get("method") == "OPTIONS":
+        # /health is the uptime pinger (cron-job.org, every 5 min), not a visitor. Counting
+        # it would write a snapshot every few minutes and keep the database from ever
+        # idling: Neon's free plan only sleeps after ~5 quiet minutes and has a monthly
+        # compute allowance.
+        if scope["type"] != "http" or scope.get("method") == "OPTIONS" or scope.get("path") in SKIP_PATHS:
             return await self.app(scope, receive, send)
         start = time.perf_counter()
         status = 500   # an exception that escapes the app is a 500

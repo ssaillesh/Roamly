@@ -5,7 +5,7 @@ name: Refresh venues
 # free open data. Monthly is plenty: Overture publishes about once a month.
 #
 # Needs one repository secret, VENUES_DATABASE_URL = the production database's
-# External Database URL (Render → database → Connect → External). The loader
+# connection string (Neon → project → Connect, the same one as DATABASE_URL on Render). The loader
 # refuses to write if the download looks broken, so a bad month keeps last month's list.
 on:
   schedule:
