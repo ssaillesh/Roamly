@@ -1,4 +1,4 @@
-/* Roamly design system — shared by the planner, My taste and sign-in pages.
+/* Rova design system — shared by the planner, My taste and sign-in pages.
    One set of tokens + components so every screen feels like the same app.
    Performance rules (see the lag fixes): no backdrop-filter, no infinite
    animations over large layers — "glass" is simulated with solid surfaces. */
@@ -81,9 +81,8 @@ img{display:block; max-width:100%;}
 
 /* ---------------------------------------------------------------- logo */
 .logo{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:20px; letter-spacing:-.03em; color:var(--ink);}
-.logo-mark{width:24px; height:32px; flex:0 0 auto;}   /* the star is tall: brand/roamly.svg#mark */
-.wordmark{display:block; width:75px; height:22px; flex:0 0 auto;}   /* brand/roamly.svg#wordmark */
-.logo.on-dark{color:#fff;}
+.wordmark{display:block; width:85px; height:20px; flex:0 0 auto;}   /* brand/roamly.svg#wordmark: R O [route mark] A */
+.logo.on-dark{color:#fff; --rova-accent:#D4B47A;}
 
 /* ---------------------------------------------------------------- buttons */
 .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:44px; padding:0 20px;

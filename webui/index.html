@@ -6,711 +6,460 @@
 <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
 <link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
-<title>Roamly — your night, planned</title>
-<meta name="description" content="Tell Roamly your vibe, your people, your budget and your neighbourhood. Get a real, timed night out: places that are open, walking routes, and a budget that adds up." />
-<meta name="theme-color" content="#161826" />
+<title>Rova — plan less, go out more</title>
+<meta name="description" content="Tell Rova the mood. It finds the places worth going to, times every stop, and keeps the whole night on budget." />
+<meta name="theme-color" content="#F4EFE6" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" />
+<link rel="preconnect" href="https://images.unsplash.com" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" />
 <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 
 <!-- Open Graph -->
-<meta property="og:title" content="Roamly — your night, planned" />
-<meta property="og:description" content="A chill night for two, around $60 each, in Queen West. Roamly turns that into a real plan, hour by hour." />
+<meta property="og:title" content="Rova — plan less, go out more" />
+<meta property="og:description" content="Tell Rova the mood. It finds the places worth going to, times every stop, and keeps the whole night on budget." />
 <meta property="og:type" content="website" />
 
 <script src="/config.js"></script>
 
 <style>
-  /* Nocturne tokens (from the Roamly UI redesign) */
+  /* Rova system: ivory by day, charcoal by night, one champagne accent.
+     Brass is the accent darkened enough to read as text on ivory. */
   :root{
-    --color-bg:#161826; --color-surface:#232532; --color-text:#e9e9ed;
-    --color-accent:#9184d9;
-    --color-divider:color-mix(in srgb,#e9e9ed 16%,transparent);
-    --color-neutral-100:#f3f5fe; --color-neutral-300:#cfd3e5; --color-neutral-400:#b2b6ca;
-    --color-neutral-500:#9397ab; --color-neutral-600:#75798c; --color-neutral-700:#595d6c;
-    --color-neutral-800:#3f424d; --color-neutral-900:#292b31;
-    --color-accent-100:#f5f4ff; --color-accent-200:#e7e5fe; --color-accent-300:#d2cefd;
-    --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --shadow-sm:0 0 0 1px #3f424d;
-    --shadow-md:0 0 0 1px #595d6c,0 6px 18px rgba(0,0,0,.55);
+    --ivory:#F4EFE6; --paper:#FBF8F3; --ink:#161513; --charcoal:#141311;
+    --stone:#6B665D; --muted:#8A8478; --line:#E4DDD0; --line-2:#D8D0C1;
+    --champagne:#D9BC85; --underline:#D4B47A; --brass:#8C6A2F;
+    --serif:"Instrument Serif",Georgia,serif;
+    --sans:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
     --ease:cubic-bezier(.22,1,.36,1);
     --gutter:56px; --maxw:1280px;
-    /* rules fade out at both ends */
-    --rule:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent);
   }
   *,*::before,*::after{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  body{margin:0; background:var(--color-bg); color:var(--color-text); font-family:var(--font);
-    font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; overflow-x:clip;}
+  body{margin:0; background:var(--ivory); color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.5;
+    -webkit-font-smoothing:antialiased; overflow-x:clip;}
   a{color:inherit; text-decoration:none;}
   img{display:block; max-width:100%;}
-  button{font:inherit; color:inherit;}
+  button{font:inherit; color:inherit; cursor:pointer;}
   :focus{outline:none;}
-  :focus-visible{outline:2px solid var(--color-accent); outline-offset:3px; border-radius:4px;}
-  ::selection{background:color-mix(in srgb,var(--color-accent) 30%,transparent);}
+  :focus-visible{outline:2px solid var(--brass); outline-offset:3px; border-radius:6px;}
+  ::selection{background:color-mix(in srgb,var(--champagne) 55%,transparent);}
   .num{font-variant-numeric:tabular-nums;}
-  .page{position:relative; overflow:hidden;}
-  .wrap{position:relative; max-width:var(--maxw); margin:0 auto; padding:0 var(--gutter);}
-  .glow{position:absolute; left:-200px; top:-260px; width:900px; height:900px; border-radius:50%;
-    pointer-events:none; background:radial-gradient(circle,color-mix(in srgb,var(--color-accent) 16%,transparent),transparent 62%);}
-  .eyebrow{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-neutral-500);}
+  .serif{font-family:var(--serif); font-style:italic; font-weight:400;}
+  .wrap{max-width:var(--maxw); margin:0 auto; padding-left:var(--gutter); padding-right:var(--gutter);}
+  .label{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--stone);}
+  .sr-only{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+  .photo{width:100%; height:100%; object-fit:cover; background:#E9E2D5;}
 
   /* buttons */
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;
-    font-weight:500; font-size:14px; line-height:1.2; border-radius:999px; border:1px solid transparent;
-    background:transparent; color:var(--color-text); white-space:nowrap; transition:background .2s;}
-  .btn-primary{color:var(--color-accent); border-color:var(--color-accent);}
-  .btn-primary:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
-  .btn-primary:active{background:color-mix(in srgb,var(--color-accent) 22%,transparent);}
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:10px; border:0; border-radius:999px;
+    font-weight:500; white-space:nowrap; transition:background .2s,transform .2s var(--ease);}
+  .btn-ink{background:var(--ink); color:var(--ivory);}
+  .btn-ink:hover{background:#2A2824;}
+  .btn-ink:active{transform:scale(.98);}
+
+  /* wordmark: R O [route mark] A */
+  .wm{display:inline-flex; align-items:center; font-weight:600; letter-spacing:.02em; line-height:1; color:var(--ink);}
+  .wm .r{margin-right:.12em;} .wm .o{margin-right:.1em;} .wm .a{margin-left:.08em;}
+  .wm svg{width:.78em; height:.76em; overflow:visible;}
 
   /* nav */
-  .nav{display:flex; align-items:center; gap:32px; padding-top:22px; padding-bottom:22px;}
-  .nav .logo img{height:26px; width:auto;}
-  .nav .links{display:flex; gap:28px; font-size:14px; color:var(--color-neutral-400);}
-  .nav .links a:hover{color:var(--color-text);}
-  .nav .acts{margin-left:auto; display:flex; align-items:center; gap:20px; font-size:14px;}
-  .nav .signin{color:var(--color-neutral-300);}
-  .nav .signin:hover{color:var(--color-text);}
-  .nav .btn{padding:8px 18px;}
+  .nav{display:flex; align-items:center; gap:44px; padding-top:24px; padding-bottom:24px;}
+  .nav .wm{font-size:20px;}
+  .nav .links{display:flex; gap:30px; font-size:14px; color:var(--stone);}
+  .nav .links a:hover,.nav .links a[aria-current]{color:var(--ink);}
+  .nav .links a[aria-current]{font-weight:500;}
+  .nav .acts{margin-left:auto; display:flex; align-items:center; gap:22px; font-size:14px;}
+  .nav .city{display:flex; align-items:center; gap:6px; color:var(--stone);}
+  .nav .btn{height:40px; padding:0 20px; font-size:14px;}
 
-  .btn-secondary{border-color:var(--color-divider);}
-  .btn-secondary:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent);}
-  .btn-secondary:active{background:color-mix(in srgb,var(--color-text) 14%,transparent);}
+  /* hero */
+  .hero{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.08fr); gap:56px; align-items:center; padding-top:40px;}
+  .hero-l{display:flex; flex-direction:column; gap:30px;}
+  .when{display:flex; align-items:center; gap:10px;}
+  .when::before{content:''; width:6px; height:6px; border-radius:50%; background:var(--brass);}
+  .hero h1{margin:0; font-size:clamp(52px,6.3vw,80px); line-height:.96; letter-spacing:-.048em; font-weight:600;}
+  .hero h1 .serif{font-size:1.1em; letter-spacing:-.02em;}
+  .greet{display:none; margin:0; font-size:34px; line-height:1; font-weight:600; letter-spacing:-.04em;}
+  .greet .serif{font-size:1.09em;}
+  .lede{margin:0; font-size:18px; line-height:1.55; color:var(--stone); max-width:460px; text-wrap:pretty;}
+  .composer{background:var(--paper); border:1px solid var(--line); border-radius:22px; padding:24px 24px 20px;
+    display:flex; flex-direction:column; gap:20px; box-shadow:0 1px 0 #fff inset,0 24px 60px -30px rgba(60,40,10,.25);}
+  .sentence{margin:0; font-size:25px; line-height:1.4; letter-spacing:-.02em; color:var(--muted); text-wrap:pretty;}
+  .tok{display:inline-block; padding:0; border:0; background:none; font:inherit; letter-spacing:inherit; line-height:1.15;
+    color:var(--ink); font-weight:500; border-bottom:1.5px solid var(--underline); transition:border-color .2s;}
+  .tok:hover{border-bottom-color:var(--brass);}
+  .composer .row{display:flex; align-items:center; gap:18px; flex-wrap:wrap;}
+  .composer .btn{height:52px; padding:0 26px; font-size:15px;}
+  .surprise{display:inline-flex; align-items:center; gap:6px; border:0; background:none; padding:4px 0; font-size:14px; color:var(--ink);}
+  .surprise:hover{color:var(--brass);}
+  .composer .tip{margin-left:auto; font-size:12px; color:var(--muted);}
 
-  /* intro: headline over the animated route map */
-  .intro{display:flex; flex-direction:column; align-items:center; text-align:center; gap:20px; padding-top:96px;}
-  .intro h1{margin:0; font-size:clamp(46px,6.6vw,84px); line-height:.98; letter-spacing:-.045em; font-weight:500; max-width:900px;}
-  .intro .lede{margin:0; font-size:clamp(17px,1.6vw,20px); line-height:1.5; color:var(--color-neutral-300); max-width:560px; text-wrap:pretty;}
-  .intro .cta-row{justify-content:center; gap:12px; margin-top:8px;}
-  .intro .cta-row .btn{height:48px; padding:0 24px;}
-  .mapsec{padding-top:72px;}
-  .mapbox{position:relative; border-radius:18px; overflow:hidden; background:var(--color-bg);
-    box-shadow:0 0 0 1px var(--color-neutral-800),0 40px 100px rgba(0,0,0,.6);}
-  .map{position:relative; overflow:hidden; height:580px;
-    background:
-      repeating-linear-gradient(90deg,transparent 0 80px,color-mix(in srgb,var(--color-text) 3%,transparent) 80px 81px),
-      repeating-linear-gradient(0deg,transparent 0 80px,color-mix(in srgb,var(--color-text) 3%,transparent) 80px 81px),
-      radial-gradient(circle at 62% 45%,var(--color-neutral-900),var(--color-bg) 78%);}
-  .map svg{position:absolute; inset:0; width:100%; height:100%;}
-  .street{stroke:color-mix(in srgb,var(--color-text) 9%,transparent);}
-  .street.minor{stroke:color-mix(in srgb,var(--color-text) 7%,transparent);}
-  .seg{fill:none; stroke:var(--color-accent); stroke-linejoin:round; filter:drop-shadow(0 0 6px var(--color-accent));}
-  .at{position:absolute; left:0; top:0;} /* placed in map coordinates by layoutMap() */
-  .sname{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-neutral-600); white-space:nowrap;}
-  .poi{width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:var(--color-neutral-700);}
-  .pin{display:flex; align-items:center; gap:8px; margin:-16px 0 0 -16px; transform-origin:16px 16px;
-    opacity:0; transform:scale(.3); transition:opacity .35s,transform .55s cubic-bezier(.34,1.56,.64,1);}
-  .pin .n{width:32px; height:32px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:13px;
-    background:var(--color-bg); color:var(--color-accent-200);
-    box-shadow:0 0 0 2px var(--color-accent),0 0 24px color-mix(in srgb,var(--color-accent) 55%,transparent);}
-  .pin.main .n{background:var(--color-accent); color:var(--color-bg); font-weight:600;
-    box-shadow:0 0 30px color-mix(in srgb,var(--color-accent) 70%,transparent);}
-  .pin .lbl{font-size:12px; padding:4px 9px; border-radius:6px; background:var(--color-surface); box-shadow:var(--shadow-sm); white-space:nowrap;}
-  .walker{display:none; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:var(--color-accent-100);
-    box-shadow:0 0 0 4px color-mix(in srgb,var(--color-accent) 35%,transparent),0 0 18px var(--color-accent);}
-  .panel{position:absolute; left:20px; top:20px; bottom:20px; width:340px; border-radius:16px; padding:18px;
-    display:flex; flex-direction:column; gap:6px; text-align:left; box-shadow:var(--shadow-md);
-    background:color-mix(in srgb,var(--color-surface) 85%,transparent); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);}
-  .panel .eyebrow{font-size:11px; letter-spacing:.12em; margin-bottom:6px;}
-  .place{display:flex; gap:12px; align-items:center; width:100%; padding:8px; border:0; border-radius:10px;
-    background:transparent; text-align:left; cursor:pointer; transition:background .3s;}
-  .place:hover{background:color-mix(in srgb,var(--color-text) 5%,transparent);}
-  .place.hint{background:color-mix(in srgb,var(--color-text) 7%,transparent);}
-  .place.on{background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
-  .place[disabled]{opacity:.55; cursor:default;}
-  .place[disabled]:hover{background:transparent;}
-  .place .th{width:48px; height:48px; flex:none; border-radius:9px; display:grid; place-items:center;
-    background:var(--color-neutral-900); color:var(--color-neutral-500); font-size:20px;}
-  .place .tx{flex:1; min-width:0; display:flex; flex-direction:column;}
-  .place .tx b{font-size:14px; font-weight:500;}
-  .place .tx span{font-size:12px; color:var(--color-neutral-400);}
-  .place > i{font-size:22px; color:var(--color-neutral-500); transition:color .3s;}
-  .place.on > i{color:var(--color-accent);}
-  .panel .foot{margin-top:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-neutral-500);}
-  .toast{position:absolute; left:380px; top:24px; display:none; align-items:center; gap:10px; padding:10px 16px;
-    border-radius:12px; background:var(--color-surface); box-shadow:var(--shadow-md); font-size:14px; text-align:left;}
-  .toast.on{display:flex;}
-  .toast::before{content:''; width:8px; height:8px; flex:none; border-radius:50%; background:var(--color-accent); box-shadow:0 0 10px var(--color-accent);}
-  .replay{position:absolute; top:20px; right:20px; display:none; padding:6px 14px; background:var(--color-surface);}
-  .replay.on{display:inline-flex;}
-  .tray{position:absolute; right:20px; bottom:20px; display:flex; align-items:center; gap:16px; padding:8px 8px 8px 20px;
-    border-radius:999px; font-size:14px; box-shadow:var(--shadow-md);
-    background:color-mix(in srgb,var(--color-surface) 88%,transparent); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);}
-  .tray b{font-weight:500;}
-  .tray .dim{color:var(--color-neutral-400);}
-  .review{height:36px; flex:none; display:flex; align-items:center; gap:6px; padding:0 14px; border-radius:999px;
-    color:var(--color-accent); box-shadow:inset 0 0 0 1px var(--color-accent); transition:background .4s;}
-  .review.ready{background:color-mix(in srgb,var(--color-accent) 18%,transparent);}
-  /* narrow map: crop to the route, list and tray stack underneath */
-  .mapbox.narrow .panel,.mapbox.narrow .tray{position:static; width:auto; box-shadow:none; border-radius:0;
-    -webkit-backdrop-filter:none; backdrop-filter:none; background:var(--color-surface);}
-  .mapbox.narrow .panel{padding:16px 12px 12px;}
-  .mapbox.narrow .panel .foot{margin-top:6px; padding-left:8px;}
-  .mapbox.narrow .tray{justify-content:space-between; padding:10px 10px 10px 18px; font-size:13px;
-    border-top:1px solid var(--color-divider);}
-  .mapbox.narrow .pin .lbl{display:none;}
-  .mapbox.narrow .toast{left:12px; right:12px; top:12px; font-size:13px;}
-  .mapbox.narrow .replay{top:auto; bottom:12px; right:12px;}
+  .shot{position:relative; height:640px; border-radius:26px; overflow:hidden;}
+  .shot .chip{position:absolute; top:22px; left:22px; display:flex; align-items:center; gap:6px; padding:7px 12px;
+    border-radius:999px; background:rgba(251,248,243,.92); font-size:12px; font-weight:500;}
+  .plan{position:absolute; left:22px; bottom:22px; width:340px; background:var(--paper); border-radius:20px; padding:18px;
+    display:flex; flex-direction:column; gap:14px; box-shadow:0 30px 60px -20px rgba(20,15,5,.45);}
+  .plan-hd{display:flex; justify-content:space-between; align-items:baseline;}
+  .plan-hd b{font-size:15px; font-weight:600; letter-spacing:-.01em;}
+  .plan-hd span{font-size:12px; color:var(--stone);}
+  .plan ol{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px;}
+  .plan li{display:grid; grid-template-columns:44px 40px 1fr; gap:12px; align-items:center;}
+  .plan li img{width:44px; height:44px; border-radius:10px; object-fit:cover;}
+  .plan li .t{font-size:13px; color:var(--stone);}
+  .plan li .n{font-size:14px; font-weight:500;}
+  .plan li .n span{font-weight:400; color:var(--muted);}
+  .plan-ft{display:flex; justify-content:space-between; padding-top:12px; border-top:1px solid var(--line); font-size:12px; color:var(--stone);}
+  .plan-ft span{display:flex; align-items:center; gap:6px;}
 
-  /* hero: the living sentence */
-  .hero{display:grid; grid-template-columns:1.12fr 1fr; gap:64px; align-items:start; padding-top:150px;}
-  .hero-l{display:flex; flex-direction:column; gap:32px;}
-  .live{display:flex; align-items:center; gap:8px; color:var(--color-neutral-400);}
-  .live::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--color-accent);
-    box-shadow:0 0 10px var(--color-accent);}
-  .sentence{margin:0; font-size:clamp(36px,4.7vw,60px); line-height:1.14; letter-spacing:-.035em;
-    font-weight:400; color:var(--color-neutral-500); text-wrap:pretty;}
-  .tok{display:inline-block; cursor:pointer; padding:0; border:0; background:none; font:inherit;
-    letter-spacing:inherit; line-height:inherit; color:var(--color-text);
-    border-bottom:2px dashed var(--color-accent); transition:border-color .2s;}
-  .tok:hover{border-bottom-color:var(--color-accent-300);}
-  .cta-row{display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
-  .cta-row .btn{height:50px; padding:0 26px; font-size:15px;}
-  .cta-row .note{font-size:14px; color:var(--color-neutral-500);}
-  .hint{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--color-neutral-500); min-height:20px;}
-  .resume{display:none; align-items:center; gap:5px; cursor:pointer; border:0; background:none; padding:0;
-    font-size:13px; color:var(--color-accent-300);}
-  .resume.on{display:inline-flex;}
-  .resume:hover{color:var(--color-accent-200);}
+  /* section heads */
+  .sec{padding-top:120px; display:flex; flex-direction:column; gap:28px;}
+  .sec-hd{display:flex; align-items:flex-end; justify-content:space-between; gap:24px;}
+  .sec-hd > div{display:flex; flex-direction:column; gap:6px;}
+  .sec-hd h2{margin:0; font-size:40px; line-height:1.1; font-weight:600; letter-spacing:-.035em;}
+  .sec-hd .more{display:flex; align-items:center; gap:6px; font-size:14px; white-space:nowrap;}
+  .sec-hd .more:hover{color:var(--brass);}
+  .sec-hd .aside{max-width:300px; text-align:right; font-size:14px; color:var(--stone);}
 
-  /* plan card */
-  .card{margin-top:20px; background:color-mix(in srgb,var(--color-surface) 88%,transparent);
-    -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); border-radius:18px; padding:28px;
-    display:flex; flex-direction:column; gap:22px; box-shadow:var(--shadow-md);}
-  .card-hd{display:flex; justify-content:space-between; align-items:baseline; gap:16px;}
-  .card-hd .k{display:block; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-accent-300);}
-  .card-hd .t{display:block; font-size:26px; font-weight:500; letter-spacing:-.02em; line-height:1.25;}
-  .card-hd .a{font-size:13px; color:var(--color-neutral-400); white-space:nowrap;}
-  .route{position:relative; height:44px;}
-  .route .track,.route .line{position:absolute; left:8px; right:8px; top:9px; height:2px; background:var(--color-neutral-800);}
-  .route .line{background:var(--color-accent); box-shadow:0 0 10px var(--color-accent); transform-origin:left center;}
-  .route .dots{position:absolute; inset:0; display:flex; justify-content:space-between;}
-  .dot{display:flex; flex-direction:column; align-items:center; gap:6px; width:16px;}
-  .dot i{width:16px; height:16px; border-radius:50%; background:var(--color-bg);
-    box-shadow:0 0 0 2px var(--color-accent),0 0 14px color-mix(in srgb,var(--color-accent) 60%,transparent);}
-  .dot span{font-size:11px; color:var(--color-neutral-400); white-space:nowrap;}
-  .stats{display:grid; grid-template-columns:repeat(3,1fr); padding:14px 0;
-    background:var(--rule) no-repeat top/100% 1px,var(--rule) no-repeat bottom/100% 1px;}
-  .stats div{display:flex; flex-direction:column; gap:2px;}
-  .stats b{font-size:26px; font-weight:400; letter-spacing:-.02em;}
-  .stats span{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--color-neutral-500);}
-  .mini{display:grid; grid-template-columns:64px 1fr; align-items:baseline; padding:9px 0;}
-  .mini .tm{font-size:20px; font-weight:300; color:var(--color-accent-300); letter-spacing:-.02em;}
-  .mini .nm{display:block; font-size:16px;}
-  .mini .wh{display:block; font-size:13px; color:var(--color-neutral-500);}
+  /* moods */
+  .moods{display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:16px;}
+  .mood{position:relative; height:360px; border-radius:20px; overflow:hidden; isolation:isolate;}
+  .mood img{transition:transform .6s var(--ease);}
+  .mood:hover img{transform:scale(1.04);}
+  .mood::after{content:''; position:absolute; inset:0; background:linear-gradient(to top,rgba(17,17,16,.74),rgba(17,17,16,0) 52%);}
+  .mood .cap{position:absolute; z-index:1; left:18px; right:18px; bottom:18px; display:flex; flex-direction:column; gap:2px; color:var(--paper);}
+  .mood b{font-size:21px; font-weight:600; letter-spacing:-.02em;}
+  .mood span{font-size:13px; color:rgba(251,248,243,.82);}
 
-  /* hour by hour */
-  .hours-hd{display:flex; flex-direction:column; gap:10px; padding-top:150px;}
-  .hours-hd h2{margin:0; font-size:clamp(34px,4.1vw,52px); line-height:1.04; font-weight:500; letter-spacing:-.035em;}
-  .hours{margin-top:40px;}
-  .hour{display:grid; grid-template-columns:260px 1fr 400px; gap:40px; align-items:center;
-    padding:30px var(--gutter); max-width:var(--maxw); margin:0 auto; background:var(--rule) no-repeat top/100% 1px;}
-  .hour .big{font-size:76px; font-weight:300; letter-spacing:-.045em; line-height:1; color:var(--color-accent-300);}
-  .hour .body{display:flex; flex-direction:column; gap:6px;}
-  .hour h3{margin:0; font-size:26px; font-weight:500; letter-spacing:-.02em; line-height:1.2;}
-  .hour p{margin:0; font-size:15px; color:var(--color-neutral-400); text-wrap:pretty;}
-  .hour .walk{display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:var(--color-neutral-500);}
-  .tile{position:relative; height:200px; border-radius:12px; overflow:hidden; display:grid; place-items:center;
-    background:
-      radial-gradient(circle at 28% 22%,color-mix(in srgb,var(--color-accent) 30%,transparent),transparent 58%),
-      radial-gradient(circle at 85% 90%,color-mix(in srgb,var(--color-accent) 14%,transparent),transparent 50%),
-      linear-gradient(140deg,var(--color-surface),var(--color-neutral-900));
-    box-shadow:var(--shadow-sm);}
-  .tile > i{font-size:56px; color:var(--color-accent-300); opacity:.9;}
-  .tile .cap{position:absolute; left:12px; bottom:12px; font-size:12px; padding:4px 10px; border-radius:999px;
-    background:color-mix(in srgb,var(--color-bg) 70%,transparent); color:var(--color-neutral-300);}
+  /* nights worth stealing */
+  .nights{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:24px;}
+  .night{display:flex; flex-direction:column; gap:14px;}
+  .collage{height:280px; display:grid; grid-template-columns:2fr 1fr; grid-template-rows:minmax(0,1fr) minmax(0,1fr); gap:4px;
+    border-radius:20px; overflow:hidden;}
+  .collage img:first-child{grid-row:span 2;}
+  .night .tx{display:flex; flex-direction:column; gap:4px;}
+  .night b{font-size:20px; font-weight:600; letter-spacing:-.02em; line-height:1.25;}
+  .night span{font-size:14px; color:var(--stone);}
+  .night:hover b{color:var(--brass);}
+  .night .thumb{display:none;}
 
-  /* features */
-  .feats{list-style:none; margin:0 auto; padding-top:130px; padding-bottom:0; display:grid;
-    grid-template-columns:repeat(4,minmax(0,1fr)); gap:36px;}
-  .feats li{display:flex; flex-direction:column; gap:6px;}
-  .feats i{font-size:22px; color:var(--color-accent);}
-  .feats b{font-size:16px; font-weight:500;}
-  .feats span{font-size:14px; color:var(--color-neutral-400);}
-
-  /* waitlist */
-  .wl{margin-top:130px;}
-  .wl-in{padding:64px 0; display:flex; align-items:flex-end; justify-content:space-between; gap:40px;
-    background:var(--rule) no-repeat top/100% 1px;}
-  .wl h2{margin:0 0 8px; font-size:40px; font-weight:500; letter-spacing:-.03em; line-height:1.1;}
-  .wl .sub{margin:0; font-size:16px; color:var(--color-neutral-400);}
-  .wl form{display:flex; gap:10px; width:440px; flex:none;}
-  .wl input{flex:1; min-width:0; height:46px; padding:0 20px; border-radius:999px; font:inherit; font-size:14px;
-    color:var(--color-text); caret-color:var(--color-accent); background:var(--color-surface);
-    border:1px solid var(--color-divider); transition:border-color .2s;}
-  .wl input::placeholder{color:var(--color-neutral-500);}
-  .wl input:hover{border-color:color-mix(in srgb,var(--color-text) 45%,transparent);}
-  .wl input:focus-visible{border-color:var(--color-accent); outline:none;}
-  .wl form .btn{height:46px; padding:0 22px; flex:none;}
-  .wl-note{min-height:20px; margin-top:10px; font-size:13px; color:var(--color-accent-300);}
-  .wl-side{display:flex; flex-direction:column;}
-
-  footer{display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;
-    padding-top:28px; padding-bottom:40px; font-size:13px; color:var(--color-neutral-500);}
+  /* waitlist + footer */
+  .wl{margin-top:120px;}
+  .wl-in{padding:56px 0; border-top:1px solid var(--line); display:flex; align-items:flex-end; justify-content:space-between; gap:40px;}
+  .wl h2{margin:0 0 8px; font-size:36px; font-weight:600; letter-spacing:-.03em; line-height:1.1;}
+  .wl p{margin:0; font-size:16px; color:var(--stone);}
+  .wl form{display:flex; gap:10px; width:460px; flex:none;}
+  .wl input{flex:1; min-width:0; height:50px; padding:0 20px; border-radius:999px; border:1px solid var(--line);
+    background:var(--paper); font:inherit; font-size:15px; color:var(--ink); transition:border-color .2s;}
+  .wl input::placeholder{color:var(--muted);}
+  .wl input:focus-visible{outline:none; border-color:var(--brass);}
+  .wl .btn{height:50px; padding:0 24px; font-size:15px; flex:none;}
+  .wl-note{min-height:20px; margin-top:10px; font-size:13px; color:var(--brass);}
+  footer{display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; padding-top:24px; padding-bottom:36px; font-size:13px; color:var(--muted);}
   footer .links{display:flex; gap:24px; flex-wrap:wrap;}
-  footer a:hover{color:var(--color-text);}
+  footer a:hover{color:var(--ink);}
+
+  /* phone tab bar (4e) */
+  .tabs{display:none;}
 
   /* tablet */
   @media (max-width:1100px){
     :root{--gutter:36px;}
-    .intro{padding-top:64px;}
-    .mapsec{padding-top:48px;}
-    .hero{grid-template-columns:1fr; gap:24px; padding-top:110px;}
-    .card{max-width:620px;}
-    .hours-hd{padding-top:110px;}
-    .hour{grid-template-columns:150px 1fr 300px; gap:28px;}
-    .hour .big{font-size:56px;}
-    .feats{grid-template-columns:repeat(2,minmax(0,1fr)); padding-top:100px;}
-    .wl{margin-top:100px;}
+    .nav{gap:28px;}
+    .nav .links{gap:22px;}
+    .nav .city{display:none;}
+    .hero{grid-template-columns:1fr; gap:40px; padding-top:32px;}
+    .shot{height:520px;}
+    .sec{padding-top:96px;}
+    .moods{display:flex; overflow-x:auto; scroll-snap-type:x mandatory; scrollbar-width:none;
+      margin:0 calc(var(--gutter) * -1); padding:0 var(--gutter); scroll-padding:0 var(--gutter);}
+    .moods::-webkit-scrollbar{display:none;}
+    .mood{flex:none; width:220px; height:300px; scroll-snap-align:start;}
+    .nights{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .wl{margin-top:96px;}
     .wl-in{flex-direction:column; align-items:stretch; gap:24px;}
-    .wl form{width:100%; max-width:480px;}
+    .wl form{width:100%; max-width:520px;}
   }
-  /* phone */
-  @media (max-width:720px){
-    :root{--gutter:20px;}
-    .nav{gap:16px;}
+  @media (max-width:860px){
     .nav .links{display:none;}
-    .nav .acts{gap:14px;}
-    .nav .btn{padding:8px 14px;}
-    .intro{padding-top:40px; gap:16px;}
-    .mapsec{padding-top:36px;}
-    .mapbox{border-radius:14px;}
-    .hero{padding-top:88px;}
-    .hero-l{gap:24px;}
-    .card{padding:20px; gap:18px;}
-    .card-hd .t{font-size:22px;}
-    .stats b{font-size:22px;}
-    .hours-hd{padding-top:88px;}
-    .hours{margin-top:24px;}
-    .hour{grid-template-columns:1fr; gap:14px; padding-top:24px; padding-bottom:24px;}
-    .hour .big{font-size:48px;}
-    .tile{height:160px;}
-    .feats{grid-template-columns:1fr; gap:24px; padding-top:80px;}
-    .wl h2{font-size:32px;}
+  }
+  /* phone: the 4e layout */
+  @media (max-width:720px){
+    :root{--gutter:22px;}
+    body{padding-bottom:calc(76px + env(safe-area-inset-bottom));}
+    .nav{padding-top:18px; padding-bottom:0;}
+    .nav .wm{font-size:17px;}
+    .nav .acts > :not(.city){display:none;}
+    .nav .city{display:flex; font-size:13px;}
+    .hero{padding-top:26px; gap:0;}
+    .hero-l{gap:16px;}
+    .when,.lede,.shot{display:none;}
+    .hero h1{position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap;}
+    .greet{display:block;}
+    .composer{padding:18px; gap:16px; border-radius:22px; box-shadow:none;}
+    .sentence{font-size:20px; line-height:1.42; letter-spacing:-.015em;}
+    .composer .row{gap:12px;}
+    .composer .btn{width:100%; height:50px;}
+    .composer .surprise{margin:0 auto 0 4px;}
+    .composer .tip{margin-left:0;}
+    .sec{padding-top:26px; gap:12px;}
+    .sec-hd h2,.sec-hd .more,.sec-hd .aside{display:none;}
+    .moods{gap:10px;}
+    .mood{width:132px; height:172px; border-radius:16px;}
+    .mood::after{background:linear-gradient(to top,rgba(17,17,16,.7),rgba(17,17,16,0) 55%);}
+    .mood .cap{left:12px; right:12px; bottom:12px;}
+    .mood b{font-size:15px;}
+    .mood .cap span{display:none;}
+    .nights{grid-template-columns:1fr; gap:12px;}
+    .night{flex-direction:row; align-items:center; gap:12px;}
+    .collage{display:none;}
+    .night .thumb{display:block; width:76px; height:76px; flex:none; border-radius:14px; overflow:hidden;}
+    .night .tx{gap:2px;}
+    .night b{font-size:16px;}
+    .night span{font-size:13px;}
+    .wl{margin-top:56px;}
+    .wl-in{padding:40px 0;}
+    .wl h2{font-size:28px;}
     .wl form{flex-direction:column;}
     .wl input{flex:none; width:100%;}
-    .wl form .btn{width:100%;}
+    .wl .btn{width:100%;}
+    .tabs{display:flex; justify-content:space-around; position:fixed; z-index:20; left:0; right:0; bottom:0;
+      padding:12px 10px calc(14px + env(safe-area-inset-bottom)); border-top:1px solid var(--line); background:var(--paper);}
+    .tabs a{display:flex; flex-direction:column; align-items:center; gap:4px; min-width:64px; font-size:11px; color:var(--muted);}
+    .tabs a i{font-size:23px;}
+    .tabs a[aria-current]{color:var(--ink); font-weight:500;}
   }
-  @media (max-width:380px){
-    .cta-row .btn{width:100%;}
-    .nav .signin{display:none;}
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    .mood img{transition:none;}
   }
 </style>
 </head>
 <body>
-<div class="page" id="page">
-  <div class="glow" id="glow" aria-hidden="true"></div>
 
-  <header class="wrap nav">
-    <a class="logo" href="/" aria-label="Roamly home"><img src="/brand/logo-white.svg" alt="Roamly" width="75" height="26" /></a>
-    <nav class="links" aria-label="Primary">
-      <a href="#how">How it works</a>
-      <a href="roamly.html">What's on</a>
-    </nav>
-    <div class="acts" id="navActs">
-      <a href="auth.html?redirect=roamly.html" class="signin">Sign in</a>
-      <a href="auth.html?mode=register&amp;redirect=roamly.html" class="btn btn-primary cta">Get started</a>
-    </div>
-  </header>
+<header class="wrap nav">
+  <a href="/" aria-label="Rova home"><span class="wm" aria-hidden="true"><span class="r">R</span><span class="o">O</span><svg viewBox="5 5 38 39" fill="none"><path d="M8 8 L24 40" stroke="#8C6A2F" stroke-width="2.6" stroke-linecap="round"/><path d="M40 8 L24 40" stroke="currentColor" stroke-width="5.6" stroke-linecap="round"/><circle cx="12.4" cy="16.8" r="3.6" fill="#F4EFE6" stroke="#8C6A2F" stroke-width="2.4"/><circle cx="17.2" cy="26.4" r="3.6" fill="#F4EFE6" stroke="#8C6A2F" stroke-width="2.4"/><circle cx="24" cy="38.5" r="5" fill="#8C6A2F"/></svg><span class="a">A</span></span></a>
+  <nav class="links" aria-label="Primary">
+    <a href="/" aria-current="page">Discover</a>
+    <a href="roamly.html?q=What%27s%20on%20tonight%20near%20me">Tonight</a>
+    <a href="roamly.html?q=Plan%20something%20fun%20this%20weekend">This weekend</a>
+    <a href="profile.html">Saved</a>
+  </nav>
+  <div class="acts" id="navActs">
+    <span class="city" id="navCity"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Toronto</span></span>
+    <a href="auth.html?redirect=roamly.html" class="signin">Sign in</a>
+    <a href="auth.html?mode=register&amp;redirect=roamly.html" class="btn btn-ink cta">Get started</a>
+  </div>
+</header>
 
-  <main>
-    <!-- INTRO: a night being built on the map -->
-    <section class="wrap intro">
-      <span class="eyebrow">Now in Toronto</span>
-      <h1>Your night, planned.</h1>
-      <p class="lede">See what's on near you, pick what you like, and Roamly fills in the rest: times, walking routes, a budget that adds up.</p>
-      <div class="cta-row">
-        <a class="btn btn-primary" href="roamly.html" data-go="plan_tonight">Plan tonight<i class="ph ph-arrow-right" aria-hidden="true"></i></a>
-        <a class="btn btn-secondary" href="roamly.html" data-go="whats_on">See what's on</a>
-      </div>
-    </section>
-
-    <section class="wrap mapsec" aria-label="Watch a night get planned">
-      <div class="mapbox" id="mapbox">
-        <div class="map" id="map">
-          <svg id="mapSvg" viewBox="0 0 1168 580" preserveAspectRatio="none" aria-hidden="true">
-            <line class="street" x1="-400" y1="301" x2="1600" y2="301" data-sw="3" />
-            <line class="street minor" x1="-400" y1="461" x2="1600" y2="461" data-sw="2" />
-            <line class="street" x1="721" y1="-400" x2="721" y2="1000" data-sw="3" />
-            <line class="street minor" x1="961" y1="-400" x2="961" y2="1000" data-sw="2" />
-            <path class="seg" id="segA" d="M540 370 L540 300 L720 300 L720 200 L800 200" stroke-dasharray="430" stroke-dashoffset="430" data-sw="2.5" />
-            <path class="seg" id="segB" d="M800 200 L960 200 L960 330" stroke-dasharray="290" stroke-dashoffset="290" data-sw="2.5" />
-          </svg>
-          <span class="at sname" data-x="1020" data-y="282" aria-hidden="true">Queen St W</span>
-          <span class="at sname" data-x="1040" data-y="444" aria-hidden="true">King St W</span>
-          <span class="at sname" data-x="730" data-y="30" aria-hidden="true">Spadina Ave</span>
-          <span class="at poi" data-x="625" data-y="475" aria-hidden="true"></span>
-          <span class="at poi" data-x="1065" data-y="145" aria-hidden="true"></span>
-          <span class="at poi" data-x="865" data-y="405" aria-hidden="true"></span>
-          <span class="at poi" data-x="645" data-y="125" aria-hidden="true"></span>
-          <div class="at pin" data-x="540" data-y="370" data-pin="raval" aria-hidden="true"><span class="n">1</span><span class="lbl">Bar Raval · 7:15</span></div>
-          <div class="at pin main" data-x="800" data-y="200" data-pin="rex" aria-hidden="true"><span class="n">2</span><span class="lbl">The Rex · 9:30</span></div>
-          <div class="at pin" data-x="960" data-y="330" data-pin="civil" aria-hidden="true"><span class="n">3</span><span class="lbl">Civil Liberties · 11:00</span></div>
-          <span class="at walker" id="walker" aria-hidden="true"></span>
-          <div class="toast" id="toast"></div>
-          <button type="button" class="btn btn-secondary replay" id="replay"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Replay</button>
-        </div>
-        <div class="panel">
-          <span class="eyebrow">Worth it tonight</span>
-          <button type="button" class="place" data-place="rex" aria-pressed="false"><span class="th"><i class="ph ph-music-notes" aria-hidden="true"></i></span><span class="tx"><b>The Rex</b><span>Jazz trio · 9:30 · $15</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
-          <button type="button" class="place" data-place="raval" aria-pressed="false"><span class="th"><i class="ph ph-fork-knife" aria-hidden="true"></i></span><span class="tx"><b>Bar Raval</b><span>Tapas · open till 1</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
-          <button type="button" class="place" data-place="civil" aria-pressed="false"><span class="th"><i class="ph ph-martini" aria-hidden="true"></i></span><span class="tx"><b>Civil Liberties</b><span>Cocktails · open till 2</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
-          <button type="button" class="place" disabled><span class="th"><i class="ph ph-microphone-stage" aria-hidden="true"></i></span><span class="tx"><b>Comedy Bar</b><span>Open mic · 8pm · $10</span></span></button>
-          <span class="foot"><i class="ph ph-hand-pointing" aria-hidden="true"></i>Tap a place to add it</span>
-        </div>
-        <div class="tray"><span><b>Tonight</b><span class="dim num"> · <span id="trayText">Nothing yet</span></span></span><span class="review" id="review">Review<i class="ph ph-arrow-right" aria-hidden="true"></i></span></div>
-      </div>
-    </section>
-
-    <!-- HERO: a sentence that's alive -->
-    <section class="wrap hero" id="hero">
-      <div class="hero-l">
-        <span class="eyebrow live">Tonight in Toronto</span>
+<main>
+  <!-- HERO -->
+  <section class="wrap hero">
+    <div class="hero-l">
+      <span class="label when" id="when">Tonight in Toronto</span>
+      <h1>Plan less.<br><span class="serif">Go out more.</span></h1>
+      <p class="greet" id="greet">Good evening.</p>
+      <p class="lede">Tell Rova the mood. It finds the places worth going to, times every stop, and keeps the whole night on budget.</p>
+      <div class="composer">
         <p class="sentence" id="sentence">A <button type="button" class="tok" data-tok="vibe"></button> night for
           <button type="button" class="tok" data-tok="people"></button>, around
           <button type="button" class="tok" data-tok="budget"></button> each, in
           <button type="button" class="tok" data-tok="area"></button>.</p>
-        <div class="cta-row">
-          <button type="button" class="btn btn-primary" id="makeReal">Make it real<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
-          <span class="note">Free. About 25 seconds.</span>
-        </div>
-        <div class="hint"><i class="ph ph-hand-pointing" aria-hidden="true"></i>Tap an underlined word
-          <button type="button" class="resume" id="resume">· <i class="ph ph-play" aria-hidden="true"></i>Resume demo</button></div>
-      </div>
-
-      <aside class="card" aria-label="Your plan">
-        <div class="card-hd" data-anim>
-          <div><span class="k">Your plan</span><span class="t" data-bind="title"></span></div>
-          <span class="a" data-bind="area"></span>
-        </div>
-        <div class="route" aria-hidden="true">
-          <div class="track"></div>
-          <div class="line" id="routeLine"></div>
-          <div class="dots" id="routeDots"></div>
-        </div>
-        <div class="stats">
-          <div><b class="num" id="dDur"></b><span>Duration</span></div>
-          <div><b class="num" id="dKm"></b><span>On foot</span></div>
-          <div><b class="num" id="dCost"></b><span>Each</span></div>
-        </div>
-        <div id="miniStops"></div>
-      </aside>
-    </section>
-
-    <!-- HOUR BY HOUR -->
-    <section id="how" aria-labelledby="hoursTitle">
-      <div class="wrap hours-hd">
-        <span class="eyebrow">Hour by hour</span>
-        <h2 id="hoursTitle" data-anim></h2>
-      </div>
-      <div class="hours" id="hours"></div>
-    </section>
-
-    <!-- FEATURES -->
-    <ul class="wrap feats" aria-label="Why Roamly">
-      <li><i class="ph ph-map-pin" aria-hidden="true"></i><b>Open when you arrive</b><span>Every stop is checked against its hours.</span></li>
-      <li><i class="ph ph-ticket" aria-hidden="true"></i><b>Live events</b><span>Gigs and pop-ups happening tonight.</span></li>
-      <li><i class="ph ph-wallet" aria-hidden="true"></i><b>One budget</b><span>Set it once, and the whole night stays under it.</span></li>
-      <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><b>Swap anything</b><span>One tap for a different stop.</span></li>
-    </ul>
-
-    <!-- WAITLIST -->
-    <section class="wrap wl" id="waitlist">
-      <div class="wl-in">
-        <div>
-          <h2>Not in Toronto?</h2>
-          <p class="sub">We'll email you once when Roamly reaches your city.</p>
-        </div>
-        <div class="wl-side">
-          <form id="wlForm">
-            <input type="email" id="wlEmail" placeholder="you@example.com" aria-label="Email" required />
-            <button class="btn btn-primary" type="submit">Notify me</button>
-          </form>
-          <div class="wl-note" id="wlNote" role="status"></div>
+        <div class="row">
+          <button type="button" class="btn btn-ink" id="planNight">Plan my night<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+          <button type="button" class="surprise" id="surprise"><i class="ph ph-shuffle" aria-hidden="true"></i>Surprise me</button>
+          <span class="tip">Tap a word to change it</span>
         </div>
       </div>
-    </section>
-  </main>
-
-  <footer class="wrap">
-    <span>© 2026 Roamly</span>
-    <div class="links">
-      <a href="submit-event.html">List an event</a>
-      <a href="terms.html">Terms</a>
-      <a href="privacy.html">Privacy</a>
     </div>
-  </footer>
-</div>
+
+    <div class="shot">
+      <img class="photo" src="https://images.unsplash.com/photo-1770021601385-af0bf0136762?w=1400&q=75&auto=format&fit=crop"
+        srcset="https://images.unsplash.com/photo-1770021601385-af0bf0136762?w=800&q=75&auto=format&fit=crop 800w, https://images.unsplash.com/photo-1770021601385-af0bf0136762?w=1400&q=75&auto=format&fit=crop 1400w"
+        sizes="(max-width:1100px) 100vw, 640px" alt="A rooftop bar at sunset" fetchpriority="high" />
+      <span class="chip"><i class="ph ph-sun-horizon" aria-hidden="true"></i>Rooftops at golden hour</span>
+      <div class="plan" aria-label="An example plan">
+        <div class="plan-hd"><b>Tonight's plan</b><span class="num">$71 each</span></div>
+        <ol>
+          <li><img src="https://images.unsplash.com/photo-1565895405227-31cffbe0cf86?w=200&q=70&auto=format&fit=crop" alt="" /><span class="t num">7:00</span><span class="n">Bar Raval<span> · Tapas</span></span></li>
+          <li><img src="https://images.unsplash.com/photo-1781447062707-4b1371d0e62f?w=200&q=70&auto=format&fit=crop" alt="" /><span class="t num">9:00</span><span class="n">The Rex<span> · Jazz trio</span></span></li>
+          <li><img src="https://images.unsplash.com/photo-1765130803583-a5de64bbcc70?w=200&q=70&auto=format&fit=crop" alt="" /><span class="t num">10:45</span><span class="n">Civil Liberties<span> · Cocktails</span></span></li>
+        </ol>
+        <div class="plan-ft"><span><i class="ph ph-person-simple-walk" aria-hidden="true"></i>1.6 km, all on foot</span><span class="num">5h 30</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MOODS -->
+  <section class="wrap sec" aria-labelledby="moodsTitle">
+    <div class="sec-hd">
+      <div><span class="label">Start with a mood</span><h2 id="moodsTitle">What kind of day is it?</h2></div>
+      <a class="more" href="roamly.html">Browse everything<i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="moods">
+      <a class="mood" href="roamly.html?q=Plan%20a%20date%20night" data-q="date_night">
+        <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1778694277039-5cbf0b9a1fcf?w=700&q=70&auto=format&fit=crop" alt="A candlelit dinner table" />
+        <span class="cap"><b>Date night</b><span>Candlelit and close by</span></span></a>
+      <a class="mood" href="roamly.html?q=Find%20a%20rooftop%20bar%20that%27s%20open%20late" data-q="rooftops">
+        <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1736230991313-ebf59110ea8c?w=700&q=70&auto=format&fit=crop" alt="A rooftop bar" />
+        <span class="cap"><b>Rooftops</b><span>Open late</span></span></a>
+      <a class="mood" href="roamly.html?q=Live%20music%20tonight" data-q="live_music">
+        <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1786644806311-cbe6998156ac?w=700&q=70&auto=format&fit=crop" alt="A jazz band on stage" />
+        <span class="cap"><b>Live music</b><span>Sets happening tonight</span></span></a>
+      <a class="mood" href="roamly.html?q=Plan%20an%20outdoor%20day%20within%20an%20hour%20of%20the%20city" data-q="outdoors">
+        <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1629185752152-fe65698ddee4?w=700&q=70&auto=format&fit=crop" alt="Friends on a hiking trail" />
+        <span class="cap"><b>Outdoors</b><span>Trails within an hour</span></span></a>
+      <a class="mood" href="roamly.html?q=Plan%20a%20family%20day%20out" data-q="family">
+        <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1679274742187-1aa949703203?w=700&q=70&auto=format&fit=crop" alt="A family picnic" />
+        <span class="cap"><b>Family day</b><span>Good with kids</span></span></a>
+    </div>
+  </section>
+
+  <!-- NIGHTS WORTH STEALING -->
+  <section class="wrap sec" aria-labelledby="nightsTitle">
+    <div class="sec-hd">
+      <div><span class="label">Planned by locals</span><h2 id="nightsTitle">Nights worth <span class="serif">stealing</span></h2></div>
+      <span class="aside">Make any of these yours in one tap, then change whatever you like.</span>
+    </div>
+    <div class="nights">
+      <a class="night" href="roamly.html?q=Tapas%2C%20jazz%20and%20a%20last%20drink%20in%20Queen%20West%2C%20about%20%2471%20each" data-q="tapas_jazz">
+        <div class="collage">
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1565895405227-31cffbe0cf86?w=700&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1781447062707-4b1371d0e62f?w=400&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1765130803583-a5de64bbcc70?w=400&q=70&auto=format&fit=crop" alt="" />
+        </div>
+        <span class="thumb"><img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1565895405227-31cffbe0cf86?w=240&q=70&auto=format&fit=crop" alt="" /></span>
+        <div class="tx"><b>Tapas, jazz and a last drink</b><span>Queen West · 3 stops · 5h · about $71 each</span></div>
+      </a>
+      <a class="night" href="roamly.html?q=A%20slow%20Sunday%20by%20the%20water%20on%20the%20Toronto%20Islands%2C%20about%20%2435%20each" data-q="islands">
+        <div class="collage">
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1688127346194-30b3c4bdb710?w=700&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1593034509785-5b17ba49f683?w=400&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1522850067562-a4c60453058d?w=400&q=70&auto=format&fit=crop" alt="" />
+        </div>
+        <span class="thumb"><img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1688127346194-30b3c4bdb710?w=240&q=70&auto=format&fit=crop" alt="" /></span>
+        <div class="tx"><b>A slow Sunday by the water</b><span>Toronto Islands · 4 stops · daytime · about $35 each</span></div>
+      </a>
+      <a class="night" href="roamly.html?q=Drinks%20up%20high%20then%20dinner%20for%20four%20in%20King%20West%2C%20about%20%2495%20each" data-q="king_west">
+        <div class="collage">
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1541532713592-79a0317b6b77?w=700&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1765741836925-5363bbaa6507?w=400&q=70&auto=format&fit=crop" alt="" />
+          <img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1493246318656-5bfd4cfb29b8?w=400&q=70&auto=format&fit=crop" alt="" />
+        </div>
+        <span class="thumb"><img class="photo" loading="lazy" src="https://images.unsplash.com/photo-1541532713592-79a0317b6b77?w=240&q=70&auto=format&fit=crop" alt="" /></span>
+        <div class="tx"><b>Drinks up high, dinner for four</b><span>King West · 3 stops · 4h · about $95 each</span></div>
+      </a>
+    </div>
+  </section>
+
+  <!-- WAITLIST -->
+  <section class="wrap wl" id="waitlist">
+    <div class="wl-in">
+      <div>
+        <h2>Not in Toronto yet?</h2>
+        <p>We'll send one email when Rova reaches your city.</p>
+      </div>
+      <div>
+        <form id="wlForm">
+          <input type="email" id="wlEmail" placeholder="you@example.com" aria-label="Email" required />
+          <button class="btn btn-ink" type="submit">Notify me</button>
+        </form>
+        <div class="wl-note" id="wlNote" role="status"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <span>© 2026 Rova</span>
+  <div class="links">
+    <a href="submit-event.html">List an event</a>
+    <a href="terms.html">Terms</a>
+    <a href="privacy.html">Privacy</a>
+  </div>
+</footer>
+
+<nav class="tabs" aria-label="App">
+  <a href="/" aria-current="page"><i class="ph-fill ph-compass" aria-hidden="true"></i>Discover</a>
+  <a href="roamly.html"><i class="ph ph-map-trifold" aria-hidden="true"></i>Map</a>
+  <a href="profile.html"><i class="ph ph-bookmark-simple" aria-hidden="true"></i>Saved</a>
+  <a href="auth.html?redirect=profile.html" id="tabYou"><i class="ph ph-user-circle" aria-hidden="true"></i>You</a>
+</nav>
 
 <script>
 const API = window.API_BASE;
 const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = id => document.getElementById(id);
 
-/* ---- header actions: signed-in visitors go straight to the planner ---- */
+/* ---- signed-in visitors go straight to the planner ---- */
+let username = null;
 try {
   if (localStorage.getItem('trek_token')) {
+    username = localStorage.getItem('trek_user');
     document.querySelector('#navActs .signin').style.display = 'none';
     const cta = document.querySelector('#navActs .cta');
     cta.textContent = 'Open planner'; cta.href = 'roamly.html';
+    $('tabYou').href = 'profile.html';
   }
 } catch (e) {}
 
-/* ---- the living sentence ---- */
+/* ---- "Tuesday evening in Toronto" / "Good afternoon, sam." in Toronto time ---- */
+(function () {
+  let day = '', hour = new Date().getHours();
+  try {
+    const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Toronto', weekday: 'long', hour: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
+    day = parts.find(p => p.type === 'weekday').value;
+    hour = +parts.find(p => p.type === 'hour').value;
+  } catch (e) {}
+  const part = hour < 5 ? 'night' : hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : hour < 22 ? 'evening' : 'night';
+  if (day) $('when').textContent = `${day} ${part} in Toronto`;
+  const g = $('greet');
+  g.textContent = `Good ${part === 'night' ? 'evening' : part}`;
+  if (username) {
+    g.append(', ');
+    const s = document.createElement('span'); s.className = 'serif'; s.textContent = username + '.';
+    g.append(s);
+  } else g.append('.');
+})();
+
+/* ---- the sentence: tap a word to change it ---- */
 const OPTS = {
-  vibe: ['chill', 'fancy', 'loud'],
+  vibe: ['romantic', 'chill', 'lively'],
   people: ['two', 'four', 'just me'],
-  budget: [60, 30, 120],
+  budget: [80, 40, 120],
   area: ['Queen West', 'the Annex', 'Ossington'],
 };
-const PLANS = {
-  chill: { title: 'Tapas, then jazz', mins: 225, km: 1.2, stops: [
-    { t: '7:15', name: 'Bar Raval', what: 'Tapas', icon: 'ph-fork-knife', note: 'Small plates, standing room. Book ahead, Tuesdays fill up by 8.', walk: '9 min walk to the next stop' },
-    { t: '9:30', name: 'The Rex', what: 'Jazz trio · $15', icon: 'ph-music-notes', note: "The trio's on tonight. Get there by 9:15 for a seat near the stage.", walk: '11 min walk to the next stop' },
-    { t: '11:00', name: 'Bang Bang', what: 'Ice cream', icon: 'ph-ice-cream', note: 'Open till 11:30. The line moves fast.', walk: 'Home from here' }] },
-  fancy: { title: 'Dinner, cocktails, dessert', mins: 240, km: 1.6, stops: [
-    { t: '7:00', name: 'Bar Isabel', what: 'Spanish dinner', icon: 'ph-fork-knife', note: 'Ask for the bar seats. Order the octopus.', walk: '12 min walk to the next stop' },
-    { t: '8:45', name: 'Civil Liberties', what: 'Cocktails', icon: 'ph-martini', note: "No menu. Tell them what you like and they'll make it.", walk: '8 min walk to the next stop' },
-    { t: '10:15', name: "Sweet Olenka's", what: 'Dessert', icon: 'ph-cake', note: 'Open late. Split a slice of cake.', walk: 'Home from here' }] },
-  loud: { title: 'Laughs, a band, a dance floor', mins: 330, km: 2.1, stops: [
-    { t: '8:00', name: 'Comedy Bar', what: 'Open mic · $10', icon: 'ph-microphone-stage', note: 'Twelve comics, five minutes each. Sit near the back.', walk: '15 min walk to the next stop' },
-    { t: '9:45', name: 'Horseshoe Tavern', what: 'Indie double bill · $22', icon: 'ph-guitar', note: 'The headliner goes on around 10:30.', walk: '10 min walk to the next stop' },
-    { t: '11:45', name: 'Bar Fancy', what: 'Vinyl night · Free', icon: 'ph-vinyl-record', note: 'Soul 45s until close. The dance floor fills up after midnight.', walk: 'Home from here' }] },
-};
-const AUTO = ['vibe', 'budget', 'area', 'vibe', 'people', 'vibe'];
 const LABEL = { vibe: 'vibe', people: 'who', budget: 'budget', area: 'neighbourhood' };
-
 const state = { vibe: 0, people: 0, budget: 0, area: 0 };
 const val = k => OPTS[k][state[k]];
-const fmtTok = k => k === 'budget' ? '$' + val(k) : val(k);
-const plan = () => PLANS[val('vibe')];
-const target = () => ({ mins: plan().mins, km: plan().km, cost: Math.round(val('budget') * 0.9) });
-const sentence = () => `A ${val('vibe')} night for ${val('people')}, around $${val('budget')} each, in ${val('area')}`;
-const $ = id => document.getElementById(id);
-const root = $('page');
+const show = (k, v) => k === 'budget' ? '$' + v : v;
 const toks = {};
 document.querySelectorAll('[data-tok]').forEach(b => { toks[b.dataset.tok] = b; });
 
-const ENTER = 'cubic-bezier(.22,1,.36,1)';
-function anim(el, frames, opts){ if (!REDUCE && el.animate) el.animate(frames, opts); }
-
 function renderTok(k){
-  const b = toks[k];
-  b.textContent = fmtTok(k);
   const next = OPTS[k][(state[k] + 1) % OPTS[k].length];
-  b.setAttribute('aria-label', `${LABEL[k]}: ${fmtTok(k)}. Change to ${k === 'budget' ? '$' + next : next}`);
+  toks[k].textContent = show(k, val(k));
+  toks[k].setAttribute('aria-label', `${LABEL[k]}: ${show(k, val(k))}. Tap for ${show(k, next)}`);
+  if (!REDUCE && toks[k].animate) toks[k].animate(
+    [{ transform: 'translateY(0.3em)', opacity: 0, filter: 'blur(6px)' }, { transform: 'none', opacity: 1, filter: 'blur(0)' }],
+    { duration: 420, easing: 'cubic-bezier(.22,1,.36,1)' });
 }
+Object.keys(OPTS).forEach(k => {
+  toks[k].textContent = show(k, val(k));
+  toks[k].setAttribute('aria-label', `${LABEL[k]}: ${show(k, val(k))}. Tap for ${show(k, OPTS[k][1])}`);
+  toks[k].addEventListener('click', () => { state[k] = (state[k] + 1) % OPTS[k].length; renderTok(k); });
+});
+const sentence = () => `A ${val('vibe')} night for ${val('people')}, around $${val('budget')} each, in ${val('area')}`;
 
-function renderPlan(){
-  const p = plan();
-  $('routeDots').innerHTML = p.stops.map(s =>
-    `<div class="dot" data-dot><i></i><span class="num">${s.t}</span></div>`).join('');
-  $('miniStops').innerHTML = p.stops.map(s =>
-    `<div class="mini" data-anim><span class="tm num">${s.t}</span><div><span class="nm">${s.name}</span><span class="wh">${s.what}</span></div></div>`).join('');
-  $('hours').innerHTML = p.stops.map(s => `
-    <div class="hour" data-anim>
-      <span class="big num">${s.t}</span>
-      <div class="body"><h3>${s.name}</h3><p>${s.note}</p>
-        <span class="walk"><i class="ph ph-person-simple-walk" aria-hidden="true"></i>${s.walk}</span></div>
-      <div class="tile" aria-hidden="true"><i class="ph-light ${s.icon}"></i><span class="cap">${s.what}</span></div>
-    </div>`).join('');
-  root.querySelectorAll('[data-bind="title"]').forEach(el => { el.textContent = p.title; });
-}
-function renderPeople(){ $('hoursTitle').textContent = `${plan().title}, ${val('people')}.`; }
-function renderArea(){ root.querySelectorAll('[data-bind="area"]').forEach(el => { el.textContent = val('area'); }); }
-
-/* duration / distance / cost count toward their new values */
-let disp = target(), raf = 0;
-function paintStats(d){
-  $('dDur').textContent = Math.floor(d.mins / 60) + 'h ' + String(Math.round(d.mins % 60)).padStart(2, '0');
-  $('dKm').textContent = d.km.toFixed(1) + ' km';
-  $('dCost').textContent = '$' + Math.round(d.cost);
-}
-function tween(){
-  cancelAnimationFrame(raf);
-  const from = disp, to = target();
-  if (REDUCE) { disp = to; paintStats(disp); return; }
-  // start the clock on the first frame: a rAF timestamp can predate
-  // performance.now() at scheduling, which would make progress negative
-  let t0 = null; const ease = t => 1 - Math.pow(1 - t, 3);
-  const step = now => {
-    if (t0 === null) t0 = now;
-    const p = Math.min(1, Math.max(0, (now - t0) / 800)), e = ease(p);
-    disp = { mins: from.mins + (to.mins - from.mins) * e, km: from.km + (to.km - from.km) * e, cost: from.cost + (to.cost - from.cost) * e };
-    paintStats(disp);
-    if (p < 1) raf = requestAnimationFrame(step);
-  };
-  raf = requestAnimationFrame(step);
-}
-
-function rebuildAnim(){
-  root.querySelectorAll('[data-anim]').forEach((el, i) => anim(el,
-    [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }],
-    { duration: 600, delay: Math.min(i, 8) * 70, easing: ENTER, fill: 'backwards' }));
-  anim($('routeLine'), [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
-    { duration: 900, delay: 150, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'backwards' });
-  root.querySelectorAll('[data-dot]').forEach((el, i) => anim(el,
-    [{ opacity: 0, transform: 'scale(0.3)' }, { opacity: 1, transform: 'none' }],
-    { duration: 450, delay: 150 + i * 380, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'backwards' }));
-}
-
-function change(k){
-  state[k] = (state[k] + 1) % OPTS[k].length;
-  renderTok(k);
-  anim(toks[k], [{ transform: 'translateY(0.4em)', opacity: 0, filter: 'blur(8px)' }, { transform: 'none', opacity: 1, filter: 'blur(0)' }],
-    { duration: 520, easing: ENTER });
-  if (k === 'vibe') renderPlan();
-  if (k === 'vibe' || k === 'people') { renderPeople(); rebuildAnim(); }
-  if (k === 'area') renderArea();
-  if (k === 'vibe' || k === 'budget') tween();
-}
-
-/* idle demo: a word changes by itself every few seconds, while the hero is
-   on screen and the visitor hasn't taken over */
-let manual = false, heroVisible = true, auto = 0, ai = 0;
-function syncAuto(){
-  const run = !REDUCE && !manual && heroVisible && !document.hidden;
-  if (run && !auto) auto = setInterval(() => change(AUTO[ai++ % AUTO.length]), 3400);
-  if (!run && auto) { clearInterval(auto); auto = 0; }
-}
-Object.entries(toks).forEach(([k, b]) => b.addEventListener('click', () => {
-  manual = true; $('resume').classList.add('on'); syncAuto(); change(k);
-}));
-$('resume').addEventListener('click', () => { manual = false; $('resume').classList.remove('on'); syncAuto(); });
-new IntersectionObserver(([en]) => { heroVisible = en.isIntersecting; syncAuto(); }, { threshold: .2 }).observe($('hero'));
-document.addEventListener('visibilitychange', syncAuto);
-
-Object.keys(OPTS).forEach(renderTok);
-renderPlan(); renderPeople(); renderArea(); paintStats(disp);
-syncAuto();
-
-/* the background glow drifts slowly */
-const glow = $('glow');
-if (!REDUCE && glow.animate) glow.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(520px,160px)' }],
-  { duration: 11000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
-
-/* ---- intro map: a night being built ----
-   The map is authored in 1168x580 coordinates. The SVG scales via viewBox;
-   pins, labels and the walking dot are HTML placed at the same coordinates so
-   their text stays full size. Narrow screens crop to the route. */
-const STOP = { raval: { t: '7:15', end: '9:00', c: 25 }, rex: { t: '9:30', end: '11:00', c: 15 }, civil: { t: '11:00', end: '12:30', c: 14 } };
-const ORDER = ['raval', 'rex', 'civil'];
-const WALK = [[540, 370], [540, 300], [720, 300], [720, 200], [960, 200], [960, 330]];
-const M = { raval: false, rex: false, civil: false, hint: null, toast: null, manual: false };
-const mapbox = $('mapbox'), mapEl = $('map'), svg = $('mapSvg'), walker = $('walker'), toastEl = $('toast');
-const pins = {}, rows = {};
-mapEl.querySelectorAll('[data-pin]').forEach(el => { pins[el.dataset.pin] = el; });
-mapbox.querySelectorAll('[data-place]').forEach(el => { rows[el.dataset.place] = el; });
-let view = { x: 0, y: 0, w: 1168, h: 580 }, scale = 1;
-
-function placeAt(el, x, y){ el.style.left = (x - view.x) * scale + 'px'; el.style.top = (y - view.y) * scale + 'px'; }
-function layoutMap(){
-  const narrow = mapbox.clientWidth < 820;
-  mapbox.classList.toggle('narrow', narrow);
-  view = narrow ? { x: 450, y: 120, w: 620, h: 360 } : { x: 0, y: 0, w: 1168, h: 580 };
-  scale = mapEl.clientWidth / view.w;
-  mapEl.style.height = view.h * scale + 'px';
-  svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
-  svg.querySelectorAll('[data-sw]').forEach(el => el.setAttribute('stroke-width', el.dataset.sw / scale));
-  mapEl.querySelectorAll('.at[data-x]').forEach(el => placeAt(el, +el.dataset.x, +el.dataset.y));
-}
-
-function renderMap(resetting){
-  ORDER.forEach(k => {
-    const on = M[k], h = M.hint === k;
-    pins[k].style.opacity = on ? 1 : h ? .45 : 0;
-    pins[k].style.transform = `scale(${on ? 1 : h ? .8 : .3})`;
-    rows[k].classList.toggle('on', on);
-    rows[k].classList.toggle('hint', h && !on);
-    rows[k].setAttribute('aria-pressed', on);
-    rows[k].querySelector('[data-ic]').className = on ? 'ph-fill ph-check-circle' : 'ph ph-plus-circle';
-  });
-  const segA = $('segA'), segB = $('segB');
-  segA.style.transition = resetting || REDUCE ? 'none' : 'stroke-dashoffset 1.4s cubic-bezier(.65,0,.35,1) .25s';
-  segB.style.transition = resetting || REDUCE ? 'none' : 'stroke-dashoffset 1.1s cubic-bezier(.65,0,.35,1) .25s';
-  segA.style.strokeDashoffset = M.raval && M.rex ? 0 : 430;
-  segB.style.strokeDashoffset = M.rex && M.civil ? 0 : 290;
-  const sel = ORDER.filter(k => M[k]);
-  const cost = sel.reduce((a, k) => a + STOP[k].c, 0);
-  $('trayText').textContent = sel.length
-    ? `${sel.length} stop${sel.length > 1 ? 's' : ''} · ${STOP[sel[0]].t}–${STOP[sel[sel.length - 1]].end} · $${cost} each`
-    : 'Nothing yet';
-  $('review').classList.toggle('ready', sel.length === 3);
-  if (M.toast && toastEl.textContent !== M.toast) {
-    toastEl.textContent = M.toast;
-    anim(toastEl, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: ENTER });
-  }
-  toastEl.classList.toggle('on', !!M.toast);
-  if (!M.toast) toastEl.textContent = '';
-  $('replay').classList.toggle('on', M.manual);
-  syncWalk();
-}
-function setMap(patch, resetting){ Object.assign(M, patch); renderMap(resetting); }
-
-/* the scripted night: a show, dinner before it, one more after */
-let mapTimers = [];
-function clearMap(){ mapTimers.forEach(clearTimeout); mapTimers = []; }
-function playMap(){
-  clearMap();
-  if (REDUCE) { setMap({ raval: true, rex: true, civil: true, hint: null, toast: null, manual: false }, true); return; }
-  setMap({ raval: false, rex: false, civil: false, hint: null, toast: null, manual: false }, true);
-  [
-    [900, { hint: 'rex' }],
-    [1500, { rex: true, hint: null, toast: 'The Rex has a jazz trio at 9:30. Added.' }],
-    [3200, { hint: 'raval', toast: 'Dinner first? Bar Raval is a 9 min walk.' }],
-    [4300, { raval: true, hint: null }],
-    [6000, { hint: 'civil', toast: 'One more after? Civil Liberties is open till 2.' }],
-    [7100, { civil: true, hint: null }],
-    [8600, { toast: 'Your night is planned. About $54 each.' }],
-    [11000, { toast: null }],
-    [13500, 'loop'],
-  ].forEach(([ms, a]) => mapTimers.push(setTimeout(() => (a === 'loop' ? playMap() : setMap(a)), ms)));
-}
-Object.entries(rows).forEach(([k, b]) => b.addEventListener('click', () => {
-  clearMap(); setMap({ [k]: !M[k], manual: true, hint: null, toast: null });
-}));
-$('replay').addEventListener('click', playMap);
-
-/* once all three stops are in, a dot walks the route */
-const SEGS = WALK.slice(1).map((p, i) => Math.hypot(p[0] - WALK[i][0], p[1] - WALK[i][1]));
-const WALK_LEN = SEGS.reduce((a, b) => a + b, 0);
-function walkPoint(f){
-  let d = f * WALK_LEN;
-  for (let i = 0; i < SEGS.length; i++) {
-    if (d <= SEGS[i] || i === SEGS.length - 1) {
-      const r = Math.min(1, d / SEGS[i]), a = WALK[i], b = WALK[i + 1];
-      return [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r];
-    }
-    d -= SEGS[i];
-  }
-}
-let walkRaf = 0, walkT0 = null, mapVisible = true;
-function walkFrame(now){
-  if (walkT0 === null) walkT0 = now;
-  const t = now - walkT0 - 1200;
-  const f = t < 0 ? 0 : (t % 4500) / 4500;
-  const [x, y] = walkPoint(-(Math.cos(Math.PI * f) - 1) / 2);
-  placeAt(walker, x, y);
-  walkRaf = requestAnimationFrame(walkFrame);
-}
-function syncWalk(){
-  const run = !REDUCE && ORDER.every(k => M[k]) && mapVisible && !document.hidden;
-  if (run && !walkRaf) { walkT0 = null; walker.style.display = 'block'; walkRaf = requestAnimationFrame(walkFrame); }
-  if (!run && walkRaf) { cancelAnimationFrame(walkRaf); walkRaf = 0; walker.style.display = 'none'; }
-}
-new IntersectionObserver(([en]) => { mapVisible = en.isIntersecting; syncWalk(); }).observe(mapbox);
-document.addEventListener('visibilitychange', syncWalk);
-new ResizeObserver(layoutMap).observe(mapbox);
-layoutMap();
-playMap();
-
-document.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', () => track('get_started', { how: a.dataset.go })));
-
-/* ---- "Make it real": hand the sentence to the planner ---- */
-$('makeReal').addEventListener('click', () => {
-  track('get_started', { how: 'sentence', vibe: val('vibe'), people: val('people'), budget: val('budget'), area: val('area'), manual });
+$('planNight').addEventListener('click', () => {
+  track('get_started', { how: 'sentence', vibe: val('vibe'), people: val('people'), budget: val('budget'), area: val('area') });
   location.href = 'roamly.html?q=' + encodeURIComponent(sentence());
 });
+$('surprise').addEventListener('click', () => {
+  track('get_started', { how: 'surprise' });
+  location.href = 'roamly.html?q=' + encodeURIComponent(`Surprise me with something fun tonight, around $${val('budget')} each`);
+});
+document.querySelectorAll('[data-q]').forEach(a => a.addEventListener('click', () => track('get_started', { how: 'card', card: a.dataset.q })));
 
 /* ---- waitlist form ---- */
 $('wlForm').addEventListener('submit', async (e) => {
@@ -728,14 +477,14 @@ $('wlForm').addEventListener('submit', async (e) => {
     if (!data.already_joined) track('waitlist_join');
     note.textContent = data.already_joined
       ? "You're already on the list. We'll be in touch."
-      : "You're in. We'll email you when Roamly reaches your city.";
+      : "You're in. We'll email you once when Rova reaches your city.";
   } catch {
     try {
       const list = JSON.parse(localStorage.getItem('roamly_waitlist') || '[]');
       if (!list.includes(email)) list.push(email);
       localStorage.setItem('roamly_waitlist', JSON.stringify(list));
     } catch {}
-    note.textContent = "You're in. We'll email you when Roamly reaches your city.";
+    note.textContent = "You're in. We'll email you once when Rova reaches your city.";
   }
   e.target.reset();
 });

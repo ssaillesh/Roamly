@@ -7,7 +7,7 @@
 <link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Roamly Admin</title>
+<title>Rova Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
@@ -345,7 +345,7 @@ function shell(){
     groups += `<a href="#${s.id}" data-sec="${s.id}"><span class="dot" aria-hidden="true"></span>${esc(s.title)}</a>`;
   }
   $('app').innerHTML = `<div class="shell">
-    <aside class="aside"><a class="logo" href="roamly.html" aria-label="Roamly admin"><svg class="logo-mark" width="24" height="32" aria-hidden="true"><use href="/brand/roamly.svg#mark"/></svg><svg class="wordmark" width="75" height="22" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg><small>Admin</small></a>
+    <aside class="aside"><a class="logo" href="roamly.html" aria-label="Rova admin"><svg class="wordmark" width="85" height="20" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg><small>Admin</small></a>
       <nav class="nav" aria-label="Dashboard sections">${groups}</nav>
       <div class="aside-foot">Signed in as <b>@${esc(state.me.username)}</b><br><a href="roamly.html">Back to the app</a></div></aside>
     <main class="content"><div class="topbar"><h1 id="secTitle">Overview<span class="sub" id="secSub"></span></h1>
@@ -371,7 +371,7 @@ function shell(){
   document.addEventListener('click', () => { $('exportMenu').classList.add('hidden'); $('exportBtn').setAttribute('aria-expanded', 'false'); });
   $('exportMenu').onclick = e => { const b = e.target.closest('[data-export]'); if (!b) return;
     const k = b.dataset.export, stamp = new Date().toISOString().slice(0, 10);
-    download(`/admin/export/${k}.csv${k === 'plans' ? '?days=' + state.days : ''}`, `roamly-${k}-${stamp}.csv`); };
+    download(`/admin/export/${k}.csv${k === 'plans' ? '?days=' + state.days : ''}`, `rova-${k}-${stamp}.csv`); };
   document.addEventListener('click', e => { const b = e.target.closest('[data-table-toggle]'); if (!b) return;
     const id = b.dataset.tableToggle, showTbl = $(id + '-tbl').classList.toggle('hidden') === false;
     $(id + '-box').classList.toggle('hidden', showTbl); b.textContent = showTbl ? 'Chart' : 'Table'; });
@@ -648,7 +648,7 @@ async function openPlan(id){
         <dt>They asked</dt><dd>${esc(p.user_text || '(tapped options, no text)')}</dd>
         <dt>Where</dt><dd>${esc(p.area || '—')}${p.lat != null ? ` <span class="t-meta">(${p.lat.toFixed(3)}, ${p.lng.toFixed(3)})</span>` : ''}</dd>
         <dt>Time taken</dt><dd>${ms(p.duration_ms)} · AI calls ${fmt(p.llm_calls)}${p.llm_failures ? `, <span class="badge crit">${p.llm_failures} failed</span>` : ''}</dd>
-        <dt>Roamly said</dt><dd>${esc(r.message || '—')}</dd></dl>
+        <dt>Rova said</dt><dd>${esc(r.message || '—')}</dd></dl>
       ${stops.length ? `<div class="sec"><span class="t-label">Stops</span>${stops.map(s => `<div class="stop"><span>${s.day ? 'Day ' + s.day + ' · ' : ''}${esc(s.time || '')}</span><div><b>${esc(s.name)}</b><div class="t-meta">${esc([s.category, s.price].filter(Boolean).join(' · '))}</div></div></div>`).join('')}</div>` : ''}
       ${r.sections ? `<div class="sec"><span class="t-label">Options offered</span><p>${r.sections.map(s => `${esc(s.label)} (${s.options.length})`).join(' · ')}</p></div>` : ''}
       <details class="sec"><summary class="t-meta">What the planner understood</summary><pre class="json">${esc(JSON.stringify(p.prefs, null, 2))}</pre></details>
@@ -866,7 +866,7 @@ async function renderWaitlist(seq){
   $('wInvite').onclick = () => {
     const ids = picked();
     const box = overlay(xHead(`Invite ${ids.length} ${ids.length === 1 ? 'person' : 'people'}`) + `
-      <label class="field">Subject<input class="input" id="invSubj" value="You're in — welcome to Roamly" maxlength="150"></label>
+      <label class="field">Subject<input class="input" id="invSubj" value="You're in — welcome to Rova" maxlength="150"></label>
       <label class="field sec">Message <span class="t-meta">(optional; blank lines start new paragraphs. A “Create your account” link is added.)</span>
         <textarea class="input" id="invMsg" rows="6" style="padding:12px 16px;min-height:140px" maxlength="4000"></textarea></label>
       <div class="acts"><button class="btn btn-primary" id="invSend">Send ${ids.length} email${ids.length === 1 ? '' : 's'}</button><button class="btn btn-ghost" data-close>Cancel</button></div>`);
@@ -1032,7 +1032,7 @@ async function renderAudit(seq){
   if (!state.me.is_admin){
     $('app').innerHTML = `<div class="center-msg"><div class="empty"><div class="e-art" aria-hidden="true">🔒</div>
       <h3>Admins only</h3><p>You're signed in as @${esc(state.me.username)}, which isn't an admin account.</p>
-      <a class="btn btn-dark" href="roamly.html">Back to Roamly</a></div></div>`;
+      <a class="btn btn-dark" href="roamly.html">Back to Rova</a></div></div>`;
     return;
   }
   shell();

@@ -122,7 +122,7 @@ window.track = function (name, params) {
       'box-shadow:0 2px 6px rgba(23,21,58,.05),0 30px 64px -26px rgba(62,40,140,.34);' +
       'border:1px solid rgba(23,21,58,.10);font:500 14px/1.45 "Plus Jakarta Sans",system-ui,sans-serif;';
     el.innerHTML =
-      '<div style="margin-bottom:12px">We use Google Analytics cookies to see how people find and use Roamly. ' +
+      '<div style="margin-bottom:12px">We use Google Analytics cookies to see how people find and use Rova. ' +
       'Okay with that?</div><div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">' +
       '<button type="button" data-no style="min-height:40px;padding:0 16px;border-radius:999px;border:1px solid ' +
       'rgba(23,21,58,.12);background:#fff;font:inherit;font-weight:700;cursor:pointer">No thanks</button>' +

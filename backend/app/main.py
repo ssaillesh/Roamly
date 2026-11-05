@@ -34,7 +34,7 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(
-    title="Roamly API",
+    title="Rova API",
     version="0.1.0",
     description="AI outing planner: accounts, taste profiles, plans and live events.",
     lifespan=lifespan,
@@ -88,4 +88,4 @@ def health():
 
 @app.get("/", tags=["meta"])
 def root():
-    return {"name": "Roamly API", "docs": "/docs", "version": "0.1.0"}
+    return {"name": "Rova API", "docs": "/docs", "version": "0.1.0"}

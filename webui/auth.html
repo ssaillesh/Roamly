@@ -22,8 +22,8 @@
 <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
 <link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
-<title>Roamly — Sign in</title>
-<meta name="description" content="Sign in or create a free Roamly account to start planning your night." />
+<title>Rova — Sign in</title>
+<meta name="description" content="Sign in or create a free Rova account to start planning your night." />
 <meta name="theme-color" content="#3a2a4f" />
 <meta name="robots" content="noindex" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -58,7 +58,7 @@
   .brand{display:inline-flex; align-items:center; gap:10px; color:#fff; text-decoration:none; font-size:24px; font-weight:700;
     letter-spacing:-.02em; text-shadow:0 2px 14px rgba(20,10,30,.35);}
   .brand svg{filter:drop-shadow(0 2px 10px rgba(20,10,30,.35));}
-  .brand .mk{width:28px; height:36px;} .brand .wm{width:96px; height:28px;}
+  .brand .wm{width:110px; height:26px; --rova-accent:#D4B47A;}
   .bar-acts{display:flex; align-items:center; gap:14px; font-size:14px; color:rgba(255,255,255,.9);}
   .bar-acts .q{text-shadow:0 1px 10px rgba(20,10,30,.4);}
   .pill{display:inline-flex; align-items:center; min-height:40px; padding:0 18px; border-radius:var(--r-pill); cursor:pointer;
@@ -162,7 +162,7 @@
   }
   @media (max-width:560px){
     .bar-acts .q{display:none;}
-    .brand .mk{width:24px; height:31px;} .brand .wm{width:82px; height:24px;}
+    .brand .wm{width:93px; height:22px;}
     .pitch p{margin-top:12px;}
     .stage{gap:22px; padding-bottom:20px;}
   }
@@ -171,7 +171,6 @@
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-  <symbol id="i-logo-w" viewBox="-36.3 -40 72.6 100"><path fill="currentColor" stroke="none" d="M0 -40L-9.24 -9.24L0 0ZM36.3 0L9.24 -9.24L0 0ZM0 60L9.24 9.24L0 0ZM-36.3 0L-9.24 9.24L0 0Z"/><path fill="#FF5A20" stroke="none" d="M0 -40L9.24 -9.24L0 0ZM36.3 0L9.24 9.24L0 0ZM0 60L-9.24 9.24L0 0ZM-36.3 0L-9.24 -9.24L0 0Z"/></symbol>
   <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></symbol>
   <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
   <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="3"/><path d="m4 7.5 8 6 8-6"/></symbol>
@@ -184,7 +183,7 @@
 
 <div class="shell">
   <header class="bar">
-    <a class="brand" href="/" aria-label="Roamly home"><svg class="mk" width="26" height="34" aria-hidden="true"><use href="#i-logo-w"/></svg><svg class="wm" width="86" height="25" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
+    <a class="brand" href="/" aria-label="Rova home"><svg class="wm" width="110" height="26" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
     <div class="bar-acts">
       <span class="q" id="barQ">Already have an account?</span>
       <button type="button" class="pill" id="barSwitch">Sign in</button>
@@ -192,9 +191,9 @@
   </header>
 
   <main class="stage">
-    <section class="pitch" aria-label="About Roamly">
+    <section class="pitch" aria-label="About Rova">
       <h1>Plan the moments<br>that matter.</h1>
-      <p>Tell us what you're in the mood for, and Roamly builds a real, timed plan from places near you.
+      <p>Tell us what you're in the mood for, and Rova builds a real, timed plan from places near you.
         Or ask what's happening right now, and discover live events around you.</p>
     </section>
 
@@ -209,7 +208,7 @@
       <div id="mainPanel">
         <div class="card-head">
           <h2 id="headTitle">Create your account</h2>
-          <p id="headSub">Get started with Roamly and never wonder what to do next.</p>
+          <p id="headSub">Get started with Rova and never wonder what to do next.</p>
         </div>
 
         <form id="authForm" novalidate>
@@ -241,7 +240,7 @@
 
           <div class="fld" id="fAgree">
             <label class="agree-row"><input type="checkbox" id="agree" />
-              <span>I agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+              <span>I agree to Rova's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
                 and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</span></label>
             <div class="hint" id="hAgree"></div>
           </div>
@@ -261,7 +260,7 @@
         <div class="divider">or</div>
         <div class="switcher" id="switcher"></div>
 
-        <div class="fineprint" id="fineprint">By signing in you agree to Roamly's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
+        <div class="fineprint" id="fineprint">By signing in you agree to Rova's <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
           and <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</div>
       </div>
 
@@ -289,7 +288,7 @@
       <div class="fp-panel" id="rpPanel">
         <div class="card-head">
           <h2>Choose a new password</h2>
-          <p>Pick a new password for your Roamly account.</p>
+          <p>Pick a new password for your Rova account.</p>
         </div>
         <form id="rpForm" novalidate>
           <div class="fld" id="fRpPassword">
@@ -339,16 +338,16 @@ function applyMode(){
   showFor('fName', reg); showFor('fAgree', reg); showFor('strength', reg && !!$('password').value);
   showFor('forgotRow', !reg); showFor('fineprint', !reg);
   $('headTitle').textContent = reg ? 'Create your account' : 'Welcome back';
-  $('headSub').textContent = reg ? 'Get started with Roamly and never wonder what to do next.'
+  $('headSub').textContent = reg ? 'Get started with Rova and never wonder what to do next.'
                                  : "Good to see you again — let's plan something.";
   $('submitLbl').textContent = reg ? 'Create account' : 'Sign in';
   $('password').setAttribute('autocomplete', reg ? 'new-password' : 'current-password');
-  $('barQ').textContent = reg ? 'Already have an account?' : 'New to Roamly?';
+  $('barQ').textContent = reg ? 'Already have an account?' : 'New to Rova?';
   $('barSwitch').textContent = reg ? 'Sign in' : 'Create account';
   $('switcher').innerHTML = reg ? 'Already have an account? <button type="button" data-switch>Sign in</button>'
-                                : 'New to Roamly? <button type="button" data-switch>Create a free account</button>';
+                                : 'New to Rova? <button type="button" data-switch>Create a free account</button>';
   $('switcher').querySelector('[data-switch]').onclick = toggleMode;
-  document.title = reg ? 'Roamly — Create your account' : 'Roamly — Sign in';
+  document.title = reg ? 'Rova — Create your account' : 'Rova — Sign in';
   clearFormMsg();
 }
 function toggleMode(){
@@ -409,7 +408,7 @@ $('togglePw').onclick = () => {
 /* A username is made from the email ("sam.lee@…" → "sam_lee"); people never type one. */
 function usernameFrom(email, salt){
   let u = email.split('@')[0].toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 22) || 'roamer';
-  if (u.length < 3) u = (u + '_roamly').slice(0, 10);
+  if (u.length < 3) u = (u + '_rova').slice(0, 10);
   return salt ? `${u}_${salt}` : u;
 }
 
@@ -524,7 +523,7 @@ function rpFail(text, linkDead){
 if (RESET_TOKEN !== null){
   $('mainPanel').style.display = 'none';
   $('rpPanel').classList.add('on');
-  document.title = 'Roamly — Choose a new password';
+  document.title = 'Rova — Choose a new password';
   if (!RESET_TOKEN || RESET_TOKEN.length > 2048 || !TOKEN_RE.test(RESET_TOKEN))
     rpFail('This reset link is incomplete. Open the link from your email again, or request a new one.', true);
   else $('rpPassword').focus();

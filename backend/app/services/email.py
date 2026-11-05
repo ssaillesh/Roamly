@@ -81,14 +81,14 @@ def reset_link(reset_token: str) -> str:
 
 
 def send_password_reset(to_email: str, reset_token: str) -> bool:
-    subject = "Reset your Roamly password"
+    subject = "Reset your Rova password"
     html = f"""
       <p>Hi,</p>
-      <p>We received a request to reset your Roamly password.
+      <p>We received a request to reset your Rova password.
          Click the link below to choose a new one. This link expires in 15 minutes.</p>
       <p><a href="{reset_link(reset_token)}">Reset my password</a></p>
       <p>If you didn't request this, you can safely ignore this email.</p>
-      <p>— Roamly</p>
+      <p>— Rova</p>
     """
     return send_email(to_email, subject, html)
 

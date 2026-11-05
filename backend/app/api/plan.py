@@ -748,7 +748,7 @@ def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse
     plan = Plan(**plan_dict)
     msg = plan.intro or "Your plan:"
     if plan.quick:
-        msg = "Quick version: the AI planner is busy right now, so these are Roamly's top-ranked picks. " + msg
+        msg = "Quick version: the AI planner is busy right now, so these are Rova's top-ranked picks. " + msg
     if plan_dict.get("special_note"):
         msg = f"{plan_dict['special_note']} {msg}"
     if prefs.get("_assumed"):

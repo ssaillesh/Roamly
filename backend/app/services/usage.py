@@ -42,9 +42,9 @@ log = logging.getLogger(__name__)
 FREE_TIER = {
     "llm":           ("day",   1000,  950, "Groq free tier: 1,000 requests and 200,000 tokens a day. "
                                            "Over it Groq refuses (429); it only bills if the account is upgraded."),
-    "google_places": ("month", 1000,  900, "Text Search Enterprise (Roamly asks for rating and price): "
+    "google_places": ("month", 1000,  900, "Text Search Enterprise (Rova asks for rating and price): "
                                            "1,000 free a month, then $35 per 1,000."),
-    "foursquare":    ("month",    0,    0, "Roamly asks for rating, price and popularity, which are "
+    "foursquare":    ("month",    0,    0, "Rova asks for rating, price and popularity, which are "
                                            "Premium fields: billed from the first call ($18.75 per 1,000)."),
     "yelp":          ("month",    0,    0, "No free tier since 2024: a 30-day trial, then plans from "
                                            "$229 a month."),
@@ -52,7 +52,7 @@ FREE_TIER = {
                                            "(95 a day stays under both). Never billed: past it Resend refuses."),
     "ticketmaster":  ("day",   5000, 4900, "Free: 5,000 calls a day (over it they refuse; never billed)."),
     "seatgeek":      ("day",   2000, 2000, "Free developer access. SeatGeek publishes no fixed limit, so this "
-                                           "is Roamly's own daily cap (results are cached 10 minutes)."),
+                                           "is Rova's own daily cap (results are cached 10 minutes)."),
     "open_meteo":    ("day",  10000, 9000, "Free for non-commercial use: 10,000 calls a day."),
 }
 # Daily token allowances, checked alongside the request caps (Groq's free tier
@@ -67,7 +67,7 @@ _PACIFIC = ZoneInfo("America/Los_Angeles")
 # Paid products Roamly doesn't use (yet). Each can charge a card on file, so
 # they're switched off in code. To use one later, remove it here on purpose.
 DISABLED = {
-    "foursquare":    "Paid product: the fields Roamly needs are billed from the first call.",
+    "foursquare":    "Paid product: the fields Rova needs are billed from the first call.",
     "yelp":          "Paid product: no free tier since 2024.",
     "google_places": "Paid product: needs a billing card and charges past 1,000 searches a month.",
 }

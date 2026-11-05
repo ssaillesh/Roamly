@@ -6,8 +6,8 @@
 <link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
 <link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
-<title>Roamly — your night, planned</title>
-<meta name="description" content="See what's open and on near you tonight, add what you like, and Roamly fills in the rest." />
+<title>Rova — your night, planned</title>
+<meta name="description" content="See what's open and on near you tonight, add what you like, and Rova fills in the rest." />
 <meta name="theme-color" content="#161826" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -19,7 +19,7 @@
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css" />
 <script src="/config.js"></script>
 <style>
-  /* ================= Nocturne tokens (from the Roamly Redesign design system) ================= */
+  /* ================= Nocturne tokens (from the Rova Redesign design system) ================= */
   :root{
     --color-bg:#161826; --color-surface:#232532; --color-text:#e9e9ed;
     --color-accent:#9184d9;
@@ -158,7 +158,7 @@
   .seg3 button:hover{color:var(--color-text);}
   .seg3 button[aria-selected="true"]{background:var(--color-neutral-800); color:var(--color-text);}
 
-  /* Roamly's short replies to a typed search — one question at a time */
+  /* Rova's short replies to a typed search — one question at a time */
   .reply{border-radius:12px; padding:12px 14px; background:color-mix(in srgb,var(--color-accent) 9%,transparent); display:flex; flex-direction:column; gap:10px;
     animation:rise .3s var(--ease) both;}
   .reply-top{display:flex; gap:10px; align-items:flex-start;}
@@ -456,12 +456,12 @@
 <body>
 <div class="app">
   <div id="map" role="region" aria-label="Map of places and events"></div>
-  <button class="where" id="wherePill" aria-label="Where Roamly looks. Change"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Set a place</span></button>
+  <button class="where" id="wherePill" aria-label="Where Rova looks. Change"><i class="ph ph-map-pin" aria-hidden="true"></i><span>Set a place</span></button>
 
   <aside class="panel float" aria-label="What's on near you">
     <div class="p-head">
       <div class="brandrow">
-        <a href="/" aria-label="Roamly home"><img src="/brand/logo-white.svg" alt="Roamly" width="64" height="22"></a>
+        <a href="/" aria-label="Rova home"><img src="/brand/logo-white.svg" alt="Rova" width="76" height="18"></a>
         <div class="acts">
           <button class="ibtn" id="savedBtn" aria-label="Saved plans" aria-pressed="false"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span class="count" data-saved-count></span></button>
           <button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">R</button>
@@ -469,7 +469,7 @@
       </div>
       <form class="search" id="searchForm" role="search" autocomplete="off">
         <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-        <input id="q" aria-label="Search places and events, or ask Roamly" placeholder="Search, or ask: “quiet bar near Ossington”" maxlength="300" />
+        <input id="q" aria-label="Search places and events, or ask Rova" placeholder="Search, or ask: “quiet bar near Ossington”" maxlength="300" />
         <button class="go" id="goBtn" type="submit" aria-label="Search"><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
       </form>
       <div class="reply" id="reply" hidden aria-live="polite"></div>
@@ -537,7 +537,7 @@ const TORONTO = [43.6487, -79.3960];
 
 let messages = [];           // typed turns {role, content}
 let convoStart = 0;          // where the current request starts (after the last plan/events result)
-let askedKeys = [];          // questions Roamly already asked — never asked twice
+let askedKeys = [];          // questions Rova already asked — never asked twice
 const newSessionId = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()).replace(/-/g, '');
 let sessionId = newSessionId();   // groups this session's requests in the admin dashboard
 const seenVenues = new Set();     // venues already suggested — only "Try another" avoids them
@@ -830,7 +830,7 @@ function renderSection(k){
                aria-label="Search radius in kilometres" aria-valuetext="${fmtKm(ready.radius_km)}" />
         <b id="radiusVal">${fmtKm(ready.radius_km)}</b>
       </div>
-      <div class="hint" id="radiusHint">Roamly looks within about ${fmtKm(ready.radius_km)} of your starting point.</div>
+      <div class="hint" id="radiusHint">Rova looks within about ${fmtKm(ready.radius_km)} of your starting point.</div>
       ${Object.entries(TRANSPORT_KM).map(([m, km]) =>
         `<button class="chip${ready.radius_km === km ? ' on' : ''}" data-km="${km}" aria-pressed="${ready.radius_km === km}">${READY.transport.options.find(([v]) => v === m)[1]} · ~${km} km</button>`).join('')}`;
     const sl = box.querySelector('#radiusSlider');
@@ -838,7 +838,7 @@ function renderSection(k){
       ready.radius_km = clamp(parseFloat(sl.value) || RADIUS_MIN, RADIUS_MIN, RADIUS_MAX);
       sl.setAttribute('aria-valuetext', fmtKm(ready.radius_km));
       box.querySelector('#radiusVal').textContent = fmtKm(ready.radius_km);
-      box.querySelector('#radiusHint').textContent = `Roamly looks within about ${fmtKm(ready.radius_km)} of your starting point.`;
+      box.querySelector('#radiusHint').textContent = `Rova looks within about ${fmtKm(ready.radius_km)} of your starting point.`;
       box.querySelectorAll('[data-km]').forEach(c => { const on = parseFloat(c.dataset.km) === ready.radius_km; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
       updateCtxChip();
     };
@@ -901,7 +901,7 @@ function renderSection(k){
   if (k === 'interests'){
     box.innerHTML = `<label class="field">Anything specific?
         <input class="input" id="interestsInput" placeholder="e.g. sushi, karaoke, rooftop patio" value="${esc(ready.interests || '')}" maxlength="120" />
-      </label><div class="hint">Roamly looks for these first. Leave empty for a good mix.</div>`;
+      </label><div class="hint">Rova looks for these first. Leave empty for a good mix.</div>`;
     const inp = box.querySelector('#interestsInput');
     inp.oninput = () => { ready.interests = inp.value.trim(); edited = true; };
     inp.onchange = () => renderCtx();
@@ -911,7 +911,7 @@ function renderSection(k){
   chipsFor(k, box);                                      // time_of_day, vibe
 }
 
-/* Settings Roamly understood from a typed message ("cheap sushi date in Kensington")
+/* Settings Rova understood from a typed message ("cheap sushi date in Kensington")
    become the state's values; returns which ones changed so the reply can show them. */
 function applyUnderstood(u){
   if (!u || !ready) return [];
@@ -999,7 +999,7 @@ const WINDOW_TEXT = { now:'right now', tonight:'tonight', weekend:'this weekend'
 const NL_WIN = { now:'tonight', tonight:'tonight', weekend:'weekend' };
 const KIND = { clubs:['disco-ball','Club'], lgbtq:['rainbow','LGBTQ+ bar'], music:['music-notes','Live music'], comedy:['microphone-stage','Comedy & karaoke'],
                lounges:['martini','Lounge'], bars:['beer-stein','Bar'] };
-const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar', roamly:'Listed on Roamly', seatgeek:'' };
+const SOURCE_LABEL = { ticketmaster:'via Ticketmaster', city_toronto:'City of Toronto festivals calendar', roamly:'Listed on Rova', seatgeek:'' };
 /* SeatGeek's API terms: their logo, linked to their home page, on everything of theirs we show. */
 const SG_LOGO = () => `<a class="sg-link" href="https://seatgeek.com" target="_blank" rel="noopener" aria-label="SeatGeek"><img class="sg-logo" src="seatgeek-logo.svg" alt="SeatGeek"></a>`;
 const LIST_PAGE = 50;
@@ -1207,7 +1207,7 @@ function renderList(){
   if (!ready){ body.innerHTML = skeletonRows(); return; }
   if (!hasWhere()){
     body.innerHTML = `<div class="empty"><span class="e-ic">${ic('map-pin')}</span><h3>Where are you heading out?</h3>
-      <p>Share your location or name a neighbourhood, and Roamly shows what's open and on around it.</p>
+      <p>Share your location or name a neighbourhood, and Rova shows what's open and on around it.</p>
       <div class="acts"><button class="btn btn-primary" data-loc-on ${locState === 'unsupported' ? 'disabled' : ''}>${ic('navigation-arrow')} Use my location</button>
         <button class="btn btn-secondary" data-set-place>Type a place</button></div></div>`;
     body.querySelector('[data-loc-on]').onclick = () => getLoc();
@@ -1241,14 +1241,14 @@ function renderList(){
   else {
     if (feed.err.events && feed.err.spots && !srcItems().length){
       const slow = /too long/i.test((feed.err.events && feed.err.events.message) || '');
-      html += `<div class="notice">${ic('warning-circle')}<div><b>${slow ? 'That took longer than usual' : "Couldn't reach Roamly"}</b>
+      html += `<div class="notice">${ic('warning-circle')}<div><b>${slow ? 'That took longer than usual' : "Couldn't reach Rova"}</b>
         <p>${slow ? 'Search can be slow the first time in a new area.' : 'Check your connection and try again.'}</p>
         <div class="acts"><button class="btn btn-secondary" data-retry>${ic('arrow-clockwise')} Try again</button></div></div></div>`;
     } else if (!vis.length && !loading){
       const wider = clamp(ready.radius_km * 2, RADIUS_MIN, RADIUS_MAX);
       html += `<div class="empty"><span class="e-ic">${ic(at ? 'clock' : 'calendar-blank')}</span>
         <h3>${at ? `Nothing open or on at ${esc(fmtClock(minOfDay(at)))}` : `Nothing listed within ${fmtKm(ready.radius_km)}`}</h3>
-        <p>${at ? 'Drag the dial to another hour, or look at any time tonight.' : 'Roamly checks ticketed events, the city calendar and its club guide, so small pop-ups can be missing.'}</p>
+        <p>${at ? 'Drag the dial to another hour, or look at any time tonight.' : 'Rova checks ticketed events, the city calendar and its club guide, so small pop-ups can be missing.'}</p>
         <div class="acts">${at ? `<button class="btn btn-secondary" data-any>Any time</button>` : ''}
           ${wider > ready.radius_km ? `<button class="btn btn-secondary" data-wider>${ic('circle-dashed')} Search ${fmtKm(wider)}</button>` : ''}
           <button class="btn btn-primary" data-plan-me>${ic('sparkle')} Plan it for me</button></div></div>`;
@@ -1262,7 +1262,7 @@ function renderList(){
       if (feed.evType && feed.evType !== 'events' && feed.evMsg) notes.push(esc(feed.evMsg));
       if (!feed.covered) notes.push("The club guide covers Toronto for now — club nights still show wherever Ticketmaster lists them.");
       if (feed.err.spots && !feed.err.events) notes.push("The club guide didn't load just now.");
-      notes.push(`Ticketed events via Ticketmaster${(feed.events || []).some(e => e.source === 'seatgeek') ? ' and SeatGeek' : ''}; free festivals from the City of Toronto calendar. Run a night? <a href="submit-event.html">List it on Roamly</a>.`);
+      notes.push(`Ticketed events via Ticketmaster${(feed.events || []).some(e => e.source === 'seatgeek') ? ' and SeatGeek' : ''}; free festivals from the City of Toronto calendar. Run a night? <a href="submit-event.html">List it on Rova</a>.`);
       html += `<p class="foot-note">${notes.join('<br>')}</p>`;
     }
   }
@@ -1478,7 +1478,7 @@ function renderNightBar(){
     sub = [nightSpan(), planUi.saved ? 'saved' : ''].filter(Boolean).join(' · ') || planName(plan);
     acts = `<button class="btn btn-primary btn-pill" data-review>Review ${ic('arrow-right')}</button>`;
   } else {
-    t = 'Your night'; sub = 'Add places from the list, or let Roamly plan it';
+    t = 'Your night'; sub = 'Add places from the list, or let Rova plan it';
     acts = `<button class="btn btn-secondary btn-pill btn-icon" data-surprise aria-label="Surprise me" title="Surprise me">${ic('shuffle')}</button>
       <button class="btn btn-primary btn-pill" data-plan>Plan it for me ${ic('arrow-right')}</button>`;
   }
@@ -1497,7 +1497,7 @@ function planName(plan){
   const m = plan._meta || {};
   return `${VIBE_NAME[plan.vibe] || 'Your'} ${GROUP_TITLE[m.group] || 'night'}`;
 }
-/* What Roamly can honestly say about why this plan fits — every line is checked
+/* What Rova can honestly say about why this plan fits — every line is checked
    against the plan's own numbers, nothing is invented. */
 function fitsFor(plan){
   const m = plan._meta || {}, out = [], pp = Math.max(1, plan.party_size || 1);
@@ -1661,7 +1661,7 @@ function renderPlanPanel(){
   } else if (planUi.state === 'error'){
     const e = planUi.err, slow = /too long/i.test((e && e.message) || '');
     scroll = `${top}<div class="plan-h"><span class="kicker">${esc(dateK)}</span><h2>Your night</h2></div>
-      <div class="notice" style="margin:20px 0 0">${ic('warning-circle')}<div><b>${esc(e && e.title || (slow ? 'Hmm — that took longer than usual' : "Couldn't reach Roamly"))}</b>
+      <div class="notice" style="margin:20px 0 0">${ic('warning-circle')}<div><b>${esc(e && e.title || (slow ? 'Hmm — that took longer than usual' : "Couldn't reach Rova"))}</b>
         <p>${esc(e && e.text || (slow ? 'Venue search can be slow right now. Your settings are kept, so nothing needs retyping.' : 'Check your connection and try again. Your settings are kept.'))}</p>
         <div class="acts">${planUi.retry ? `<button class="btn btn-secondary" data-retry>${ic('arrow-clockwise')} Try again</button>` : ''}
           <button class="btn btn-ghost" data-settings>${ic('sliders-horizontal')} Adjust settings</button></div></div></div>`;
@@ -1734,7 +1734,7 @@ function removeStop(i){
 function sharePlan(){
   const plan = lastItin && lastItin.plan; if (!plan) return;
   const text = `${planName(plan)} — ` + plan.stops.map((s, i) => `${i + 1}. ${s.time ? s.time + ' ' : ''}${s.name}`).join(' · ');
-  if (navigator.share) navigator.share({ title:'My night, planned with Roamly', text }).catch(() => {});
+  if (navigator.share) navigator.share({ title:'My night, planned with Rova', text }).catch(() => {});
   else if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast('Copied — paste it anywhere'), () => toast("Couldn't copy that"));
 }
 
@@ -1900,7 +1900,7 @@ async function requestChat(o = {}){
     if (planUi.state === 'loading') planFailed(e, again);
     else {
       const slow = /too long/i.test((e && e.message) || '');
-      showReply({ you:lastAsk, text: slow ? 'That took longer than usual — venue search can be slow right now.' : "Couldn't reach Roamly. Check your connection.",
+      showReply({ you:lastAsk, text: slow ? 'That took longer than usual — venue search can be slow right now.' : "Couldn't reach Rova. Check your connection.",
         actions:[{ label:'Try again', icon:'arrow-clockwise', onclick: () => { showReply({ you:lastAsk, waiting:true }); again(); } }] });
     }
   }
@@ -2107,7 +2107,7 @@ function termsGate(){
   const el = document.createElement('div');
   el.className = 'terms-gate'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true');
   el.setAttribute('aria-labelledby', 'tgTitle');
-  el.innerHTML = `<div class="tg-card"><h2 id="tgTitle">Roamly's Terms & Privacy Policy</h2>
+  el.innerHTML = `<div class="tg-card"><h2 id="tgTitle">Rova's Terms & Privacy Policy</h2>
     <p>Before you keep planning, please read and accept the <a href="/terms" target="_blank" rel="noopener">Terms of Service</a>
       and the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.</p>
     <div class="tg-acts"><button class="btn btn-primary" id="tgAccept">Accept and continue</button>

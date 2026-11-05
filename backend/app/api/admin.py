@@ -765,7 +765,7 @@ def waitlist(q: str = "", db: Session = Depends(get_db), _admin: User = Depends(
 
 class InviteBody(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
-    subject: str = Field("You're in — welcome to Roamly", max_length=150)
+    subject: str = Field("You're in — welcome to Rova", max_length=150)
     message: str = Field("", max_length=4000)
     mark_only: bool = False   # record as invited without sending (e.g. invited by hand)
 
@@ -783,8 +783,8 @@ def invite(body: InviteBody, db: Session = Depends(get_db), admin: User = Depend
         if not body.mark_only:
             hello = f"Hi {w.name}," if w.name else "Hi,"
             extra = "".join(f"<p>{_esc(p)}</p>" for p in body.message.split("\n\n") if p.strip())
-            html = (f"<p>{_esc(hello)}</p>{extra or '<p>Your Roamly early access is ready.</p>'}"
-                    f'<p><a href="{link}">Create your account</a></p><p>— Roamly</p>')
+            html = (f"<p>{_esc(hello)}</p>{extra or '<p>Your Rova early access is ready.</p>'}"
+                    f'<p><a href="{link}">Create your account</a></p><p>— Rova</p>')
             if not send_email(w.email, body.subject, html):
                 failed.append(w.email)
                 continue
@@ -960,7 +960,7 @@ def export(kind: str, days: int = Days, db: Session = Depends(get_db),
 
     stamp = utc_today().isoformat()
     return StreamingResponse(gen(), media_type="text/csv", headers={
-        "Content-Disposition": f'attachment; filename="roamly-{kind}-{stamp}.csv"'})
+        "Content-Disposition": f'attachment; filename="rova-{kind}-{stamp}.csv"'})
 
 
 @router.get("/audit")
