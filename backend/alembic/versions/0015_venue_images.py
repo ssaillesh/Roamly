@@ -18,7 +18,7 @@ depends_on = None
 def upgrade() -> None:
     cols = {c["name"] for c in sa.inspect(op.get_bind()).get_columns("venues")}
     if "image" not in cols:
-        op.add_column("venues", sa.Column("image", sa.String(1000), nullable=True))
+        op.add_column("venues", sa.Column("image", sa.String(500), nullable=True))
 
 
 def downgrade() -> None:

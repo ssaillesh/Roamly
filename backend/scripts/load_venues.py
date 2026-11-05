@@ -126,6 +126,9 @@ def wikidata(box) -> list[dict]:
 # ---------------------------------------------------------------- photos
 IMAGE_BUDGET_S = 600            # the whole photo step; what's left waits for next month
 IMAGE_WORKERS = 24
+# Only the URL is stored, never the picture (the browser loads it from the venue's
+# site or Commons), and it's capped: ~120 bytes a photo, well under 1 MB a city.
+MAX_IMAGE_URL = 500
 _PAGE_BYTES = 256 * 1024        # og:image lives in <head>; never download a whole site
 # Links that aren't the venue's own site: login walls, aggregators, link-in-bio pages.
 _NOT_OWN_SITE = ("facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com", "youtube.com",
@@ -175,7 +178,7 @@ def og_image(page: str, base: str) -> str | None:
         url = urljoin(base, raw)
         if url.startswith("http://"):
             url = "https://" + url[len("http://"):]      # the app is https: no mixed content
-        if url.startswith("https://") and len(url) <= 1000 and not _NOT_A_PHOTO.search(urlsplit(url).path + "?" + urlsplit(url).query):
+        if url.startswith("https://") and len(url) <= MAX_IMAGE_URL and not _NOT_A_PHOTO.search(urlsplit(url).path + "?" + urlsplit(url).query):
             return url
     return None
 
@@ -307,11 +310,15 @@ def images_only(city: str, budget_s: float, refresh: bool = False) -> int:
         f"{sum(1 for x in fetched.values() if x)} with a photo ({time.time() - t:.0f}s)"
         + (f"; {len(todo) - reached} left for next time" if reached < len(todo) else ""))
     assign_images(venues, prev, fetched)
+    # Write only the rows whose photo changed: every rewritten row leaves a dead copy
+    # behind until vacuum, and on Neon the change history counts toward storage.
+    before = {r.id: r.image for r in rows}
+    changed = [{"id": v["id"], "image": v["image"]} for v in venues if v["image"] != before.get(v["id"])]
     with SessionLocal() as db:
-        for i in range(0, len(venues), 1000):
-            db.bulk_update_mappings(Venue, [{"id": v["id"], "image": v["image"]} for v in venues[i:i + 1000]])
+        for i in range(0, len(changed), 1000):
+            db.bulk_update_mappings(Venue, changed[i:i + 1000])
         db.commit()
-    log(f"Updated {len(venues)} venues: {sum(1 for v in venues if v['image'])} with photos "
+    log(f"Updated {len(changed)} of {len(venues)} venues; {sum(1 for v in venues if v['image'])} have photos "
         f"({sum(1 for v in venues if is_commons(v['image']))} from Wikimedia Commons).")
     return 0
 

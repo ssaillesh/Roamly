@@ -7,535 +7,735 @@
 <link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
 <title>Roamly — your night, planned</title>
-<meta name="description" content="Tell Roamly your budget and your vibe — get a real itinerary of places near you, from dinner to drinks to the dessert you didn't know you needed." />
-<meta name="theme-color" content="#140e28" />
+<meta name="description" content="Tell Roamly your vibe, your people, your budget and your neighbourhood. Get a real, timed night out: places that are open, walking routes, and a budget that adds up." />
+<meta name="theme-color" content="#161826" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" />
+<script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
 
 <!-- Open Graph -->
 <meta property="og:title" content="Roamly — your night, planned" />
-<meta property="og:description" content="Budget + vibe in, a real night out — real places, real hours, mapped stop by stop." />
+<meta property="og:description" content="A chill night for two, around $60 each, in Queen West. Roamly turns that into a real plan, hour by hour." />
 <meta property="og:type" content="website" />
 
 <script src="/config.js"></script>
 
 <style>
+  /* Nocturne tokens (from the Roamly UI redesign) */
   :root{
-    /* the Roamly design system palette (see roamly.css) */
-    --accent:#6a4cf0; --accent2:#b8458a; --hot:#9447d6; --lime:#b8f34a;
-    --bg:#fbf8f4; --bg-soft:#f5f0fb; --ink:#17153a; --ink2:#4a4766; --ink3:#625f7e;
-    --brd:rgba(0,0,0,.08); --hair:rgba(0,0,0,.06);
-    --r-lg:32px; --r-md:20px; --maxw:1120px;
+    --color-bg:#161826; --color-surface:#232532; --color-text:#e9e9ed;
+    --color-accent:#9184d9;
+    --color-divider:color-mix(in srgb,#e9e9ed 16%,transparent);
+    --color-neutral-100:#f3f5fe; --color-neutral-300:#cfd3e5; --color-neutral-400:#b2b6ca;
+    --color-neutral-500:#9397ab; --color-neutral-600:#75798c; --color-neutral-700:#595d6c;
+    --color-neutral-800:#3f424d; --color-neutral-900:#292b31;
+    --color-accent-100:#f5f4ff; --color-accent-200:#e7e5fe; --color-accent-300:#d2cefd;
+    --font:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --shadow-sm:0 0 0 1px #3f424d;
+    --shadow-md:0 0 0 1px #595d6c,0 6px 18px rgba(0,0,0,.55);
     --ease:cubic-bezier(.22,1,.36,1);
-    --shadow-soft:0 30px 60px -20px rgba(60,40,120,.18);
+    --gutter:56px; --maxw:1280px;
+    /* rules fade out at both ends */
+    --rule:linear-gradient(to right,transparent,var(--color-divider) 48px,var(--color-divider) calc(100% - 48px),transparent);
   }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  *,*::before,*::after{box-sizing:border-box;}
   html{scroll-behavior:smooth;}
-  body{
-    margin:0; background:var(--bg); color:var(--ink); overflow-x:hidden;
-    font-family:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif;
-    -webkit-font-smoothing:antialiased; line-height:1.5;
-  }
+  body{margin:0; background:var(--color-bg); color:var(--color-text); font-family:var(--font);
+    font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; overflow-x:clip;}
   a{color:inherit; text-decoration:none;}
-  ::selection{background:var(--accent2); color:#fff;}
-  .wrap{max-width:var(--maxw); margin:0 auto; padding:0 28px;}
-  .grad{background:linear-gradient(100deg,var(--accent) 10%,var(--hot) 45%,var(--accent2) 90%);
-    -webkit-background-clip:text; background-clip:text; color:transparent;}
+  img{display:block; max-width:100%;}
+  button{font:inherit; color:inherit;}
+  :focus{outline:none;}
+  :focus-visible{outline:2px solid var(--color-accent); outline-offset:3px; border-radius:4px;}
+  ::selection{background:color-mix(in srgb,var(--color-accent) 30%,transparent);}
+  .num{font-variant-numeric:tabular-nums;}
+  .page{position:relative; overflow:hidden;}
+  .wrap{position:relative; max-width:var(--maxw); margin:0 auto; padding:0 var(--gutter);}
+  .glow{position:absolute; left:-200px; top:-260px; width:900px; height:900px; border-radius:50%;
+    pointer-events:none; background:radial-gradient(circle,color-mix(in srgb,var(--color-accent) 16%,transparent),transparent 62%);}
+  .eyebrow{font-size:12px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-neutral-500);}
 
-  /* ---- nav: slim, near-solid (a backdrop blur here re-blurs the animated
-     aurora every frame, which lagged the whole browser on low-memory Macs) ---- */
-  /* Sits on the hero photo (white, transparent); turns solid cream once the
-     page scrolls past it (.solid, toggled in the script). */
-  header{position:fixed; top:0; left:0; right:0; z-index:40; background:transparent;
-    border-bottom:1px solid transparent; transition:background .3s, border-color .3s;}
-  header.solid{background:rgba(20,14,40,.88); border-bottom-color:rgba(255,255,255,.08);}
-  .nav{display:flex; align-items:center; gap:28px; height:76px; max-width:1280px; margin:0 auto; padding:0 40px;
-    font-size:14.5px; color:rgba(255,255,255,.88);}
-  header.solid .nav{height:60px;}
-  .logo{font-weight:650; font-size:19px; letter-spacing:-.02em; color:#fff; display:flex; align-items:center; gap:9px;}
-  .logo .mk{width:26px; height:34px;} .logo .wm{width:86px; height:25px;}
-  .nav .links{margin:0 auto; display:flex; align-items:center; gap:36px;}
-  .nav .links a{position:relative; padding:6px 0; transition:color .2s;}
-  .nav .links a:hover{color:#fff;}
-  .nav .links a.on::after{content:''; position:absolute; left:-4px; right:-4px; bottom:-8px; height:2px;
-    border-radius:2px; background:currentColor;}
-  .acts{display:flex; align-items:center; gap:18px;}
-  .signin{color:rgba(255,255,255,.88); font-weight:600;}
-  .signin:hover{color:#fff;}
-  .nav .cta{background:#fff; color:var(--ink); padding:10px 22px; border-radius:999px; font-weight:650;
-    box-shadow:0 8px 20px -10px rgba(20,14,40,.5); transition:transform .2s var(--ease), box-shadow .2s;}
-  .nav .cta:hover{transform:translateY(-1px); box-shadow:0 12px 24px -10px rgba(20,14,40,.6);}
+  /* buttons */
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;
+    font-weight:500; font-size:14px; line-height:1.2; border-radius:999px; border:1px solid transparent;
+    background:transparent; color:var(--color-text); white-space:nowrap; transition:background .2s;}
+  .btn-primary{color:var(--color-accent); border-color:var(--color-accent);}
+  .btn-primary:hover{background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
+  .btn-primary:active{background:color-mix(in srgb,var(--color-accent) 22%,transparent);}
 
-  /* ---- buttons ---- */
-  .btn{display:inline-flex; align-items:center; justify-content:center; gap:8px;
-    font-weight:600; font-size:16px; padding:14px 28px; border-radius:999px;
-    cursor:pointer; transition:.25s var(--ease); border:none;}
-  .btn:hover{transform:translateY(-1px);}
-  .btn-dark{background:var(--ink); color:#fff;}
-  .btn-grad{background:linear-gradient(120deg,#6a4cf0 0%,#9447d6 55%,#c2458f 100%); color:#fff;
-    box-shadow:0 12px 30px -10px rgba(106,76,240,.6);}
-  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--brd);}
-  .btn-light{background:#fff; color:var(--ink);}
+  /* nav */
+  .nav{display:flex; align-items:center; gap:32px; padding-top:22px; padding-bottom:22px;}
+  .nav .logo img{height:26px; width:auto;}
+  .nav .links{display:flex; gap:28px; font-size:14px; color:var(--color-neutral-400);}
+  .nav .links a:hover{color:var(--color-text);}
+  .nav .acts{margin-left:auto; display:flex; align-items:center; gap:20px; font-size:14px;}
+  .nav .signin{color:var(--color-neutral-300);}
+  .nav .signin:hover{color:var(--color-text);}
+  .nav .btn{padding:8px 18px;}
 
-  /* ---- hero: apple-scale type, notebooklm soft aurora ----
-     Static on purpose: animating this huge blurred layer made the compositor
-     redraw the whole viewport 60x/s while idle, lagging the entire browser. */
-  /* ---- photo hero: Toronto at sunset, full screen ---- */
-  .hero{position:relative; min-height:100vh; min-height:100svh; display:flex; flex-direction:column;
-    padding:0; overflow:hidden; color:#fff; isolation:isolate;
-    background:#3a2d5c url("hero-toronto.jpg") center 60% / cover no-repeat;}
-  /* Shade the left (behind the text) and the bottom (behind the feature strip)
-     just enough for white type to stay readable on the bright sky. */
-  .hero::before{content:''; position:absolute; inset:0; z-index:-1;
+  .btn-secondary{border-color:var(--color-divider);}
+  .btn-secondary:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent);}
+  .btn-secondary:active{background:color-mix(in srgb,var(--color-text) 14%,transparent);}
+
+  /* intro: headline over the animated route map */
+  .intro{display:flex; flex-direction:column; align-items:center; text-align:center; gap:20px; padding-top:96px;}
+  .intro h1{margin:0; font-size:clamp(46px,6.6vw,84px); line-height:.98; letter-spacing:-.045em; font-weight:500; max-width:900px;}
+  .intro .lede{margin:0; font-size:clamp(17px,1.6vw,20px); line-height:1.5; color:var(--color-neutral-300); max-width:560px; text-wrap:pretty;}
+  .intro .cta-row{justify-content:center; gap:12px; margin-top:8px;}
+  .intro .cta-row .btn{height:48px; padding:0 24px;}
+  .mapsec{padding-top:72px;}
+  .mapbox{position:relative; border-radius:18px; overflow:hidden; background:var(--color-bg);
+    box-shadow:0 0 0 1px var(--color-neutral-800),0 40px 100px rgba(0,0,0,.6);}
+  .map{position:relative; overflow:hidden; height:580px;
     background:
-      linear-gradient(90deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.28) 38%, rgba(28,20,58,0) 62%),
-      linear-gradient(180deg, rgba(28,20,58,.35) 0%, rgba(28,20,58,0) 18%, rgba(28,20,58,0) 62%, rgba(20,14,40,.72) 100%);}
-  .hero-in{flex:1; display:flex; flex-direction:column; justify-content:center; width:100%;
-    max-width:1280px; margin:0 auto; padding:120px 40px 40px;}
-  .hero h1{font-size:clamp(40px,5.4vw,72px); font-weight:600; letter-spacing:-.035em; line-height:1.06;
-    margin:0 0 22px; max-width:11em; text-shadow:0 2px 24px rgba(20,14,40,.25);}
-  .hero .lead{font-size:clamp(16px,1.35vw,18.5px); color:rgba(255,255,255,.9); line-height:1.6; font-weight:450;
-    max-width:520px; margin:0 0 30px; text-shadow:0 1px 12px rgba(20,14,40,.3);}
-  /* "swipe or tap to get started": drag the knob to the end, or tap/Enter anywhere on it */
-  .slide{position:relative; width:100%; max-width:440px; height:64px; border-radius:999px; cursor:pointer;
-    background:rgba(255,255,255,.18); border:1px solid rgba(255,255,255,.45); user-select:none; touch-action:pan-y;
-    box-shadow:0 18px 40px -16px rgba(20,14,40,.45); overflow:hidden;}
-  .slide:focus-visible{outline:3px solid rgba(255,255,255,.7); outline-offset:3px;}
-  .slide::before{content:''; position:absolute; inset:0; width:var(--fill,0px); border-radius:999px;
-    background:rgba(255,255,255,.28);}
-  .slide-knob{position:absolute; top:6px; left:6px; width:52px; height:52px; border-radius:50%; display:grid;
-    place-items:center; background:#fff; color:var(--ink); box-shadow:0 6px 16px -6px rgba(20,14,40,.5);
-    transform:translateX(var(--x,0px)); transition:transform .35s var(--ease); z-index:1;}
-  .slide.dragging .slide-knob{transition:none;}
-  .slide-text{position:absolute; inset:0; display:grid; place-items:center; padding-left:52px; font-weight:600;
-    font-size:15.5px; letter-spacing:.01em; color:#fff; pointer-events:none;
-    background:linear-gradient(90deg,rgba(255,255,255,.55) 0%,#fff 45%,rgba(255,255,255,.55) 90%) 0 0/200% 100%;
-    -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
-    animation:shine 2.8s linear 3;}
-  @keyframes shine{to{background-position:-200% 0;}}
-  .slide:hover .slide-knob{transform:translateX(calc(var(--x,0px) + 6px));}
-  @media(prefers-reduced-motion:reduce){.slide-text{animation:none;}}
-  .moods{display:flex; flex-wrap:wrap; gap:10px; margin-top:18px;}
-  .moods button{display:inline-flex; align-items:center; gap:7px; min-height:40px; padding:0 16px; border-radius:999px;
-    border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.16); color:#fff; font:inherit;
-    font-size:13.5px; font-weight:550; cursor:pointer; transition:background .2s;}
-  .moods button:hover{background:rgba(255,255,255,.3);}
-  .hero-feats{display:grid; grid-template-columns:repeat(4,1fr); width:100%; max-width:1280px; margin:0 auto;
-    padding:0 40px 34px;}
-  .hero-feats div{text-align:center; padding:4px 16px; border-left:1px solid rgba(255,255,255,.22);}
-  .hero-feats div:first-child{border-left:0;}
-  .hero-feats svg{display:block; margin:0 auto 8px;}
-  .hero-feats b{display:block; font-size:15px; font-weight:650;}
-  .hero-feats span{font-size:13px; color:rgba(255,255,255,.78);}
-  .demo-sec{padding:100px 0 40px;}
-  .demo-sec .stage{margin-top:40px;}
-  .eyebrow{font-size:14px; font-weight:600; color:var(--accent2); letter-spacing:.01em; margin-bottom:18px;}
-  h1{font-size:clamp(52px,9vw,104px); line-height:1.02; letter-spacing:-.045em; font-weight:750; margin:0 0 22px;}
-  .lead{font-size:clamp(19px,2.4vw,25px); line-height:1.4; color:var(--ink2); font-weight:450;
-    max-width:660px; margin:0 auto 36px; letter-spacing:-.01em;}
-  .cta-row{display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+      repeating-linear-gradient(90deg,transparent 0 80px,color-mix(in srgb,var(--color-text) 3%,transparent) 80px 81px),
+      repeating-linear-gradient(0deg,transparent 0 80px,color-mix(in srgb,var(--color-text) 3%,transparent) 80px 81px),
+      radial-gradient(circle at 62% 45%,var(--color-neutral-900),var(--color-bg) 78%);}
+  .map svg{position:absolute; inset:0; width:100%; height:100%;}
+  .street{stroke:color-mix(in srgb,var(--color-text) 9%,transparent);}
+  .street.minor{stroke:color-mix(in srgb,var(--color-text) 7%,transparent);}
+  .seg{fill:none; stroke:var(--color-accent); stroke-linejoin:round; filter:drop-shadow(0 0 6px var(--color-accent));}
+  .at{position:absolute; left:0; top:0;} /* placed in map coordinates by layoutMap() */
+  .sname{font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-neutral-600); white-space:nowrap;}
+  .poi{width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:var(--color-neutral-700);}
+  .pin{display:flex; align-items:center; gap:8px; margin:-16px 0 0 -16px; transform-origin:16px 16px;
+    opacity:0; transform:scale(.3); transition:opacity .35s,transform .55s cubic-bezier(.34,1.56,.64,1);}
+  .pin .n{width:32px; height:32px; flex:none; border-radius:50%; display:grid; place-items:center; font-size:13px;
+    background:var(--color-bg); color:var(--color-accent-200);
+    box-shadow:0 0 0 2px var(--color-accent),0 0 24px color-mix(in srgb,var(--color-accent) 55%,transparent);}
+  .pin.main .n{background:var(--color-accent); color:var(--color-bg); font-weight:600;
+    box-shadow:0 0 30px color-mix(in srgb,var(--color-accent) 70%,transparent);}
+  .pin .lbl{font-size:12px; padding:4px 9px; border-radius:6px; background:var(--color-surface); box-shadow:var(--shadow-sm); white-space:nowrap;}
+  .walker{display:none; width:12px; height:12px; margin:-6px 0 0 -6px; border-radius:50%; background:var(--color-accent-100);
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--color-accent) 35%,transparent),0 0 18px var(--color-accent);}
+  .panel{position:absolute; left:20px; top:20px; bottom:20px; width:340px; border-radius:16px; padding:18px;
+    display:flex; flex-direction:column; gap:6px; text-align:left; box-shadow:var(--shadow-md);
+    background:color-mix(in srgb,var(--color-surface) 85%,transparent); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);}
+  .panel .eyebrow{font-size:11px; letter-spacing:.12em; margin-bottom:6px;}
+  .place{display:flex; gap:12px; align-items:center; width:100%; padding:8px; border:0; border-radius:10px;
+    background:transparent; text-align:left; cursor:pointer; transition:background .3s;}
+  .place:hover{background:color-mix(in srgb,var(--color-text) 5%,transparent);}
+  .place.hint{background:color-mix(in srgb,var(--color-text) 7%,transparent);}
+  .place.on{background:color-mix(in srgb,var(--color-accent) 12%,transparent);}
+  .place[disabled]{opacity:.55; cursor:default;}
+  .place[disabled]:hover{background:transparent;}
+  .place .th{width:48px; height:48px; flex:none; border-radius:9px; display:grid; place-items:center;
+    background:var(--color-neutral-900); color:var(--color-neutral-500); font-size:20px;}
+  .place .tx{flex:1; min-width:0; display:flex; flex-direction:column;}
+  .place .tx b{font-size:14px; font-weight:500;}
+  .place .tx span{font-size:12px; color:var(--color-neutral-400);}
+  .place > i{font-size:22px; color:var(--color-neutral-500); transition:color .3s;}
+  .place.on > i{color:var(--color-accent);}
+  .panel .foot{margin-top:auto; display:flex; align-items:center; gap:6px; font-size:12px; color:var(--color-neutral-500);}
+  .toast{position:absolute; left:380px; top:24px; display:none; align-items:center; gap:10px; padding:10px 16px;
+    border-radius:12px; background:var(--color-surface); box-shadow:var(--shadow-md); font-size:14px; text-align:left;}
+  .toast.on{display:flex;}
+  .toast::before{content:''; width:8px; height:8px; flex:none; border-radius:50%; background:var(--color-accent); box-shadow:0 0 10px var(--color-accent);}
+  .replay{position:absolute; top:20px; right:20px; display:none; padding:6px 14px; background:var(--color-surface);}
+  .replay.on{display:inline-flex;}
+  .tray{position:absolute; right:20px; bottom:20px; display:flex; align-items:center; gap:16px; padding:8px 8px 8px 20px;
+    border-radius:999px; font-size:14px; box-shadow:var(--shadow-md);
+    background:color-mix(in srgb,var(--color-surface) 88%,transparent); -webkit-backdrop-filter:blur(24px); backdrop-filter:blur(24px);}
+  .tray b{font-weight:500;}
+  .tray .dim{color:var(--color-neutral-400);}
+  .review{height:36px; flex:none; display:flex; align-items:center; gap:6px; padding:0 14px; border-radius:999px;
+    color:var(--color-accent); box-shadow:inset 0 0 0 1px var(--color-accent); transition:background .4s;}
+  .review.ready{background:color-mix(in srgb,var(--color-accent) 18%,transparent);}
+  /* narrow map: crop to the route, list and tray stack underneath */
+  .mapbox.narrow .panel,.mapbox.narrow .tray{position:static; width:auto; box-shadow:none; border-radius:0;
+    -webkit-backdrop-filter:none; backdrop-filter:none; background:var(--color-surface);}
+  .mapbox.narrow .panel{padding:16px 12px 12px;}
+  .mapbox.narrow .panel .foot{margin-top:6px; padding-left:8px;}
+  .mapbox.narrow .tray{justify-content:space-between; padding:10px 10px 10px 18px; font-size:13px;
+    border-top:1px solid var(--color-divider);}
+  .mapbox.narrow .pin .lbl{display:none;}
+  .mapbox.narrow .toast{left:12px; right:12px; top:12px; font-size:13px;}
+  .mapbox.narrow .replay{top:auto; bottom:12px; right:12px;}
 
-  /* ---- demo panel: big rounded notebooklm card ---- */
-  .stage{max-width:720px; margin:80px auto 0; text-align:left;
-    background:rgba(255,255,255,.9);
-    border:1px solid var(--brd); border-radius:var(--r-lg); box-shadow:var(--shadow-soft);
-    padding:28px 28px 24px; min-height:320px;}
-  .stage .bar{display:flex; gap:7px; margin-bottom:20px;}
-  .stage .bar i{width:10px; height:10px; border-radius:50%; background:var(--hair); display:block;}
-  .msg{display:flex; gap:11px; margin-bottom:14px; animation:rise .45s var(--ease) both;}
-  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
-  .av{width:30px; height:30px; border-radius:50%; flex:0 0 auto; display:grid; place-items:center;
-    font-size:14px; color:#fff; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent2));}
-  .bubble{padding:11px 15px; border-radius:18px; font-size:15px; background:var(--bg-soft); border-top-left-radius:6px;}
-  .msg.me{flex-direction:row-reverse;}
-  .msg.me .av{background:linear-gradient(135deg,var(--accent2),var(--hot));}
-  .msg.me .bubble{background:var(--ink); color:#fff; border-radius:18px; border-top-right-radius:6px;}
-  .stops{margin-top:4px; border-top:1px solid var(--hair); padding-top:14px;}
-  .stop{display:flex; align-items:baseline; gap:12px; padding:8px 2px; font-size:15px;}
-  .stop .time{font-size:11.5px; font-weight:700; color:#fff; background:var(--accent); padding:3px 9px; border-radius:999px;}
-  .stop .name{font-weight:650; letter-spacing:-.01em;}
-  .stop .cat{color:var(--ink3); font-size:13px;}
-  .dots span{display:inline-block; width:6px; height:6px; margin:0 2px; border-radius:50%;
-    background:var(--ink3); animation:blink 1.2s infinite;}
-  .dots span:nth-child(2){animation-delay:.2s;} .dots span:nth-child(3){animation-delay:.4s;}
-  @keyframes blink{0%,80%,100%{opacity:.25;} 40%{opacity:1;}}
+  /* hero: the living sentence */
+  .hero{display:grid; grid-template-columns:1.12fr 1fr; gap:64px; align-items:start; padding-top:150px;}
+  .hero-l{display:flex; flex-direction:column; gap:32px;}
+  .live{display:flex; align-items:center; gap:8px; color:var(--color-neutral-400);}
+  .live::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--color-accent);
+    box-shadow:0 0 10px var(--color-accent);}
+  .sentence{margin:0; font-size:clamp(36px,4.7vw,60px); line-height:1.14; letter-spacing:-.035em;
+    font-weight:400; color:var(--color-neutral-500); text-wrap:pretty;}
+  .tok{display:inline-block; cursor:pointer; padding:0; border:0; background:none; font:inherit;
+    letter-spacing:inherit; line-height:inherit; color:var(--color-text);
+    border-bottom:2px dashed var(--color-accent); transition:border-color .2s;}
+  .tok:hover{border-bottom-color:var(--color-accent-300);}
+  .cta-row{display:flex; gap:16px; align-items:center; flex-wrap:wrap;}
+  .cta-row .btn{height:50px; padding:0 26px; font-size:15px;}
+  .cta-row .note{font-size:14px; color:var(--color-neutral-500);}
+  .hint{display:flex; align-items:center; gap:10px; font-size:13px; color:var(--color-neutral-500); min-height:20px;}
+  .resume{display:none; align-items:center; gap:5px; cursor:pointer; border:0; background:none; padding:0;
+    font-size:13px; color:var(--color-accent-300);}
+  .resume.on{display:inline-flex;}
+  .resume:hover{color:var(--color-accent-200);}
 
-  /* ---- big statement sections (apple rhythm) ---- */
-  section{padding:130px 0;}
-  .kicker{font-size:14px; font-weight:650; color:var(--accent2); margin-bottom:14px;}
-  h2{font-size:clamp(38px,5.6vw,64px); line-height:1.06; letter-spacing:-.035em; font-weight:730; margin:0 0 18px;}
-  .sub{font-size:clamp(17px,2vw,21px); color:var(--ink2); max-width:620px; letter-spacing:-.01em;}
-  .center{text-align:center;}
-  .center .sub{margin-left:auto; margin-right:auto;}
+  /* plan card */
+  .card{margin-top:20px; background:color-mix(in srgb,var(--color-surface) 88%,transparent);
+    -webkit-backdrop-filter:blur(20px); backdrop-filter:blur(20px); border-radius:18px; padding:28px;
+    display:flex; flex-direction:column; gap:22px; box-shadow:var(--shadow-md);}
+  .card-hd{display:flex; justify-content:space-between; align-items:baseline; gap:16px;}
+  .card-hd .k{display:block; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--color-accent-300);}
+  .card-hd .t{display:block; font-size:26px; font-weight:500; letter-spacing:-.02em; line-height:1.25;}
+  .card-hd .a{font-size:13px; color:var(--color-neutral-400); white-space:nowrap;}
+  .route{position:relative; height:44px;}
+  .route .track,.route .line{position:absolute; left:8px; right:8px; top:9px; height:2px; background:var(--color-neutral-800);}
+  .route .line{background:var(--color-accent); box-shadow:0 0 10px var(--color-accent); transform-origin:left center;}
+  .route .dots{position:absolute; inset:0; display:flex; justify-content:space-between;}
+  .dot{display:flex; flex-direction:column; align-items:center; gap:6px; width:16px;}
+  .dot i{width:16px; height:16px; border-radius:50%; background:var(--color-bg);
+    box-shadow:0 0 0 2px var(--color-accent),0 0 14px color-mix(in srgb,var(--color-accent) 60%,transparent);}
+  .dot span{font-size:11px; color:var(--color-neutral-400); white-space:nowrap;}
+  .stats{display:grid; grid-template-columns:repeat(3,1fr); padding:14px 0;
+    background:var(--rule) no-repeat top/100% 1px,var(--rule) no-repeat bottom/100% 1px;}
+  .stats div{display:flex; flex-direction:column; gap:2px;}
+  .stats b{font-size:26px; font-weight:400; letter-spacing:-.02em;}
+  .stats span{font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--color-neutral-500);}
+  .mini{display:grid; grid-template-columns:64px 1fr; align-items:baseline; padding:9px 0;}
+  .mini .tm{font-size:20px; font-weight:300; color:var(--color-accent-300); letter-spacing:-.02em;}
+  .mini .nm{display:block; font-size:16px;}
+  .mini .wh{display:block; font-size:13px; color:var(--color-neutral-500);}
 
-  /* ---- bento grid ---- */
-  .bento{display:grid; grid-template-columns:repeat(6,1fr); gap:16px; margin-top:64px;}
-  .cell{background:var(--bg-soft); border-radius:var(--r-lg); padding:36px 32px; position:relative; overflow:hidden;
-    transition:transform .35s var(--ease), box-shadow .35s var(--ease);}
-  .cell:hover{transform:translateY(-4px); box-shadow:var(--shadow-soft);}
-  .cell h3{font-size:22px; letter-spacing:-.02em; margin:0 0 8px; font-weight:700;}
-  .cell p{margin:0; color:var(--ink2); font-size:15.5px; max-width:44ch;}
-  .cell .ico{font-size:34px; display:block; margin-bottom:16px;}
-  .c-4{grid-column:span 4;} .c-3{grid-column:span 3;} .c-2{grid-column:span 2;}
-  .cell.tint-a{background:linear-gradient(140deg,#fff1f1,#fde9f4);}
-  .cell.tint-b{background:linear-gradient(140deg,#efeaff,#f3f0ff);}
-  .cell.tint-c{background:linear-gradient(140deg,#f3fadf,#eef8ec);}
-  @media(max-width:1024px){.bento{grid-template-columns:1fr 1fr;} .c-4,.c-3,.c-2{grid-column:auto;} .c-4{grid-column:span 2;}}
-  @media(max-width:640px){.bento{grid-template-columns:1fr;} .c-4{grid-column:auto;}}
+  /* hour by hour */
+  .hours-hd{display:flex; flex-direction:column; gap:10px; padding-top:150px;}
+  .hours-hd h2{margin:0; font-size:clamp(34px,4.1vw,52px); line-height:1.04; font-weight:500; letter-spacing:-.035em;}
+  .hours{margin-top:40px;}
+  .hour{display:grid; grid-template-columns:260px 1fr 400px; gap:40px; align-items:center;
+    padding:30px var(--gutter); max-width:var(--maxw); margin:0 auto; background:var(--rule) no-repeat top/100% 1px;}
+  .hour .big{font-size:76px; font-weight:300; letter-spacing:-.045em; line-height:1; color:var(--color-accent-300);}
+  .hour .body{display:flex; flex-direction:column; gap:6px;}
+  .hour h3{margin:0; font-size:26px; font-weight:500; letter-spacing:-.02em; line-height:1.2;}
+  .hour p{margin:0; font-size:15px; color:var(--color-neutral-400); text-wrap:pretty;}
+  .hour .walk{display:flex; align-items:center; gap:6px; margin-top:8px; font-size:13px; color:var(--color-neutral-500);}
+  .tile{position:relative; height:200px; border-radius:12px; overflow:hidden; display:grid; place-items:center;
+    background:
+      radial-gradient(circle at 28% 22%,color-mix(in srgb,var(--color-accent) 30%,transparent),transparent 58%),
+      radial-gradient(circle at 85% 90%,color-mix(in srgb,var(--color-accent) 14%,transparent),transparent 50%),
+      linear-gradient(140deg,var(--color-surface),var(--color-neutral-900));
+    box-shadow:var(--shadow-sm);}
+  .tile > i{font-size:56px; color:var(--color-accent-300); opacity:.9;}
+  .tile .cap{position:absolute; left:12px; bottom:12px; font-size:12px; padding:4px 10px; border-radius:999px;
+    background:color-mix(in srgb,var(--color-bg) 70%,transparent); color:var(--color-neutral-300);}
 
-  /* ---- steps ---- */
-  .steps{display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:64px;}
-  @media(max-width:860px){.steps{grid-template-columns:1fr;}}
-  .step{background:#fff; border:1px solid var(--brd); border-radius:var(--r-lg); padding:36px 32px;}
-  .step .n{font-size:15px; font-weight:700; color:var(--accent2); margin-bottom:14px; display:block;}
-  .step h3{font-size:21px; margin:0 0 8px; letter-spacing:-.02em;}
-  .step p{margin:0; color:var(--ink2); font-size:15.5px;}
+  /* features */
+  .feats{list-style:none; margin:0 auto; padding-top:130px; padding-bottom:0; display:grid;
+    grid-template-columns:repeat(4,minmax(0,1fr)); gap:36px;}
+  .feats li{display:flex; flex-direction:column; gap:6px;}
+  .feats i{font-size:22px; color:var(--color-accent);}
+  .feats b{font-size:16px; font-weight:500;}
+  .feats span{font-size:14px; color:var(--color-neutral-400);}
 
-  /* ---- waitlist ---- */
-  .wl{background:var(--bg-soft); border-radius:var(--r-lg); margin:130px 20px; padding:110px 28px; text-align:center;}
-  .wl-box{max-width:520px; margin:40px auto 0; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;}
-  .wl-box input{flex:1 1 280px; font:inherit; font-size:16px; padding:14px 22px; border-radius:999px;
-    border:1px solid var(--brd); background:#fff; color:var(--ink); outline:none; transition:border-color .2s;}
-  .wl-box input:focus{border-color:var(--accent2);}
-  .wl-note{color:var(--ink3); font-size:14px; margin-top:16px; min-height:20px;}
+  /* waitlist */
+  .wl{margin-top:130px;}
+  .wl-in{padding:64px 0; display:flex; align-items:flex-end; justify-content:space-between; gap:40px;
+    background:var(--rule) no-repeat top/100% 1px;}
+  .wl h2{margin:0 0 8px; font-size:40px; font-weight:500; letter-spacing:-.03em; line-height:1.1;}
+  .wl .sub{margin:0; font-size:16px; color:var(--color-neutral-400);}
+  .wl form{display:flex; gap:10px; width:440px; flex:none;}
+  .wl input{flex:1; min-width:0; height:46px; padding:0 20px; border-radius:999px; font:inherit; font-size:14px;
+    color:var(--color-text); caret-color:var(--color-accent); background:var(--color-surface);
+    border:1px solid var(--color-divider); transition:border-color .2s;}
+  .wl input::placeholder{color:var(--color-neutral-500);}
+  .wl input:hover{border-color:color-mix(in srgb,var(--color-text) 45%,transparent);}
+  .wl input:focus-visible{border-color:var(--color-accent); outline:none;}
+  .wl form .btn{height:46px; padding:0 22px; flex:none;}
+  .wl-note{min-height:20px; margin-top:10px; font-size:13px; color:var(--color-accent-300);}
+  .wl-side{display:flex; flex-direction:column;}
 
-  footer{padding:40px 28px 56px; text-align:center; color:var(--ink3); font-size:13px;}
-  footer .links{display:flex; gap:22px; justify-content:center; margin-bottom:12px; color:var(--ink2);}
+  footer{display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    padding-top:28px; padding-bottom:40px; font-size:13px; color:var(--color-neutral-500);}
+  footer .links{display:flex; gap:24px; flex-wrap:wrap;}
+  footer a:hover{color:var(--color-text);}
 
-  /* ---- reveal ---- */
-  .reveal{opacity:0; transform:translateY(28px); transition:opacity .8s var(--ease), transform .8s var(--ease);}
-  .reveal.in{opacity:1; transform:none;}
-  .d1{transition-delay:.08s;} .d2{transition-delay:.16s;} .d3{transition-delay:.24s;}
-  @media(prefers-reduced-motion:reduce){
-    .dots span{animation:none;}
-    .reveal{opacity:1; transform:none; transition:none;}
+  /* tablet */
+  @media (max-width:1100px){
+    :root{--gutter:36px;}
+    .intro{padding-top:64px;}
+    .mapsec{padding-top:48px;}
+    .hero{grid-template-columns:1fr; gap:24px; padding-top:110px;}
+    .card{max-width:620px;}
+    .hours-hd{padding-top:110px;}
+    .hour{grid-template-columns:150px 1fr 300px; gap:28px;}
+    .hour .big{font-size:56px;}
+    .feats{grid-template-columns:repeat(2,minmax(0,1fr)); padding-top:100px;}
+    .wl{margin-top:100px;}
+    .wl-in{flex-direction:column; align-items:stretch; gap:24px;}
+    .wl form{width:100%; max-width:480px;}
   }
-
-  /* ---- responsive: tablet ---- */
-  @media(max-width:1024px){
-    section{padding:96px 0;}
-    .hero{padding:0;}
-    .hero-in{padding:110px 28px 32px;}
-    .hero-feats{padding:0 16px 28px;}
-    .nav .links{gap:24px;}
-    .bento,.steps{margin-top:48px;}
-    .wl{margin:96px 16px; padding:80px 24px;}
+  /* phone */
+  @media (max-width:720px){
+    :root{--gutter:20px;}
+    .nav{gap:16px;}
+    .nav .links{display:none;}
+    .nav .acts{gap:14px;}
+    .nav .btn{padding:8px 14px;}
+    .intro{padding-top:40px; gap:16px;}
+    .mapsec{padding-top:36px;}
+    .mapbox{border-radius:14px;}
+    .hero{padding-top:88px;}
+    .hero-l{gap:24px;}
+    .card{padding:20px; gap:18px;}
+    .card-hd .t{font-size:22px;}
+    .stats b{font-size:22px;}
+    .hours-hd{padding-top:88px;}
+    .hours{margin-top:24px;}
+    .hour{grid-template-columns:1fr; gap:14px; padding-top:24px; padding-bottom:24px;}
+    .hour .big{font-size:48px;}
+    .tile{height:160px;}
+    .feats{grid-template-columns:1fr; gap:24px; padding-top:80px;}
+    .wl h2{font-size:32px;}
+    .wl form{flex-direction:column;}
+    .wl input{flex:none; width:100%;}
+    .wl form .btn{width:100%;}
   }
-
-  /* ---- responsive: phone ---- */
-  @media(max-width:640px){
-    .wrap{padding:0 20px;}
-    .nav{padding:0 20px; gap:16px;}
-    .nav .links{gap:14px;}
-    .nav .links a:not(.cta){display:none;}   /* keep logo + primary CTA */
-    .acts{gap:12px; margin-left:auto;} .nav .cta{padding:8px 16px;}
-    section{padding:72px 0;}
-    .hero{padding:0; background-position:72% center;}
-    .hero::before{background:
-      linear-gradient(180deg, rgba(28,20,58,.55) 0%, rgba(28,20,58,.25) 45%, rgba(28,20,58,.15) 60%, rgba(20,14,40,.78) 100%);}
-    .nav{height:64px;}
-    .hero-in{padding:96px 20px 24px; justify-content:flex-start;}
-    .hero h1{font-size:clamp(34px,9.5vw,44px);}
-    .slide{height:60px;} .slide-knob{width:48px; height:48px;}
-    .moods{gap:8px;}
-    .moods button{min-height:36px; padding:0 13px; font-size:13px;}
-    .hero-feats{grid-template-columns:1fr 1fr; gap:18px 0; padding:0 8px 24px;}
-    .hero-feats div:nth-child(3){border-left:0;}
-    .demo-sec{padding:72px 0 24px;}
-    .cta-row .btn{width:100%; max-width:340px;}
-    .stage{margin-top:48px; padding:18px 16px 16px; min-height:280px; border-radius:24px;}
-    .bubble{font-size:14px;}
-    .msg{max-width:100%;}
-    .stop{flex-wrap:wrap; gap:8px;}
-    .cell,.step{padding:26px 22px; border-radius:24px;}
-    .cell h3,.step h3{font-size:19px;}
-    .wl{margin-left:10px; margin-right:10px; border-radius:24px;}
-    .wl{padding:64px 18px;}
-    .wl-box input,.wl-box .btn{flex:1 1 100%;}
-    footer .links{flex-wrap:wrap; gap:12px 18px;}
-  }
-
-  /* very small phones */
-  @media(max-width:380px){
-    h1{font-size:40px;}
-    .hero h1{font-size:32px;}
-    .stage{padding:14px 12px;}
-    .stop .cat{flex-basis:100%; padding-left:2px;}
-  }
-
-  /* short landscape phones: trim vertical rhythm */
-  @media(max-height:480px) and (orientation:landscape){
-    .hero-in{padding-top:84px;}
-    section{padding:56px 0;}
-  }
-
-  /* ==== below the photo: one continuous dusk, picking up the hero's bottom edge ==== */
-  body{background:#140e28;}
-  .dusk{color:#fff; background:linear-gradient(180deg,#140e28 0%,#1d1540 22%,#2c1d55 48%,#4a2763 72%,#7a3a6e 88%,#c0686f 100%);}
-  .dusk section{padding:110px 0;}
-  .dusk .kicker{color:#f7b58f; letter-spacing:.02em;}
-  .dusk h2{color:#fff; font-weight:600; letter-spacing:-.03em; font-size:clamp(34px,4.6vw,56px);}
-  .stats{padding:56px 0 0 !important;}
-  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); text-align:center;}
-  .stat-row div{padding:6px 12px; border-left:1px solid rgba(255,255,255,.14);}
-  .stat-row div:first-child{border-left:0;}
-  .stat-row b{display:block; font-size:clamp(30px,3.6vw,44px); font-weight:600; letter-spacing:-.03em;
-    background:linear-gradient(180deg,#fff 30%,#f7c3a6); -webkit-background-clip:text; background-clip:text; color:transparent;}
-  .stat-row span{font-size:14px; color:rgba(255,255,255,.66);}
-  .dusk .demo-sec{padding-top:110px;}
-  .dusk .stage{background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12);
-    box-shadow:0 40px 80px -40px rgba(0,0,0,.6); color:#fff;}
-  .dusk .stage .bar i{background:rgba(255,255,255,.18);}
-  .dusk .bubble{background:rgba(255,255,255,.1); color:#fff;}
-  .dusk .msg.me .bubble{background:#fff; color:var(--ink);}
-  .dusk .stops{border-top-color:rgba(255,255,255,.12);}
-  .dusk .stop .time{background:linear-gradient(120deg,#8a63f2,#e0789a);}
-  .dusk .stop .cat{color:rgba(255,255,255,.6);}
-  .dusk .dots span{background:rgba(255,255,255,.7);}
-  .feat-list{list-style:none; margin:64px auto 0; padding:0; max-width:900px;
-    display:grid; grid-template-columns:repeat(3,1fr); gap:52px 32px; text-align:center;}
-  .feat-list svg{color:#f7b58f; margin-bottom:12px;}
-  .feat-list h3{margin:0 0 4px; font-size:18px; font-weight:600; letter-spacing:-.01em;}
-  .feat-list p{margin:0; font-size:14.5px; color:rgba(255,255,255,.66);}
-  .dusk .wl{background:none; margin:0; border-radius:0; padding:110px 0 90px;}
-  .dusk .wl-box input{background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.35); color:#fff;}
-  .dusk .wl-box input::placeholder{color:rgba(255,255,255,.65);}
-  .dusk .wl-box input:focus{border-color:#fff;}
-  .dusk .wl-note{color:rgba(255,255,255,.85);}
-  .dusk footer{color:rgba(255,255,255,.7); padding-bottom:40px;}
-  .dusk footer .links{color:rgba(255,255,255,.88);}
-  @media(max-width:860px){ .feat-list{grid-template-columns:1fr 1fr; gap:40px 20px;} }
-  @media(max-width:640px){
-    .dusk section{padding:72px 0;}
-    .stat-row{grid-template-columns:1fr 1fr; gap:26px 0;}
-    .stat-row div:nth-child(3){border-left:0;}
-    .feat-list{margin-top:44px;}
+  @media (max-width:380px){
+    .cta-row .btn{width:100%;}
+    .nav .signin{display:none;}
   }
 </style>
 </head>
 <body>
+<div class="page" id="page">
+  <div class="glow" id="glow" aria-hidden="true"></div>
 
-<header id="top">
-  <nav class="nav">
-    <a class="logo" href="/" aria-label="Roamly home"><svg class="mk" width="26" height="34" aria-hidden="true"><use href="/brand/roamly.svg#mark"/></svg><svg class="wm" width="86" height="25" aria-hidden="true"><use href="/brand/roamly.svg#wordmark"/></svg></a>
-    <div class="links">
-      <a href="#" class="on">Home</a>
-      <a href="#features">Features</a>
-      <a href="#how">See it</a>
-    </div>
+  <header class="wrap nav">
+    <a class="logo" href="/" aria-label="Roamly home"><img src="/brand/logo-white.svg" alt="Roamly" width="75" height="26" /></a>
+    <nav class="links" aria-label="Primary">
+      <a href="#how">How it works</a>
+      <a href="roamly.html">What's on</a>
+    </nav>
     <div class="acts" id="navActs">
       <a href="auth.html?redirect=roamly.html" class="signin">Sign in</a>
-      <a href="auth.html?mode=register&amp;redirect=roamly.html" class="cta">Get started</a>
+      <a href="auth.html?mode=register&amp;redirect=roamly.html" class="btn btn-primary cta">Get started</a>
     </div>
-  </nav>
-</header>
+  </header>
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-in">
-    <h1>The AI outing planner for every mood.</h1>
-    <p class="lead">Tell us what you're in the mood for, and Roamly builds a real, timed plan from places
-      near you. Or ask what's happening right now, and discover live events around you.</p>
-    <div class="slide" id="slide" role="button" tabindex="0" aria-label="Get started: open the planner">
-      <span class="slide-knob" id="slideKnob" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-      <span class="slide-text" id="slideText">Swipe or tap to get started</span>
-    </div>
-    <div class="moods" aria-label="Quick ideas">
-      <button type="button" data-q="Plan a date night"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"/></svg> Date night</button>
-      <button type="button" data-q="Plan a night out with friends"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.6-3.3 3-5 6-5s5.4 1.7 6 5"/><circle cx="16.5" cy="9" r="2.6"/><path d="M16.5 14.4c2.4.2 4 1.8 4.5 4.6"/></svg> Friends</button>
-      <button type="button" data-q="Plan a solo afternoon"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c.7-3.8 3.4-6 7-6s6.3 2.2 7 6"/></svg> Solo</button>
-      <button type="button" data-q="Plan a family day out"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="7.5" r="2.8"/><circle cx="16" cy="7.5" r="2.8"/><path d="M3 19c.5-3.3 2.4-5.2 5-5.2s4.5 1.9 5 5.2M11 19c.5-3.3 2.4-5.2 5-5.2s4.5 1.9 5 5.2"/></svg> Family</button>
-      <button type="button" data-q="I'm bored, surprise me with something fun nearby"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.5c.9 1.2 2 1.8 3.5 1.8s2.6-.6 3.5-1.8"/><path d="M9 9.5h.01M15 9.5h.01" stroke-width="2.6"/></svg> I'm bored</button>
-    </div>
-  </div>
-  <div class="hero-feats">
-    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c.7 5 3.3 7.6 8.3 8.3-5 .7-7.6 3.3-8.3 8.3-.7-5-3.3-7.6-8.3-8.3 5-.7 7.6-3.3 8.3-8.3Z"/></svg><b>Personalized</b><span>Your taste, your vibe.</span></div>
-    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg><b>Real-time</b><span>Live events &amp; open spots.</span></div>
-    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20Z"/><path d="M9 4v13.5M15 6.5V20"/></svg><b>Planned for you</b><span>Full itineraries, not just lists.</span></div>
-    <div><svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.3a4.3 4.3 0 0 1 7.5 2.5C19.5 15.4 12 20 12 20Z"/></svg><b>Always with you</b><span>Chat or tap — your choice.</span></div>
-  </div>
-</section>
+  <main>
+    <!-- INTRO: a night being built on the map -->
+    <section class="wrap intro">
+      <span class="eyebrow">Now in Toronto</span>
+      <h1>Your night, planned.</h1>
+      <p class="lede">See what's on near you, pick what you like, and Roamly fills in the rest: times, walking routes, a budget that adds up.</p>
+      <div class="cta-row">
+        <a class="btn btn-primary" href="roamly.html" data-go="plan_tonight">Plan tonight<i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+        <a class="btn btn-secondary" href="roamly.html" data-go="whats_on">See what's on</a>
+      </div>
+    </section>
 
-<div class="dusk">
+    <section class="wrap mapsec" aria-label="Watch a night get planned">
+      <div class="mapbox" id="mapbox">
+        <div class="map" id="map">
+          <svg id="mapSvg" viewBox="0 0 1168 580" preserveAspectRatio="none" aria-hidden="true">
+            <line class="street" x1="-400" y1="301" x2="1600" y2="301" data-sw="3" />
+            <line class="street minor" x1="-400" y1="461" x2="1600" y2="461" data-sw="2" />
+            <line class="street" x1="721" y1="-400" x2="721" y2="1000" data-sw="3" />
+            <line class="street minor" x1="961" y1="-400" x2="961" y2="1000" data-sw="2" />
+            <path class="seg" id="segA" d="M540 370 L540 300 L720 300 L720 200 L800 200" stroke-dasharray="430" stroke-dashoffset="430" data-sw="2.5" />
+            <path class="seg" id="segB" d="M800 200 L960 200 L960 330" stroke-dasharray="290" stroke-dashoffset="290" data-sw="2.5" />
+          </svg>
+          <span class="at sname" data-x="1020" data-y="282" aria-hidden="true">Queen St W</span>
+          <span class="at sname" data-x="1040" data-y="444" aria-hidden="true">King St W</span>
+          <span class="at sname" data-x="730" data-y="30" aria-hidden="true">Spadina Ave</span>
+          <span class="at poi" data-x="625" data-y="475" aria-hidden="true"></span>
+          <span class="at poi" data-x="1065" data-y="145" aria-hidden="true"></span>
+          <span class="at poi" data-x="865" data-y="405" aria-hidden="true"></span>
+          <span class="at poi" data-x="645" data-y="125" aria-hidden="true"></span>
+          <div class="at pin" data-x="540" data-y="370" data-pin="raval" aria-hidden="true"><span class="n">1</span><span class="lbl">Bar Raval · 7:15</span></div>
+          <div class="at pin main" data-x="800" data-y="200" data-pin="rex" aria-hidden="true"><span class="n">2</span><span class="lbl">The Rex · 9:30</span></div>
+          <div class="at pin" data-x="960" data-y="330" data-pin="civil" aria-hidden="true"><span class="n">3</span><span class="lbl">Civil Liberties · 11:00</span></div>
+          <span class="at walker" id="walker" aria-hidden="true"></span>
+          <div class="toast" id="toast"></div>
+          <button type="button" class="btn btn-secondary replay" id="replay"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Replay</button>
+        </div>
+        <div class="panel">
+          <span class="eyebrow">Worth it tonight</span>
+          <button type="button" class="place" data-place="rex" aria-pressed="false"><span class="th"><i class="ph ph-music-notes" aria-hidden="true"></i></span><span class="tx"><b>The Rex</b><span>Jazz trio · 9:30 · $15</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
+          <button type="button" class="place" data-place="raval" aria-pressed="false"><span class="th"><i class="ph ph-fork-knife" aria-hidden="true"></i></span><span class="tx"><b>Bar Raval</b><span>Tapas · open till 1</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
+          <button type="button" class="place" data-place="civil" aria-pressed="false"><span class="th"><i class="ph ph-martini" aria-hidden="true"></i></span><span class="tx"><b>Civil Liberties</b><span>Cocktails · open till 2</span></span><i class="ph ph-plus-circle" data-ic aria-hidden="true"></i></button>
+          <button type="button" class="place" disabled><span class="th"><i class="ph ph-microphone-stage" aria-hidden="true"></i></span><span class="tx"><b>Comedy Bar</b><span>Open mic · 8pm · $10</span></span></button>
+          <span class="foot"><i class="ph ph-hand-pointing" aria-hidden="true"></i>Tap a place to add it</span>
+        </div>
+        <div class="tray"><span><b>Tonight</b><span class="dim num"> · <span id="trayText">Nothing yet</span></span></span><span class="review" id="review">Review<i class="ph ph-arrow-right" aria-hidden="true"></i></span></div>
+      </div>
+    </section>
 
-<!-- STATS -->
-<section class="stats" aria-label="Roamly in numbers">
-  <div class="wrap stat-row">
-    <div class="reveal"><b>~25s</b><span>to a full plan</span></div>
-    <div class="reveal d1"><b>3–5</b><span>stops, timed &amp; mapped</span></div>
-    <div class="reveal d2"><b>Live</b><span>events, tonight</span></div>
-    <div class="reveal d3"><b>$0</b><span>to use</span></div>
-  </div>
-</section>
+    <!-- HERO: a sentence that's alive -->
+    <section class="wrap hero" id="hero">
+      <div class="hero-l">
+        <span class="eyebrow live">Tonight in Toronto</span>
+        <p class="sentence" id="sentence">A <button type="button" class="tok" data-tok="vibe"></button> night for
+          <button type="button" class="tok" data-tok="people"></button>, around
+          <button type="button" class="tok" data-tok="budget"></button> each, in
+          <button type="button" class="tok" data-tok="area"></button>.</p>
+        <div class="cta-row">
+          <button type="button" class="btn btn-primary" id="makeReal">Make it real<i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+          <span class="note">Free. About 25 seconds.</span>
+        </div>
+        <div class="hint"><i class="ph ph-hand-pointing" aria-hidden="true"></i>Tap an underlined word
+          <button type="button" class="resume" id="resume">· <i class="ph ph-play" aria-hidden="true"></i>Resume demo</button></div>
+      </div>
 
-<!-- DEMO -->
-<section class="demo-sec" id="how">
-  <div class="wrap center">
-    <div class="kicker reveal">See it in action</div>
-    <h2 class="reveal">Three words in.<br>A whole night out.</h2>
-    <div class="stage reveal d1" id="demo-stage">
-      <div class="bar"><i></i><i></i><i></i></div>
-      <div id="demo"></div>
-    </div>
-  </div>
-</section>
+      <aside class="card" aria-label="Your plan">
+        <div class="card-hd" data-anim>
+          <div><span class="k">Your plan</span><span class="t" data-bind="title"></span></div>
+          <span class="a" data-bind="area"></span>
+        </div>
+        <div class="route" aria-hidden="true">
+          <div class="track"></div>
+          <div class="line" id="routeLine"></div>
+          <div class="dots" id="routeDots"></div>
+        </div>
+        <div class="stats">
+          <div><b class="num" id="dDur"></b><span>Duration</span></div>
+          <div><b class="num" id="dKm"></b><span>On foot</span></div>
+          <div><b class="num" id="dCost"></b><span>Each</span></div>
+        </div>
+        <div id="miniStops"></div>
+      </aside>
+    </section>
 
-<!-- FEATURES -->
-<section id="features" class="feats">
-  <div class="wrap">
-    <div class="center">
-      <div class="kicker reveal">Features</div>
-      <h2 class="reveal">Real places. Real time.</h2>
-    </div>
-    <ul class="feat-list">
-      <li class="reveal"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11Z"/><circle cx="12" cy="10" r="2.4"/></svg><h3>Real venues</h3><p>Open now, near you.</p></li>
-      <li class="reveal d1"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7.5h18v3a2 2 0 0 0 0 3v3H3v-3a2 2 0 0 0 0-3Z"/><path d="M14 7.5v9" stroke-dasharray="1.5 2"/></svg><h3>Live events</h3><p>Gigs and pop-ups, tonight.</p></li>
-      <li class="reveal d2"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17a4 4 0 1 1 .6-8 5.5 5.5 0 0 1 10.6 1.5A3.3 3.3 0 0 1 17.5 17Z"/></svg><h3>Weather-aware</h3><p>Rain plans, patio plans.</p></li>
-      <li class="reveal"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6.5" width="18" height="12" rx="2.5"/><path d="M3 10.5h18M16.5 14.5h1.5"/></svg><h3>On budget</h3><p>One number. Whole night.</p></li>
-      <li class="reveal d1"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5h16v10H9l-5 4Z"/></svg><h3>Chat to tweak</h3><p>“Cheaper.” “Closer.” Done.</p></li>
-      <li class="reveal d2"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 0 1 13.7-5.7L20 8.5M20 4v4.5h-4.5M20 12a8 8 0 0 1-13.7 5.7L4 15.5M4 20v-4.5h4.5"/></svg><h3>Swap anything</h3><p>One tap, new stop.</p></li>
+    <!-- HOUR BY HOUR -->
+    <section id="how" aria-labelledby="hoursTitle">
+      <div class="wrap hours-hd">
+        <span class="eyebrow">Hour by hour</span>
+        <h2 id="hoursTitle" data-anim></h2>
+      </div>
+      <div class="hours" id="hours"></div>
+    </section>
+
+    <!-- FEATURES -->
+    <ul class="wrap feats" aria-label="Why Roamly">
+      <li><i class="ph ph-map-pin" aria-hidden="true"></i><b>Open when you arrive</b><span>Every stop is checked against its hours.</span></li>
+      <li><i class="ph ph-ticket" aria-hidden="true"></i><b>Live events</b><span>Gigs and pop-ups happening tonight.</span></li>
+      <li><i class="ph ph-wallet" aria-hidden="true"></i><b>One budget</b><span>Set it once, and the whole night stays under it.</span></li>
+      <li><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><b>Swap anything</b><span>One tap for a different stop.</span></li>
     </ul>
-  </div>
-</section>
 
-<!-- WAITLIST -->
-<section class="wl" id="waitlist">
-  <div class="wrap center">
-    <div class="kicker reveal">Stay in the loop</div>
-    <h2 class="reveal">Get updates.</h2>
-    <p class="sub reveal d1" style="color:rgba(255,255,255,.75);margin:0 auto">New cities and features, straight to your inbox.</p>
-    <form class="wl-box reveal d1" id="wlForm">
-      <input type="email" id="wlEmail" placeholder="you@example.com" aria-label="Email" required />
-      <button class="btn btn-light" type="submit">Notify me</button>
-    </form>
-    <div class="wl-note" id="wlNote"></div>
-  </div>
-</section>
+    <!-- WAITLIST -->
+    <section class="wrap wl" id="waitlist">
+      <div class="wl-in">
+        <div>
+          <h2>Not in Toronto?</h2>
+          <p class="sub">We'll email you once when Roamly reaches your city.</p>
+        </div>
+        <div class="wl-side">
+          <form id="wlForm">
+            <input type="email" id="wlEmail" placeholder="you@example.com" aria-label="Email" required />
+            <button class="btn btn-primary" type="submit">Notify me</button>
+          </form>
+          <div class="wl-note" id="wlNote" role="status"></div>
+        </div>
+      </div>
+    </section>
+  </main>
 
-<footer>
-  <div class="links">
-    <a href="roamly.html">Planner</a>
-    <a href="#features">Features</a>
-    <a href="#waitlist">Updates</a>
-    <a href="submit-event.html">List an event</a>
-    <a href="terms.html">Terms</a>
-    <a href="privacy.html">Privacy</a>
-  </div>
-  <div>© 2026 Roamly</div>
-</footer>
-
+  <footer class="wrap">
+    <span>© 2026 Roamly</span>
+    <div class="links">
+      <a href="submit-event.html">List an event</a>
+      <a href="terms.html">Terms</a>
+      <a href="privacy.html">Privacy</a>
+    </div>
+  </footer>
 </div>
 
 <script>
 const API = window.API_BASE;
+const REDUCE = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /* ---- header actions: signed-in visitors go straight to the planner ---- */
 try {
   if (localStorage.getItem('trek_token')) {
     document.querySelector('#navActs .signin').style.display = 'none';
     const cta = document.querySelector('#navActs .cta');
-    cta.textContent = 'Open planner →'; cta.href = 'roamly.html';
+    cta.textContent = 'Open planner'; cta.href = 'roamly.html';
   }
 } catch (e) {}
 
-/* ---- header: transparent on the photo, solid after it ---- */
-const header = document.getElementById('top');
-const hero = document.querySelector('.hero');
-new IntersectionObserver(([en]) => header.classList.toggle('solid', !en.isIntersecting),
-  { rootMargin: '-80px 0px 0px 0px' }).observe(hero);
+/* ---- the living sentence ---- */
+const OPTS = {
+  vibe: ['chill', 'fancy', 'loud'],
+  people: ['two', 'four', 'just me'],
+  budget: [60, 30, 120],
+  area: ['Queen West', 'the Annex', 'Ossington'],
+};
+const PLANS = {
+  chill: { title: 'Tapas, then jazz', mins: 225, km: 1.2, stops: [
+    { t: '7:15', name: 'Bar Raval', what: 'Tapas', icon: 'ph-fork-knife', note: 'Small plates, standing room. Book ahead, Tuesdays fill up by 8.', walk: '9 min walk to the next stop' },
+    { t: '9:30', name: 'The Rex', what: 'Jazz trio · $15', icon: 'ph-music-notes', note: "The trio's on tonight. Get there by 9:15 for a seat near the stage.", walk: '11 min walk to the next stop' },
+    { t: '11:00', name: 'Bang Bang', what: 'Ice cream', icon: 'ph-ice-cream', note: 'Open till 11:30. The line moves fast.', walk: 'Home from here' }] },
+  fancy: { title: 'Dinner, cocktails, dessert', mins: 240, km: 1.6, stops: [
+    { t: '7:00', name: 'Bar Isabel', what: 'Spanish dinner', icon: 'ph-fork-knife', note: 'Ask for the bar seats. Order the octopus.', walk: '12 min walk to the next stop' },
+    { t: '8:45', name: 'Civil Liberties', what: 'Cocktails', icon: 'ph-martini', note: "No menu. Tell them what you like and they'll make it.", walk: '8 min walk to the next stop' },
+    { t: '10:15', name: "Sweet Olenka's", what: 'Dessert', icon: 'ph-cake', note: 'Open late. Split a slice of cake.', walk: 'Home from here' }] },
+  loud: { title: 'Laughs, a band, a dance floor', mins: 330, km: 2.1, stops: [
+    { t: '8:00', name: 'Comedy Bar', what: 'Open mic · $10', icon: 'ph-microphone-stage', note: 'Twelve comics, five minutes each. Sit near the back.', walk: '15 min walk to the next stop' },
+    { t: '9:45', name: 'Horseshoe Tavern', what: 'Indie double bill · $22', icon: 'ph-guitar', note: 'The headliner goes on around 10:30.', walk: '10 min walk to the next stop' },
+    { t: '11:45', name: 'Bar Fancy', what: 'Vinyl night · Free', icon: 'ph-vinyl-record', note: 'Soul 45s until close. The dance floor fills up after midnight.', walk: 'Home from here' }] },
+};
+const AUTO = ['vibe', 'budget', 'area', 'vibe', 'people', 'vibe'];
+const LABEL = { vibe: 'vibe', people: 'who', budget: 'budget', area: 'neighbourhood' };
 
-/* ---- hero: swipe or tap to get started (chips start a ready-made request) ---- */
-function planWith(q, how){
-  track('get_started', { how, has_text: !!q });
-  location.href = 'roamly.html' + (q ? '?q=' + encodeURIComponent(q) : '');
+const state = { vibe: 0, people: 0, budget: 0, area: 0 };
+const val = k => OPTS[k][state[k]];
+const fmtTok = k => k === 'budget' ? '$' + val(k) : val(k);
+const plan = () => PLANS[val('vibe')];
+const target = () => ({ mins: plan().mins, km: plan().km, cost: Math.round(val('budget') * 0.9) });
+const sentence = () => `A ${val('vibe')} night for ${val('people')}, around $${val('budget')} each, in ${val('area')}`;
+const $ = id => document.getElementById(id);
+const root = $('page');
+const toks = {};
+document.querySelectorAll('[data-tok]').forEach(b => { toks[b.dataset.tok] = b; });
+
+const ENTER = 'cubic-bezier(.22,1,.36,1)';
+function anim(el, frames, opts){ if (!REDUCE && el.animate) el.animate(frames, opts); }
+
+function renderTok(k){
+  const b = toks[k];
+  b.textContent = fmtTok(k);
+  const next = OPTS[k][(state[k] + 1) % OPTS[k].length];
+  b.setAttribute('aria-label', `${LABEL[k]}: ${fmtTok(k)}. Change to ${k === 'budget' ? '$' + next : next}`);
 }
-(function slider(){
-  const box = document.getElementById('slide'), knob = document.getElementById('slideKnob');
-  let startX = null, x = 0, moved = false;
-  const max = () => box.clientWidth - knob.offsetWidth - 12;
-  const set = v => { x = Math.max(0, Math.min(max(), v));
-    box.style.setProperty('--x', x + 'px'); box.style.setProperty('--fill', (x + knob.offsetWidth + 6) + 'px'); };
-  const go = how => { set(max()); document.getElementById('slideText').textContent = 'Let’s go…';
-    setTimeout(() => planWith('', how), 220); };
-  box.addEventListener('pointerdown', e => { startX = e.clientX - x; moved = false; box.classList.add('dragging');
-    box.setPointerCapture(e.pointerId); });
-  box.addEventListener('pointermove', e => { if (startX === null) return;
-    const v = e.clientX - startX; if (Math.abs(v - x) > 3) moved = true; set(v); });
-  const end = () => { if (startX === null) return; startX = null; box.classList.remove('dragging');
-    if (!moved || x > max() * .7) go(moved ? 'swipe' : 'tap');   // a tap, or dragged most of the way
-    else { set(0); box.style.removeProperty('--fill'); } };
-  box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
-  box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go('key'); } });
-})();
-document.querySelectorAll('.moods [data-q]').forEach(b => b.addEventListener('click', () => planWith(b.dataset.q, 'chip')));
 
-/* ---- scroll reveal ---- */
-const io = new IntersectionObserver((entries) => {
-  for (const en of entries) if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); }
-}, { threshold: .15 });
-document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+function renderPlan(){
+  const p = plan();
+  $('routeDots').innerHTML = p.stops.map(s =>
+    `<div class="dot" data-dot><i></i><span class="num">${s.t}</span></div>`).join('');
+  $('miniStops').innerHTML = p.stops.map(s =>
+    `<div class="mini" data-anim><span class="tm num">${s.t}</span><div><span class="nm">${s.name}</span><span class="wh">${s.what}</span></div></div>`).join('');
+  $('hours').innerHTML = p.stops.map(s => `
+    <div class="hour" data-anim>
+      <span class="big num">${s.t}</span>
+      <div class="body"><h3>${s.name}</h3><p>${s.note}</p>
+        <span class="walk"><i class="ph ph-person-simple-walk" aria-hidden="true"></i>${s.walk}</span></div>
+      <div class="tile" aria-hidden="true"><i class="ph-light ${s.icon}"></i><span class="cap">${s.what}</span></div>
+    </div>`).join('');
+  root.querySelectorAll('[data-bind="title"]').forEach(el => { el.textContent = p.title; });
+}
+function renderPeople(){ $('hoursTitle').textContent = `${plan().title}, ${val('people')}.`; }
+function renderArea(){ root.querySelectorAll('[data-bind="area"]').forEach(el => { el.textContent = val('area'); }); }
 
-/* ---- animated chat demo (loops through scenarios) ---- */
-const SCENARIOS = [
-  { ask: '$60, date night, something a little fancy 🍷',
-    reply: "Say less. Here's your night — three stops, all within a 12-minute walk:",
-    stops: [['7:00','Bar Isabel','· dinner · Spanish'],['8:45','Civil Liberties','· cocktails'],['10:15',"Sweet Olenka's",'· dessert']] },
-  { ask: '$30, chill night with the roomies 🍕',
-    reply: 'Cozy and cheap — I got you:',
-    stops: [['6:30','Superpoint','· pizza slices'],['8:00','Snakes & Lattes','· board games'],['9:45','Night Owl','· cheap pints']] },
-  { ask: 'we just got paid. go crazy 🤑',
-    reply: 'Turning it up. Tonight goes like this:',
-    stops: [['7:30','Omakase bar','· dinner · sushi'],['9:30','Rooftop lounge','· skyline drinks'],['11:30','Basement disco','· dancing']] },
-];
-const demo = document.getElementById('demo');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-function el(html){ const d = document.createElement('div'); d.innerHTML = html; return d.firstElementChild; }
-async function playDemo(){
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let i = 0;
-  for(;;){
-    const s = SCENARIOS[i % SCENARIOS.length]; i++;
-    demo.innerHTML = '';
-    demo.appendChild(el(`<div class="msg me"><div class="av">🙂</div><div class="bubble">${s.ask}</div></div>`));
-    if (!reduce) {
-      const typing = el(`<div class="msg"><div class="av">R</div><div class="bubble dots"><span></span><span></span><span></span></div></div>`);
-      demo.appendChild(typing); await sleep(1100); typing.remove();
+/* duration / distance / cost count toward their new values */
+let disp = target(), raf = 0;
+function paintStats(d){
+  $('dDur').textContent = Math.floor(d.mins / 60) + 'h ' + String(Math.round(d.mins % 60)).padStart(2, '0');
+  $('dKm').textContent = d.km.toFixed(1) + ' km';
+  $('dCost').textContent = '$' + Math.round(d.cost);
+}
+function tween(){
+  cancelAnimationFrame(raf);
+  const from = disp, to = target();
+  if (REDUCE) { disp = to; paintStats(disp); return; }
+  // start the clock on the first frame: a rAF timestamp can predate
+  // performance.now() at scheduling, which would make progress negative
+  let t0 = null; const ease = t => 1 - Math.pow(1 - t, 3);
+  const step = now => {
+    if (t0 === null) t0 = now;
+    const p = Math.min(1, Math.max(0, (now - t0) / 800)), e = ease(p);
+    disp = { mins: from.mins + (to.mins - from.mins) * e, km: from.km + (to.km - from.km) * e, cost: from.cost + (to.cost - from.cost) * e };
+    paintStats(disp);
+    if (p < 1) raf = requestAnimationFrame(step);
+  };
+  raf = requestAnimationFrame(step);
+}
+
+function rebuildAnim(){
+  root.querySelectorAll('[data-anim]').forEach((el, i) => anim(el,
+    [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }],
+    { duration: 600, delay: Math.min(i, 8) * 70, easing: ENTER, fill: 'backwards' }));
+  anim($('routeLine'), [{ transform: 'scaleX(0)' }, { transform: 'scaleX(1)' }],
+    { duration: 900, delay: 150, easing: 'cubic-bezier(.65,0,.35,1)', fill: 'backwards' });
+  root.querySelectorAll('[data-dot]').forEach((el, i) => anim(el,
+    [{ opacity: 0, transform: 'scale(0.3)' }, { opacity: 1, transform: 'none' }],
+    { duration: 450, delay: 150 + i * 380, easing: 'cubic-bezier(.34,1.56,.64,1)', fill: 'backwards' }));
+}
+
+function change(k){
+  state[k] = (state[k] + 1) % OPTS[k].length;
+  renderTok(k);
+  anim(toks[k], [{ transform: 'translateY(0.4em)', opacity: 0, filter: 'blur(8px)' }, { transform: 'none', opacity: 1, filter: 'blur(0)' }],
+    { duration: 520, easing: ENTER });
+  if (k === 'vibe') renderPlan();
+  if (k === 'vibe' || k === 'people') { renderPeople(); rebuildAnim(); }
+  if (k === 'area') renderArea();
+  if (k === 'vibe' || k === 'budget') tween();
+}
+
+/* idle demo: a word changes by itself every few seconds, while the hero is
+   on screen and the visitor hasn't taken over */
+let manual = false, heroVisible = true, auto = 0, ai = 0;
+function syncAuto(){
+  const run = !REDUCE && !manual && heroVisible && !document.hidden;
+  if (run && !auto) auto = setInterval(() => change(AUTO[ai++ % AUTO.length]), 3400);
+  if (!run && auto) { clearInterval(auto); auto = 0; }
+}
+Object.entries(toks).forEach(([k, b]) => b.addEventListener('click', () => {
+  manual = true; $('resume').classList.add('on'); syncAuto(); change(k);
+}));
+$('resume').addEventListener('click', () => { manual = false; $('resume').classList.remove('on'); syncAuto(); });
+new IntersectionObserver(([en]) => { heroVisible = en.isIntersecting; syncAuto(); }, { threshold: .2 }).observe($('hero'));
+document.addEventListener('visibilitychange', syncAuto);
+
+Object.keys(OPTS).forEach(renderTok);
+renderPlan(); renderPeople(); renderArea(); paintStats(disp);
+syncAuto();
+
+/* the background glow drifts slowly */
+const glow = $('glow');
+if (!REDUCE && glow.animate) glow.animate([{ transform: 'translate(0,0)' }, { transform: 'translate(520px,160px)' }],
+  { duration: 11000, direction: 'alternate', iterations: Infinity, easing: 'ease-in-out' });
+
+/* ---- intro map: a night being built ----
+   The map is authored in 1168x580 coordinates. The SVG scales via viewBox;
+   pins, labels and the walking dot are HTML placed at the same coordinates so
+   their text stays full size. Narrow screens crop to the route. */
+const STOP = { raval: { t: '7:15', end: '9:00', c: 25 }, rex: { t: '9:30', end: '11:00', c: 15 }, civil: { t: '11:00', end: '12:30', c: 14 } };
+const ORDER = ['raval', 'rex', 'civil'];
+const WALK = [[540, 370], [540, 300], [720, 300], [720, 200], [960, 200], [960, 330]];
+const M = { raval: false, rex: false, civil: false, hint: null, toast: null, manual: false };
+const mapbox = $('mapbox'), mapEl = $('map'), svg = $('mapSvg'), walker = $('walker'), toastEl = $('toast');
+const pins = {}, rows = {};
+mapEl.querySelectorAll('[data-pin]').forEach(el => { pins[el.dataset.pin] = el; });
+mapbox.querySelectorAll('[data-place]').forEach(el => { rows[el.dataset.place] = el; });
+let view = { x: 0, y: 0, w: 1168, h: 580 }, scale = 1;
+
+function placeAt(el, x, y){ el.style.left = (x - view.x) * scale + 'px'; el.style.top = (y - view.y) * scale + 'px'; }
+function layoutMap(){
+  const narrow = mapbox.clientWidth < 820;
+  mapbox.classList.toggle('narrow', narrow);
+  view = narrow ? { x: 450, y: 120, w: 620, h: 360 } : { x: 0, y: 0, w: 1168, h: 580 };
+  scale = mapEl.clientWidth / view.w;
+  mapEl.style.height = view.h * scale + 'px';
+  svg.setAttribute('viewBox', `${view.x} ${view.y} ${view.w} ${view.h}`);
+  svg.querySelectorAll('[data-sw]').forEach(el => el.setAttribute('stroke-width', el.dataset.sw / scale));
+  mapEl.querySelectorAll('.at[data-x]').forEach(el => placeAt(el, +el.dataset.x, +el.dataset.y));
+}
+
+function renderMap(resetting){
+  ORDER.forEach(k => {
+    const on = M[k], h = M.hint === k;
+    pins[k].style.opacity = on ? 1 : h ? .45 : 0;
+    pins[k].style.transform = `scale(${on ? 1 : h ? .8 : .3})`;
+    rows[k].classList.toggle('on', on);
+    rows[k].classList.toggle('hint', h && !on);
+    rows[k].setAttribute('aria-pressed', on);
+    rows[k].querySelector('[data-ic]').className = on ? 'ph-fill ph-check-circle' : 'ph ph-plus-circle';
+  });
+  const segA = $('segA'), segB = $('segB');
+  segA.style.transition = resetting || REDUCE ? 'none' : 'stroke-dashoffset 1.4s cubic-bezier(.65,0,.35,1) .25s';
+  segB.style.transition = resetting || REDUCE ? 'none' : 'stroke-dashoffset 1.1s cubic-bezier(.65,0,.35,1) .25s';
+  segA.style.strokeDashoffset = M.raval && M.rex ? 0 : 430;
+  segB.style.strokeDashoffset = M.rex && M.civil ? 0 : 290;
+  const sel = ORDER.filter(k => M[k]);
+  const cost = sel.reduce((a, k) => a + STOP[k].c, 0);
+  $('trayText').textContent = sel.length
+    ? `${sel.length} stop${sel.length > 1 ? 's' : ''} · ${STOP[sel[0]].t}–${STOP[sel[sel.length - 1]].end} · $${cost} each`
+    : 'Nothing yet';
+  $('review').classList.toggle('ready', sel.length === 3);
+  if (M.toast && toastEl.textContent !== M.toast) {
+    toastEl.textContent = M.toast;
+    anim(toastEl, [{ opacity: 0, transform: 'translateY(-8px)' }, { opacity: 1, transform: 'none' }], { duration: 450, easing: ENTER });
+  }
+  toastEl.classList.toggle('on', !!M.toast);
+  if (!M.toast) toastEl.textContent = '';
+  $('replay').classList.toggle('on', M.manual);
+  syncWalk();
+}
+function setMap(patch, resetting){ Object.assign(M, patch); renderMap(resetting); }
+
+/* the scripted night: a show, dinner before it, one more after */
+let mapTimers = [];
+function clearMap(){ mapTimers.forEach(clearTimeout); mapTimers = []; }
+function playMap(){
+  clearMap();
+  if (REDUCE) { setMap({ raval: true, rex: true, civil: true, hint: null, toast: null, manual: false }, true); return; }
+  setMap({ raval: false, rex: false, civil: false, hint: null, toast: null, manual: false }, true);
+  [
+    [900, { hint: 'rex' }],
+    [1500, { rex: true, hint: null, toast: 'The Rex has a jazz trio at 9:30. Added.' }],
+    [3200, { hint: 'raval', toast: 'Dinner first? Bar Raval is a 9 min walk.' }],
+    [4300, { raval: true, hint: null }],
+    [6000, { hint: 'civil', toast: 'One more after? Civil Liberties is open till 2.' }],
+    [7100, { civil: true, hint: null }],
+    [8600, { toast: 'Your night is planned. About $54 each.' }],
+    [11000, { toast: null }],
+    [13500, 'loop'],
+  ].forEach(([ms, a]) => mapTimers.push(setTimeout(() => (a === 'loop' ? playMap() : setMap(a)), ms)));
+}
+Object.entries(rows).forEach(([k, b]) => b.addEventListener('click', () => {
+  clearMap(); setMap({ [k]: !M[k], manual: true, hint: null, toast: null });
+}));
+$('replay').addEventListener('click', playMap);
+
+/* once all three stops are in, a dot walks the route */
+const SEGS = WALK.slice(1).map((p, i) => Math.hypot(p[0] - WALK[i][0], p[1] - WALK[i][1]));
+const WALK_LEN = SEGS.reduce((a, b) => a + b, 0);
+function walkPoint(f){
+  let d = f * WALK_LEN;
+  for (let i = 0; i < SEGS.length; i++) {
+    if (d <= SEGS[i] || i === SEGS.length - 1) {
+      const r = Math.min(1, d / SEGS[i]), a = WALK[i], b = WALK[i + 1];
+      return [a[0] + (b[0] - a[0]) * r, a[1] + (b[1] - a[1]) * r];
     }
-    demo.appendChild(el(`<div class="msg"><div class="av">R</div><div class="bubble">${s.reply}</div></div>`));
-    const stops = el(`<div class="stops"></div>`); demo.appendChild(stops);
-    for (const [t, n, c] of s.stops) {
-      if (!reduce) await sleep(450);
-      const row = el(`<div class="stop"><span class="time">${t}</span><span class="name">${n}</span><span class="cat">${c}</span></div>`);
-      row.style.animation = 'rise .4s var(--ease) both'; stops.appendChild(row);
-    }
-    await sleep(4800);
+    d -= SEGS[i];
   }
 }
-playDemo();
+let walkRaf = 0, walkT0 = null, mapVisible = true;
+function walkFrame(now){
+  if (walkT0 === null) walkT0 = now;
+  const t = now - walkT0 - 1200;
+  const f = t < 0 ? 0 : (t % 4500) / 4500;
+  const [x, y] = walkPoint(-(Math.cos(Math.PI * f) - 1) / 2);
+  placeAt(walker, x, y);
+  walkRaf = requestAnimationFrame(walkFrame);
+}
+function syncWalk(){
+  const run = !REDUCE && ORDER.every(k => M[k]) && mapVisible && !document.hidden;
+  if (run && !walkRaf) { walkT0 = null; walker.style.display = 'block'; walkRaf = requestAnimationFrame(walkFrame); }
+  if (!run && walkRaf) { cancelAnimationFrame(walkRaf); walkRaf = 0; walker.style.display = 'none'; }
+}
+new IntersectionObserver(([en]) => { mapVisible = en.isIntersecting; syncWalk(); }).observe(mapbox);
+document.addEventListener('visibilitychange', syncWalk);
+new ResizeObserver(layoutMap).observe(mapbox);
+layoutMap();
+playMap();
+
+document.querySelectorAll('[data-go]').forEach(a => a.addEventListener('click', () => track('get_started', { how: a.dataset.go })));
+
+/* ---- "Make it real": hand the sentence to the planner ---- */
+$('makeReal').addEventListener('click', () => {
+  track('get_started', { how: 'sentence', vibe: val('vibe'), people: val('people'), budget: val('budget'), area: val('area'), manual });
+  location.href = 'roamly.html?q=' + encodeURIComponent(sentence());
+});
 
 /* ---- waitlist form ---- */
-document.getElementById('wlForm').addEventListener('submit', async (e) => {
+$('wlForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = document.getElementById('wlEmail').value.trim();
-  const note = document.getElementById('wlNote');
+  const email = $('wlEmail').value.trim();
+  const note = $('wlNote');
   note.textContent = 'Adding you…';
   try {
     const res = await apiFetch(`${API}/waitlist`, {
-      method:'POST', headers:{'Content-Type':'application/json'},
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
     if (!res.ok) throw new Error();
     const data = await res.json();
     if (!data.already_joined) track('waitlist_join');
     note.textContent = data.already_joined
-      ? "You're already on the list — see you soon."
-      : "You're in — we'll be in touch.";
+      ? "You're already on the list. We'll be in touch."
+      : "You're in. We'll email you when Roamly reaches your city.";
   } catch {
-    const list = JSON.parse(localStorage.getItem('roamly_waitlist') || '[]');
-    if (!list.includes(email)) list.push(email);
-    localStorage.setItem('roamly_waitlist', JSON.stringify(list));
-    note.textContent = "You're in — we'll be in touch.";
+    try {
+      const list = JSON.parse(localStorage.getItem('roamly_waitlist') || '[]');
+      if (!list.includes(email)) list.push(email);
+      localStorage.setItem('roamly_waitlist', JSON.stringify(list));
+    } catch {}
+    note.textContent = "You're in. We'll email you when Roamly reaches your city.";
   }
   e.target.reset();
 });
