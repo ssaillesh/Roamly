@@ -3,8 +3,11 @@ name: Refresh venues
 # Reloads the stored venue list the planner picks from (backend/scripts/load_venues.py):
 # Overture Maps places + Wikidata (how well known) + OpenStreetMap opening hours, all
 # free open data. Monthly is plenty: Overture publishes about once a month.
-# Photos: each venue website's own preview image, else its Wikimedia Commons photo,
-# in a step capped at 10 minutes; sites already checked keep last month's result.
+# Photos, only real photos of the place: the venue website's own (each one downloaded
+# and checked to be a photo, not a logo or text card), else a Wikimedia Commons photo
+# (from Wikidata, or geotagged at the venue and named for it). Websites: up to 10 min;
+# Commons: up to 4 min. Sites already checked keep last month's result.
+# Run it by hand with "recheck photos" ticked to re-check every stored photo once.
 # Needs migration 0015_venue_images on the database (the API runs it on deploy).
 #
 # Needs one repository secret, VENUES_DATABASE_URL = the production database's
@@ -13,14 +16,20 @@ name: Refresh venues
 on:
   schedule:
     - cron: "41 8 26 * *"       # the 26th, 08:41 UTC
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      recheck_photos:
+        description: "Re-check every stored photo and drop the ones that aren't real photos"
+        type: boolean
+        default: false
 
 jobs:
   load:
     runs-on: ubuntu-24.04
     # ~3 min download + up to 8 min for opening hours (the public OSM servers are often slow)
-    # + up to 10 min for photos
-    timeout-minutes: 35
+    # + up to 10 min for website photos (+ up to 10 more re-checking them, when asked)
+    # + up to 4 min for Commons photos
+    timeout-minutes: 50
     defaults:
       run:
         working-directory: backend
@@ -42,4 +51,4 @@ jobs:
             echo "::error::Add the VENUES_DATABASE_URL repository secret (the database's External URL)"
             exit 1
           fi
-          python -m scripts.load_venues --city toronto
+          python -m scripts.load_venues --city toronto ${{ inputs.recheck_photos && '--recheck-photos' || '' }}

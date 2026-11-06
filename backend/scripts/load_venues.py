@@ -15,19 +15,26 @@ Runs monthly from .github/workflows/venues.yml against the production database
      a tile that fails keeps no hours, and the plan treats hours as unknown).
   4. Overture neighbourhood names → `areas` (so "Kensington Market" is placed
      without a live geocoder).
-  5. Photos (best effort, time-boxed): each venue website's own preview image
-     (og:image — what a link preview shows), else its Wikimedia Commons photo
-     from Wikidata. Sites checked on an earlier run keep that result, so each
-     month only fetches new or changed websites (--refresh-images redoes all).
+  5. Photos (best effort, time-boxed), only real photos of the place: the venue
+     website's own (its share image, schema.org photos, then big pictures on the
+     page), else its Wikimedia Commons photo from Wikidata, else a geotagged Commons
+     photo taken at the venue whose title names it. Every candidate is downloaded
+     and checked to be a photo, not a logo or text card (looks_like_photo). Sites
+     checked on an earlier run keep that result, so each month only fetches new or
+     changed websites (--refresh-images redoes all; --recheck-photos re-checks the
+     stored ones).
   6. Replace the city's rows in one transaction.
 """
 import argparse
+import hashlib
 import html as htmllib
+import io
 import json
 import math
 import re
 import sys
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import quote, unquote, urljoin, urlsplit
 
@@ -124,21 +131,56 @@ def wikidata(box) -> list[dict]:
 
 
 # ---------------------------------------------------------------- photos
-IMAGE_BUDGET_S = 600            # the whole photo step; what's left waits for next month
+# Every photo shown for a venue is a real photo of that place, from one of two free
+# sources: the venue's own website, or a geotagged Wikimedia Commons photo taken there.
+# Each candidate is downloaded and looked at (photo_stats / looks_like_photo) before
+# it's kept: logos, text cards, cut-outs and screenshots are dropped, since the app's
+# category icon reads better than a picture that isn't one.
+IMAGE_BUDGET_S = 600            # the website step; what's left waits for next month
 IMAGE_WORKERS = 24
+COMMONS_BUDGET_S = 240          # the Commons step (Wikimedia asks for gentle, few-at-a-time use)
+COMMONS_WORKERS = 4
+COMMONS_RADIUS_M = 75
 # Only the URL is stored, never the picture (the browser loads it from the venue's
 # site or Commons), and it's capped: ~120 bytes a photo, well under 1 MB a city.
 MAX_IMAGE_URL = 500
-_PAGE_BYTES = 256 * 1024        # og:image lives in <head>; never download a whole site
+_PAGE_BYTES = 256 * 1024        # never download a whole site
+_PHOTO_BYTES = 8 * 1024 * 1024  # a candidate photo bigger than this isn't worth the wait
+_MAX_PIXELS = 40_000_000
+_TRIES_PER_SITE = 5             # candidate photos checked per website
 # Links that aren't the venue's own site: login walls, aggregators, link-in-bio pages.
 _NOT_OWN_SITE = ("facebook.com", "instagram.com", "twitter.com", "x.com", "tiktok.com", "youtube.com",
                  "linktr.ee", "yelp.com", "yelp.ca", "google.com", "goo.gl", "g.page", "tripadvisor.com",
                  "tripadvisor.ca", "ubereats.com", "doordash.com", "skipthedishes.com", "toasttab.com")
-# A preview image that's really a logo or a stock placeholder shows worse than the icon does.
+# A URL that names itself a logo or placeholder isn't even downloaded.
 _NOT_A_PHOTO = re.compile(r"logo|favicon|icon|sprite|placeholder|blank|default[-_]?(?:image|share|og)|\.(?:svg|ico|gif)(?:$|\?)", re.I)
 _META = re.compile(r"<meta\b[^>]*>", re.I)
+_LINK = re.compile(r"<link\b[^>]*>", re.I)
+_IMG = re.compile(r"<img\b[^>]*>", re.I)
+_LD = re.compile(r"<script\b[^>]*application/ld\+json[^>]*>(.*?)</script>", re.I | re.S)
 _ATTR = re.compile(r"""([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""")
 _OG_KEYS = ("og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src")
+# A big picture in the page body: sized wide, or named like a room / food / hero shot.
+_BODY_HINT = re.compile(r"hero|banner|interior|dining|gallery|slide|patio|room|bar|food|dish|space|venue", re.I)
+
+
+def _attrs(tag: str) -> dict[str, str]:
+    return {m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3) if m.group(3) is not None else m.group(4))
+            for m in _ATTR.finditer(tag)}
+
+
+def _photo_url(raw: str | None, base: str) -> str | None:
+    """A candidate as an absolute https URL, unless it can't be a photo."""
+    raw = htmllib.unescape(raw or "").strip()
+    if not raw or raw.startswith("data:"):
+        return None
+    url = urljoin(base, raw)
+    if url.startswith("http://"):
+        url = "https://" + url[len("http://"):]      # the app is https: no mixed content
+    parts = urlsplit(url)
+    if not url.startswith("https://") or len(url) > MAX_IMAGE_URL or _NOT_A_PHOTO.search(parts.path + "?" + parts.query):
+        return None
+    return url
 
 
 def commons_thumb(url: str | None) -> str | None:
@@ -162,30 +204,153 @@ def own_site(url: str) -> bool:
 
 
 def og_image(page: str, base: str) -> str | None:
-    """The page's share image (og:image, then twitter:image), as an https URL, unless
-    it looks like a logo or placeholder."""
+    """The page's share image (og:image, then twitter:image), unless it looks like a logo."""
     found: dict[str, str] = {}
     for tag in _META.findall(page):
-        attrs = {m.group(1).lower(): (m.group(2) if m.group(2) is not None else m.group(3) if m.group(3) is not None else m.group(4))
-                 for m in _ATTR.finditer(tag)}
-        key = (attrs.get("property") or attrs.get("name") or "").strip().lower()
-        if key in _OG_KEYS and attrs.get("content") and key not in found:
-            found[key] = attrs["content"]
+        a = _attrs(tag)
+        key = (a.get("property") or a.get("name") or "").strip().lower()
+        if key in _OG_KEYS and a.get("content") and key not in found:
+            found[key] = a["content"]
     for key in _OG_KEYS:
-        raw = htmllib.unescape(found.get(key, "")).strip()
-        if not raw or raw.startswith("data:"):
-            continue
-        url = urljoin(base, raw)
-        if url.startswith("http://"):
-            url = "https://" + url[len("http://"):]      # the app is https: no mixed content
-        if url.startswith("https://") and len(url) <= MAX_IMAGE_URL and not _NOT_A_PHOTO.search(urlsplit(url).path + "?" + urlsplit(url).query):
+        url = _photo_url(found.get(key), base)
+        if url:
             return url
     return None
 
 
+def _ld_images(obj, out: list[str]) -> None:
+    if isinstance(obj, list):
+        for x in obj:
+            _ld_images(x, out)
+    elif isinstance(obj, dict):
+        for k, v in obj.items():
+            if k == "image" or k == "photo":
+                for x in (v if isinstance(v, list) else [v]):
+                    if isinstance(x, str):
+                        out.append(x)
+                    elif isinstance(x, dict) and isinstance(x.get("url") or x.get("contentUrl"), str):
+                        out.append(x.get("url") or x.get("contentUrl"))
+            elif isinstance(v, (dict, list)):
+                _ld_images(v, out)
+
+
+def page_photos(page: str, base: str) -> list[str]:
+    """Every photo the page offers for itself, best first: its share image (og/twitter),
+    the photos in its schema.org data, <link rel=image_src>, then big pictures in the body."""
+    out: list[str] = []
+    def add(raw):
+        url = _photo_url(raw, base)
+        if url and url not in out:
+            out.append(url)
+    found: dict[str, list[str]] = {}
+    for tag in _META.findall(page):
+        a = _attrs(tag)
+        key = (a.get("property") or a.get("name") or "").strip().lower()
+        if key in _OG_KEYS and a.get("content"):
+            found.setdefault(key, []).append(a["content"])
+    for key in _OG_KEYS:
+        for raw in found.get(key, []):
+            add(raw)
+    for blob in _LD.findall(page):
+        imgs: list[str] = []
+        try:
+            _ld_images(json.loads(htmllib.unescape(blob.strip())), imgs)
+        except (ValueError, RecursionError):
+            continue
+        for raw in imgs:
+            add(raw)
+    for tag in _LINK.findall(page):
+        a = _attrs(tag)
+        if "image_src" in (a.get("rel") or "").lower().split():
+            add(a.get("href"))
+    body = 0
+    for tag in _IMG.findall(page)[:120]:
+        a = _attrs(tag)
+        srcs = [a.get("src"), a.get("data-src"), a.get("data-lazy-src")]
+        srcset = a.get("srcset") or a.get("data-srcset")
+        if srcset:      # the widest entry ("…/room-1600.jpg 1600w")
+            parts = [p.strip().split() for p in srcset.split(",") if p.strip()]
+            parts.sort(key=lambda p: int(re.sub(r"\D", "", p[1]) or 0) if len(p) > 1 else 0, reverse=True)
+            if parts and parts[0]:
+                srcs.insert(0, parts[0][0])
+        try:
+            width = int(re.sub(r"\D", "", a.get("width") or "") or 0)
+        except ValueError:
+            width = 0
+        src = next((s for s in srcs if s and not s.startswith("data:")), None)
+        if src and (width >= 500 or (not width and _BODY_HINT.search(src))):
+            before = len(out)
+            add(src)
+            body += len(out) > before
+            if body >= 6:
+                break
+    return out
+
+
+def photo_stats(img) -> dict:
+    """Size, how much is see-through, how many colours, and the share of the commonest one
+    (on a 64×64 thumbnail, colours bucketed 16 per channel)."""
+    w, h = img.size
+    if img.mode == "P":
+        img = img.convert("RGBA" if "transparency" in img.info else "RGB")
+    alpha = 0.0
+    if img.mode in ("RGBA", "LA"):
+        a = img.convert("RGBA").getchannel("A").resize((64, 64))
+        alpha = sum(1 for p in a.getdata() if p < 250) / 4096
+    bins: dict[tuple, int] = {}
+    for r, g, b in img.convert("RGB").resize((64, 64)).getdata():
+        k = (r >> 4, g >> 4, b >> 4)
+        bins[k] = bins.get(k, 0) + 1
+    return {"w": w, "h": h, "alpha": alpha, "colors": len(bins), "top": max(bins.values()) / 4096}
+
+
+def looks_like_photo(s: dict) -> bool:
+    """A photo of a place, not a logo, text card or cut-out. Tuned on Toronto venues' own
+    share images: logos sit on one flat colour, cut-outs are see-through, text cards use
+    a handful of colours; photos have neither (dark rooms included)."""
+    if s["w"] < 400 or s["h"] < 250:
+        return False                                  # too small to show well
+    if not 0.5 <= s["w"] / s["h"] <= 2.6:
+        return False                                  # banners and strips
+    if s["alpha"] > 0.25:
+        return False                                  # a cut-out or transparent logo
+    if s["top"] > 0.40:
+        return False                                  # mostly one flat colour
+    if s["top"] > 0.25 and s["colors"] < 300:
+        return False                                  # a graphic: a flat field plus a few colours
+    return s["colors"] >= 40
+
+
+def check_photo(client: httpx.Client, url: str) -> bool | None:
+    """True = a real photo, False = not a photo (or not an image), None = couldn't reach it."""
+    try:
+        with client.stream("GET", url, headers={"Accept": "image/*"}) as r:
+            if r.status_code >= 500 or r.status_code == 429:
+                return None
+            if r.status_code >= 400 or not r.headers.get("content-type", "").lower().startswith("image/"):
+                return False
+            buf = bytearray()
+            for chunk in r.iter_bytes():
+                buf += chunk
+                if len(buf) > _PHOTO_BYTES:
+                    return False
+        from PIL import Image    # loader-only use; the API has it too (requirements.txt)
+        img = Image.open(io.BytesIO(bytes(buf)))
+        if img.width * img.height > _MAX_PIXELS:
+            return False
+        img.draft("RGB", (800, 800))
+        img.load()
+        return looks_like_photo(photo_stats(img))
+    except httpx.HTTPError:
+        return None
+    except Exception:            # not a picture Pillow can read (or a broken one)
+        return False
+
+
 def fetch_og_image(client: httpx.Client, site: str) -> str | None:
-    """"" = looked, no usable photo (or not the venue's own site); a URL = found;
-    None = couldn't reach it this time (try again next month)."""
+    """The website's own photo of the venue, checked to be a real photo.
+    "" = looked, nothing usable (or not the venue's own site); a URL = found;
+    None = couldn't reach the site this time (try again next month)."""
     url = site if re.match(r"https?://", site, re.I) else "https://" + site
     if not own_site(url):
         return ""
@@ -195,24 +360,48 @@ def fetch_og_image(client: httpx.Client, site: str) -> str | None:
                 return None
             if r.status_code >= 400 or "html" not in r.headers.get("content-type", "").lower():
                 return ""
+            base, enc = str(r.url), r.encoding or "utf-8"
+            chunks = r.iter_bytes()
             buf = b""
-            for chunk in r.iter_bytes():
+            for chunk in chunks:            # the <head> first: its share image is usually the one
                 buf += chunk
                 if len(buf) >= _PAGE_BYTES or b"</head>" in buf.lower():
                     break
-            page = buf.decode(r.encoding or "utf-8", errors="replace")
-            return og_image(page, str(r.url)) or ""
+            tried: list[str] = []
+            for cand in page_photos(buf.decode(enc, errors="replace"), base):
+                if len(tried) >= _TRIES_PER_SITE:
+                    break
+                tried.append(cand)
+                if check_photo(client, cand):
+                    return cand
+            for chunk in chunks:            # nothing real there: the body's pictures next
+                buf += chunk
+                if len(buf) >= _PAGE_BYTES:
+                    break
+            for cand in page_photos(buf.decode(enc, errors="replace"), base):
+                if cand in tried:
+                    continue
+                if len(tried) >= _TRIES_PER_SITE:
+                    break
+                tried.append(cand)
+                if check_photo(client, cand):
+                    return cand
+            return ""
     except (httpx.HTTPError, UnicodeError, ValueError):
         return None
 
 
+def _client(workers: int, accept: str) -> httpx.Client:
+    return httpx.Client(follow_redirects=True, timeout=httpx.Timeout(8.0, connect=5.0),
+                        limits=httpx.Limits(max_connections=workers * 2),
+                        headers={"User-Agent": UA, "Accept": accept})
+
+
 def website_images(sites: list[str], budget_s: float = IMAGE_BUDGET_S) -> dict[str, str | None]:
-    """og:image for each site, best first, until the time budget runs out."""
+    """A checked photo for each site, best first, until the time budget runs out."""
     stop = time.monotonic() + budget_s
     out: dict[str, str | None] = {}
-    with httpx.Client(follow_redirects=True, timeout=httpx.Timeout(8.0, connect=5.0),
-                      limits=httpx.Limits(max_connections=IMAGE_WORKERS),
-                      headers={"User-Agent": UA, "Accept": "text/html,application/xhtml+xml"}) as client:
+    with _client(IMAGE_WORKERS, "text/html,application/xhtml+xml") as client:
         def one(site):
             if time.monotonic() > stop:
                 return site, None
@@ -220,6 +409,113 @@ def website_images(sites: list[str], budget_s: float = IMAGE_BUDGET_S) -> dict[s
         with ThreadPoolExecutor(IMAGE_WORKERS) as pool:
             for site, img in pool.map(one, sites):
                 out[site] = img
+    return out
+
+
+def recheck_photos(images: dict[str, str], budget_s: float = IMAGE_BUDGET_S) -> set[str]:
+    """Stored website photos that turn out not to be photos (or are gone): their ids."""
+    stop = time.monotonic() + budget_s
+    bad: set[str] = set()
+    by_url: dict[str, list[str]] = {}
+    for vid, url in images.items():
+        by_url.setdefault(url, []).append(vid)
+    with _client(IMAGE_WORKERS, "image/*") as client:
+        def one(url):
+            return url, (None if time.monotonic() > stop else check_photo(client, url))
+        with ThreadPoolExecutor(IMAGE_WORKERS) as pool:
+            for url, ok in pool.map(one, list(by_url)):
+                if ok is False:
+                    bad.update(by_url[url])
+    return bad
+
+
+# ---- Commons: geotagged photos taken at the venue, whose title names it
+_NAME_FILLER = {"the", "a", "an", "and", "of", "at", "on", "in", "inc", "ltd", "co", "toronto", "ontario", "canada"}
+_NOT_OF_A_PLACE = re.compile(r"\b(?:map|logo|plan|diagram|flag|coat of arms|seal|chart|poster|screenshot)\b")
+_COMMONS_API = "https://commons.wikimedia.org/w/api.php"
+
+
+def _plain(s: str) -> str:
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower().replace("&", " and ")
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", s).split())
+
+
+def name_phrase(name: str) -> str | None:
+    """The venue's name as it would appear in a photo title ("The Rex Hotel" → "rex hotel");
+    None when it's too short or too generic to match safely."""
+    words = _plain(name).split()
+    while words and words[0] in _NAME_FILLER:
+        words = words[1:]
+    phrase = " ".join(words)
+    if len(phrase) < 3 or all(w in _NAME_FILLER or w.isdigit() for w in words):
+        return None
+    return phrase
+
+
+def commons_match(name: str, titles: list[str]) -> str | None:
+    """The first photo title that names the venue as a whole phrase ("Inner Wave at the
+    Velvet Underground.jpg" for "Velvet Underground"; not "Barrio Cerveceria" for
+    "Barrio Lounge"), skipping maps, logos and drawings."""
+    phrase = name_phrase(name)
+    if not phrase:
+        return None
+    pat = re.compile(r"(?:^| )" + re.escape(phrase) + r"(?: |$)")
+    for title in titles:
+        base = title.removeprefix("File:")
+        if base.lower().endswith((".svg", ".pdf", ".djvu", ".webm", ".ogv", ".tif", ".tiff")):
+            continue
+        t = _plain(base.rsplit(".", 1)[0])
+        if _NOT_OF_A_PLACE.search(t):
+            continue
+        if pat.search(t):
+            return base
+    return None
+
+
+def commons_photo(client: httpx.Client, name: str, lat: float, lng: float) -> str | None:
+    """"" = nothing found; a thumbnail URL = found (and checked); None = Commons unreachable."""
+    if not name_phrase(name):
+        return ""
+    try:
+        r = client.get(_COMMONS_API, params={
+            "action": "query", "format": "json", "maxlag": 5, "generator": "geosearch",
+            "ggscoord": f"{lat}|{lng}", "ggsradius": COMMONS_RADIUS_M, "ggsnamespace": 6, "ggslimit": 30,
+            "prop": "imageinfo", "iiprop": "size|mime"})
+        if r.status_code >= 400:
+            return None
+        pages = ((r.json().get("query") or {}).get("pages") or {}).values()
+    except (httpx.HTTPError, ValueError):
+        return None
+    ok = [p["title"] for p in sorted(pages, key=lambda p: p.get("index", 99))
+          if (p.get("imageinfo") or [{}])[0].get("mime") in ("image/jpeg", "image/png", "image/webp")
+          and (p.get("imageinfo") or [{}])[0].get("width", 0) >= 500]
+    base = commons_match(name, ok)
+    if not base:
+        return ""
+    url = f"https://commons.wikimedia.org/wiki/Special:FilePath/{quote(base)}?width=640"
+    return url if check_photo(client, url) else ""
+
+
+def commons_photos(venues: list[dict], budget_s: float = COMMONS_BUDGET_S) -> dict[str, str]:
+    """Commons photos for venues still without one, best first, until the budget runs out.
+    Within each priority tier the order rotates by month, so the whole list gets covered
+    over a few runs rather than the same venues being asked about every time."""
+    month = time.strftime("%Y%m")
+    todo = sorted((v for v in venues if not v.get("image") and v.get("lat") is not None and name_phrase(v.get("name") or "")),
+                  key=lambda v: (_photo_priority(v)[0], -(v["notability"] > 0),
+                                 hashlib.md5(f"{v['id']}{month}".encode()).hexdigest()))
+    stop = time.monotonic() + budget_s
+    out: dict[str, str] = {}
+    with _client(COMMONS_WORKERS, "application/json") as client:
+        def one(v):
+            if time.monotonic() > stop:
+                return v["id"], None
+            return v["id"], commons_photo(client, v["name"], v["lat"], v["lng"])
+        with ThreadPoolExecutor(COMMONS_WORKERS) as pool:
+            for vid, url in pool.map(one, todo):
+                if url:
+                    out[vid] = url
+    log(f"  Commons: {len(out)} more photos taken at the venue ({len(todo)} venues without one)")
     return out
 
 
@@ -267,6 +563,30 @@ def assign_images(venues: list[dict], prev: dict[str, tuple], fetched: dict[str,
             v["image"] = "" if (site_img == "" or not site) else None
 
 
+def add_commons(venues: list[dict], prev: dict[str, tuple], budget_s: float) -> None:
+    """After the websites: a Commons photo for venues still without one. Last month's
+    Commons find is kept for venues not asked about this time."""
+    for v in venues:
+        old = prev.get(v["id"])
+        if not v.get("image") and old and is_commons(old[1]):
+            v["image"] = old[1]
+    found = commons_photos(venues, budget_s) if budget_s > 0 else {}
+    for v in venues:
+        if v["id"] in found:
+            v["image"] = found[v["id"]]
+
+
+def apply_recheck(rows: list[tuple], prev: dict[str, tuple], budget_s: float) -> None:
+    """--recheck-photos: stored website photos that aren't photos are dropped (prev → None),
+    so this run looks at those websites again with today's checks."""
+    stored = {vid: img for vid, (site, img) in ((r[0], r[1:]) for r in rows) if img and not is_commons(img)}
+    t = time.time()
+    bad = recheck_photos(stored, budget_s)
+    for vid in bad:
+        prev[vid] = (prev[vid][0], None) if vid in prev else (None, None)
+    log(f"  recheck: {len(bad)} of {len(stored)} stored website photos weren't photos ({time.time() - t:.0f}s)")
+
+
 def wikidata_photos(qids: list[str]) -> dict[str, str]:
     """Commons photos (P18) for known Wikidata items, a few hundred per query."""
     out: dict[str, str] = {}
@@ -289,10 +609,19 @@ def wikidata_photos(qids: list[str]) -> dict[str, str]:
     return out
 
 
-def images_only(city: str, budget_s: float, refresh: bool = False) -> int:
+def _photo_log(todo: list[str], fetched: dict[str, str | None], t: float, later: str) -> None:
+    reached = sum(1 for x in fetched.values() if x is not None)
+    log(f"  photos: {len(todo)} websites to look at, {reached} looked at, "
+        f"{sum(1 for x in fetched.values() if x)} with a real photo ({time.time() - t:.0f}s)"
+        + (f"; {len(todo) - reached} left for {later}" if reached < len(todo) else ""))
+
+
+def images_only(city: str, budget_s: float, refresh: bool = False, recheck: bool = False,
+                commons_s: float = COMMONS_BUDGET_S) -> int:
     """Fill in photos for the venues already stored, without reloading anything else."""
     with SessionLocal() as db:
-        rows = db.execute(select(Venue.id, Venue.website, Venue.wikidata, Venue.slots, Venue.notability, Venue.image)
+        rows = db.execute(select(Venue.id, Venue.website, Venue.wikidata, Venue.slots, Venue.notability, Venue.image,
+                                 Venue.name, Venue.lat, Venue.lng)
                           .where(Venue.city == city)).all()
     if not rows:
         log(f"No stored venues for {city}: run the full load first.")
@@ -300,16 +629,16 @@ def images_only(city: str, budget_s: float, refresh: bool = False) -> int:
     wd = wikidata_photos(sorted({r.wikidata for r in rows if r.wikidata}))
     log(f"  Wikidata: {len(wd)} Commons photos for {sum(1 for r in rows if r.wikidata)} known places")
     venues = [{"id": r.id, "website": r.website, "slots": r.slots or [], "notability": r.notability or 0,
-               "_wd_image": wd.get(r.wikidata)} for r in rows]
+               "name": r.name, "lat": r.lat, "lng": r.lng, "_wd_image": wd.get(r.wikidata)} for r in rows]
     prev = {} if refresh else {r.id: (r.website, r.image) for r in rows}
+    if recheck and not refresh:
+        apply_recheck([(r.id, r.website, r.image) for r in rows], prev, budget_s)
     todo = sites_to_fetch(venues, prev)
     t = time.time()
     fetched = website_images(todo, budget_s) if todo else {}
-    reached = sum(1 for x in fetched.values() if x is not None)
-    log(f"  photos: {len(todo)} websites to look at, {reached} looked at, "
-        f"{sum(1 for x in fetched.values() if x)} with a photo ({time.time() - t:.0f}s)"
-        + (f"; {len(todo) - reached} left for next time" if reached < len(todo) else ""))
+    _photo_log(todo, fetched, t, "next time")
     assign_images(venues, prev, fetched)
+    add_commons(venues, prev, commons_s)
     # Write only the rows whose photo changed: every rewritten row leaves a dead copy
     # behind until vacuum, and on Neon the change history counts toward storage.
     before = {r.id: r.image for r in rows}
@@ -520,7 +849,11 @@ def main(argv=None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="build everything, write nothing")
     ap.add_argument("--skip-images", action="store_true", help="don't fetch website photos (keeps earlier ones)")
     ap.add_argument("--refresh-images", action="store_true", help="look at every website again")
-    ap.add_argument("--image-budget", type=float, default=IMAGE_BUDGET_S, help="seconds for the photo step")
+    ap.add_argument("--image-budget", type=float, default=IMAGE_BUDGET_S, help="seconds for the website photo step")
+    ap.add_argument("--commons-budget", type=float, default=COMMONS_BUDGET_S,
+                    help="seconds for finding Wikimedia Commons photos taken at venues still without one (0 = skip)")
+    ap.add_argument("--recheck-photos", action="store_true",
+                    help="download every stored website photo again and drop the ones that aren't real photos")
     ap.add_argument("--images-only", action="store_true",
                     help="only fill in photos for the venues already stored (no Overture/OSM reload)")
     args = ap.parse_args(argv)
@@ -539,7 +872,7 @@ def main(argv=None) -> int:
             log("--images-only needs the database (with migration 0015_venue_images).")
             return 1
         log(f"Filling in photos for {args.city} …")
-        return images_only(args.city, args.image_budget, args.refresh_images)
+        return images_only(args.city, args.image_budget, args.refresh_images, args.recheck_photos, args.commons_budget)
     import duckdb   # loader-only dependency (requirements-venues.txt)
 
     box = CITIES[args.city]
@@ -559,14 +892,14 @@ def main(argv=None) -> int:
     hours = [] if args.skip_osm else osm_hours(box)
     venues = build(places, notable, hours, args.city)
     prev = {} if (args.refresh_images or not has_image_col) else previous_images(args.city)
+    if args.recheck_photos and prev and not args.skip_images:
+        apply_recheck([(vid, site, img) for vid, (site, img) in prev.items()], prev, args.image_budget)
     todo = [] if args.skip_images else sites_to_fetch(venues, prev)
     t = time.time()
     fetched = website_images(todo, args.image_budget) if todo else {}
-    reached = sum(1 for x in fetched.values() if x is not None)
-    log(f"  photos: {len(todo)} websites to look at, {reached} looked at, "
-        f"{sum(1 for x in fetched.values() if x)} with a photo ({time.time() - t:.0f}s)"
-        + (f"; {len(todo) - reached} left for next month" if reached < len(todo) else ""))
+    _photo_log(todo, fetched, t, "next month")
     assign_images(venues, prev, fetched)
+    add_commons(venues, prev, 0 if args.skip_images else args.commons_budget)
     log(f"  with photos: {sum(1 for v in venues if v['image'])} "
         f"({sum(1 for v in venues if is_commons(v['image']))} from Wikimedia Commons)")
     by_slot: dict[str, int] = {}

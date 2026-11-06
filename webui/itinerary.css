@@ -104,6 +104,8 @@
 .it-links{display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:auto; padding-top:6px; font-size:13px; color:var(--it-ash);}
 .it-links a,.it-links button{display:inline-flex; align-items:center; gap:6px; padding:2px 0; border:0; background:none; font-size:13px; color:var(--it-ash);}
 .it-links a:hover,.it-links button:hover{color:var(--it-text);}
+.it-credit{font-size:11px; color:var(--it-faint);}
+.it-credit a{color:var(--it-muted); text-decoration:underline; text-underline-offset:2px;}
 .it-walk,.it-end{display:grid; grid-template-columns:112px minmax(0,1fr); gap:8px;}
 .it-walk{height:68px;}
 .it-walk > div{display:flex; align-items:center; gap:10px; padding-left:24px; font-size:13px; color:var(--it-ash);}

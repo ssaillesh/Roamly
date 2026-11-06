@@ -139,3 +139,118 @@ def test_night_spots_are_looked_at_first():
 def test_wikidata_photo_follows_the_fame_match():
     by_name, rows = _build()
     assert all("_wd_image" in v for v in rows)
+
+
+# ---- only real photos: every candidate is looked at ----
+import io
+import random
+
+import httpx
+from PIL import Image, ImageDraw
+
+
+def _jpeg(img):
+    buf = io.BytesIO(); img.convert("RGB").save(buf, "JPEG"); return buf.getvalue()
+
+
+def _photo(w=900, h=600, dark=False):
+    """Stands in for a photo: lots of colours, no flat field."""
+    rnd = random.Random(7)
+    img = Image.new("RGB", (w, h))
+    px = img.load()
+    for y in range(h):
+        for x in range(0, w, 3):
+            base = 40 if dark else 120
+            c = (base + (x * 90 // w) + rnd.randint(0, 40), base // 2 + (y * 70 // h) + rnd.randint(0, 40), base // 3 + rnd.randint(0, 50))
+            for dx in range(3):
+                if x + dx < w:
+                    px[x + dx, y] = c
+    return img
+
+
+def _logo(w=1200, h=630):
+    img = Image.new("RGB", (w, h), "white")
+    d = ImageDraw.Draw(img)
+    d.ellipse([w // 2 - 150, h // 2 - 150, w // 2 + 150, h // 2 + 150], fill=(200, 20, 30))
+    d.rectangle([w // 2 - 300, h - 120, w // 2 + 300, h - 80], fill=(20, 20, 20))
+    return img
+
+
+def test_photos_pass_and_logos_cards_and_cutouts_dont():
+    ok = lambda img: L.looks_like_photo(L.photo_stats(img))
+    assert ok(_photo())
+    assert ok(_photo(dark=True))                       # a dim dining room is still a photo
+    assert not ok(_logo())                             # one flat colour with a mark on it
+    cut = Image.new("RGBA", (800, 600), (0, 0, 0, 0)); cut.paste(_photo(400, 300), (200, 150))
+    assert not ok(cut)                                 # a transparent cut-out
+    assert not ok(_photo(300, 200))                    # too small to show
+    assert not ok(_photo(1600, 300))                   # a banner strip
+
+
+def test_every_photo_a_page_offers_in_order():
+    page = """<html><head>
+      <meta property="og:image" content="/brand/LOGO.png">
+      <meta property="og:image" content="/share/patio.jpg">
+      <link rel="image_src" href="https://cdn.example.com/room.jpg">
+      <script type="application/ld+json">{"@graph":[{"@type":"Restaurant","image":["/ld/dining.jpg",{"url":"/ld/bar.jpg"}]}]}</script>
+      </head><body>
+      <img src="/small-thumb.jpg" width="120">
+      <img srcset="/hero-800.jpg 800w, /hero-1600.jpg 1600w" alt="">
+      <img src="data:image/png;base64,AAAA" width="900">
+      <img src="/icons/x.png" width="900">
+      </body></html>"""
+    assert L.page_photos(page, "http://bar.example.com/") == [
+        "https://bar.example.com/share/patio.jpg",      # the logo share image is skipped
+        "https://bar.example.com/ld/dining.jpg", "https://bar.example.com/ld/bar.jpg",
+        "https://cdn.example.com/room.jpg",
+        "https://bar.example.com/hero-1600.jpg",        # the widest of a srcset
+    ]
+
+
+def test_a_website_logo_is_passed_over_for_a_real_photo_on_the_page():
+    logo, photo = _jpeg(_logo()), _jpeg(_photo())
+    page = (b'<html><head><meta property="og:image" content="/og-share.jpg"></head>'
+            b'<body><img src="/gallery/dining-room.jpg"></body></html>')
+
+    def handler(req):
+        path = req.url.path
+        if path == "/":
+            return httpx.Response(200, content=page, headers={"content-type": "text/html; charset=utf-8"})
+        if path == "/og-share.jpg":
+            return httpx.Response(200, content=logo, headers={"content-type": "image/jpeg"})
+        if path == "/gallery/dining-room.jpg":
+            return httpx.Response(200, content=photo, headers={"content-type": "image/jpeg"})
+        return httpx.Response(404)
+
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as c:
+        assert L.fetch_og_image(c, "https://bar.example.com") == "https://bar.example.com/gallery/dining-room.jpg"
+
+    # only a logo on the site → "" (looked, nothing worth showing), never the logo
+    only_logo = b'<html><head><meta property="og:image" content="/og-share.jpg"></head><body></body></html>'
+    def handler2(req):
+        if req.url.path == "/":
+            return httpx.Response(200, content=only_logo, headers={"content-type": "text/html"})
+        return httpx.Response(200, content=logo, headers={"content-type": "image/jpeg"})
+    with httpx.Client(transport=httpx.MockTransport(handler2), follow_redirects=True) as c:
+        assert L.fetch_og_image(c, "https://logo-only.example.com") == ""
+
+
+def test_commons_photo_must_name_the_venue_as_a_whole_phrase():
+    titles = ["File:Construction west side of Victoria, south of Dundas.jpg",
+              "File:Barrio Cerveceria (37562563021).jpg",
+              "File:Velvet Underground logo.png",
+              "File:Inner Wave at the Velvet Underground.jpg"]
+    assert L.commons_match("Velvet Underground", titles) == "Inner Wave at the Velvet Underground.jpg"
+    assert L.commons_match("Barrio Lounge", titles) is None
+    assert L.commons_match("Restaurant 20 Victoria", titles) is None
+    assert L.commons_match("The Royal", ["File:Royal Cinema.jpg"]) == "Royal Cinema.jpg"
+    assert L.commons_match("Massey Hall", ["File:Massey Hall map.jpg", "File:Massey Hall plan.svg"]) is None
+    assert L.name_phrase("The Rex") == "rex"
+    assert L.name_phrase("The") is None and L.name_phrase("A&W") is None
+
+
+def test_last_months_commons_find_is_kept():
+    commons = "https://commons.wikimedia.org/wiki/Special:FilePath/X.jpg?width=640"
+    venues = [{"id": "a", "image": "", "slots": ["drinks"], "notability": 0, "name": "Bar A", "lat": 1, "lng": 2}]
+    L.add_commons(venues, {"a": (None, commons)}, budget_s=0)
+    assert venues[0]["image"] == commons

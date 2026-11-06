@@ -229,14 +229,28 @@ def _kicker(plan: dict) -> str:
     return " · ".join(parts).upper()
 
 
+def photo_source(url: str | None) -> str | None:
+    """Where a photo is from, as the card credits it: "Wikimedia Commons" or the site's name."""
+    host = (urlparse(url or "").hostname or "").removeprefix("www.")
+    if not host:
+        return None
+    return "Wikimedia Commons" if host.endswith("wikimedia.org") else host
+
+
 def render_card(plan: dict, link_text: str, photos: list[Image.Image | None] | None = None) -> bytes:
     """Draw the card. `photos` (for the first three stops) is fetched if not given."""
     stops = plan.get("stops") or []
+    urls = [s.get("image") for s in stops if s.get("image")][:3]
     if photos is None:
-        urls = [s.get("image") for s in stops if s.get("image")][:3]
         with ThreadPoolExecutor(max_workers=3) as ex:
             photos = list(ex.map(fetch_image, urls))
     photos = (list(photos) + [None, None, None])[:3]
+    # credit the photos actually drawn (Commons photos are licensed on that condition)
+    sources = []
+    for url, ph in zip(urls, photos):
+        src = photo_source(url) if ph is not None else None
+        if src and src not in sources:
+            sources.append(src)
 
     img = Image.new("RGB", (W, H), CHARCOAL)
     draw = ImageDraw.Draw(img)
@@ -284,8 +298,14 @@ def render_card(plan: dict, link_text: str, photos: list[Image.Image | None] | N
     if len(stops) > len(shown):
         draw.text((PAD + 144, y), f"+{len(stops) - len(shown)} more", font=sf, fill=MUTED)
 
-    # footer: rule, wordmark, link
+    # footer: photo credit, rule, wordmark, link
     fy = H - 66 - 45
+    if sources:
+        cf = _font(SANS, 24)
+        credit = "Photos: " + ", ".join(sources)
+        while len(credit) > 12 and cf.getlength(credit) > W - 2 * PAD:
+            credit = credit[:-2].rstrip(", ") + "…"
+        draw.text((PAD, fy - 42 - 3 - 24 - 18), credit, font=cf, fill=(0x6F, 0x6A, 0x61))
     draw.rectangle([PAD, fy - 42 - 3, W - PAD, fy - 42], fill=RULE)
     _wordmark(img, draw, PAD, fy, 45)
     lf = _font(SANS, 36)

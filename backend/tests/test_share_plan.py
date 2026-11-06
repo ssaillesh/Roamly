@@ -145,3 +145,10 @@ def test_photo_fetch_rechecks_redirects(monkeypatch):
     monkeypatch.setattr(share_card.httpx, "stream", lambda m, url, **k: seen.append(url) or Resp())
     assert share_card.fetch_image("https://cdn.example.com/a.jpg") is None
     assert seen == ["https://cdn.example.com/a.jpg"]    # the redirect target was never requested
+
+
+def test_card_credits_where_its_photos_come_from():
+    assert share_card.photo_source("https://commons.wikimedia.org/wiki/Special:FilePath/X.jpg?width=640") == "Wikimedia Commons"
+    assert share_card.photo_source("https://upload.wikimedia.org/x.jpg") == "Wikimedia Commons"
+    assert share_card.photo_source("https://www.barraval.com/og.jpg") == "barraval.com"
+    assert share_card.photo_source(None) is None
