@@ -595,7 +595,7 @@
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
 // The planner is members-only: requires the account token from auth.html.
-const token = () => localStorage.getItem('trek_token');
+const token = () => localStorage.getItem('rova_token');
 const authHeaders = () => token() ? { 'Authorization': 'Bearer ' + token() } : {};
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ic = (name, cls = '') => `<i class="ph ph-${name}${cls ? ' ' + cls : ''}" aria-hidden="true"></i>`;
@@ -2066,7 +2066,7 @@ function requireSignIn(){
   // Session expired — a soft nudge (not a hard redirect) so nothing on screen is lost.
   busy = false;
   showReply({ text:"Looks like you got signed out — sign back in and you'll land right back here.",
-    actions:[{ label:'Sign in again', icon:'sign-in', onclick: () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=rova.html'; } }] });
+    actions:[{ label:'Sign in again', icon:'sign-in', onclick: () => { localStorage.removeItem('rova_token'); location.href = 'auth.html?redirect=rova.html'; } }] });
 }
 
 /* ================= saved plans (localStorage, no account needed) ================= */
@@ -2162,7 +2162,7 @@ $('menuSettings').onclick = () => openSheet();
 $('menuSaved').onclick = () => { closeMenu(); setPanel('saved'); };
 $('resetBtn').onclick = () => { closeMenu(); startOver(); };
 $('signOutBtn').onclick = () => {
-  ['trek_token','trek_user','trek_refresh'].forEach(k => localStorage.removeItem(k));
+  ['rova_token','rova_user','rova_refresh'].forEach(k => localStorage.removeItem(k));
   location.replace('auth.html');
 };
 $('savedBtn').onclick = () => setPanel(panelMode === 'saved' ? 'list' : 'saved');
@@ -2225,15 +2225,15 @@ function termsGate(){
       me = await r.json(); el.remove();
     }catch(err){ e.target.disabled = false; toast("Couldn't save that — try again."); }
   };
-  $('tgOut').onclick = () => { localStorage.removeItem('trek_token'); location.href = 'auth.html?redirect=rova.html'; };
+  $('tgOut').onclick = () => { localStorage.removeItem('rova_token'); location.href = 'auth.html?redirect=rova.html'; };
 }
 
-function initialOf(){ const n = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'R'; return n.trim().charAt(0).toUpperCase(); }
+function initialOf(){ const n = (me && (me.display_name || me.username)) || localStorage.getItem('rova_user') || 'R'; return n.trim().charAt(0).toUpperCase(); }
 function syncIdentity(){
   document.querySelectorAll('[data-initial]').forEach(el => el.textContent = initialOf());
-  const name = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'Your account';
+  const name = (me && (me.display_name || me.username)) || localStorage.getItem('rova_user') || 'Your account';
   document.querySelectorAll('[data-name]').forEach(el => el.textContent = name);
-  const handle = (me && me.username) || localStorage.getItem('trek_user');
+  const handle = (me && me.username) || localStorage.getItem('rova_user');
   document.querySelectorAll('[data-handle]').forEach(el => el.textContent = handle ? '@' + handle : '');
 }
 
@@ -2266,7 +2266,7 @@ function syncIdentity(){
     apiFetch(`${API}/users/me`, { headers: authHeaders() }),
   ]);
   if (pr.status === 'fulfilled' && pr.value.status === 401){
-    localStorage.removeItem('trek_token');           // expired — sign in again, then come straight back
+    localStorage.removeItem('rova_token');           // expired — sign in again, then come straight back
     location.replace('auth.html?redirect=rova.html'); return;
   }
   if (mr.status === 'fulfilled' && mr.value.ok){ try{ me = await mr.value.json(); }catch(e){} syncIdentity(); }

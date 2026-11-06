@@ -394,8 +394,8 @@ const $ = id => document.getElementById(id);
 /* ---- signed-in visitors go straight to the planner ---- */
 let username = null;
 try {
-  if (localStorage.getItem('trek_token')) {
-    username = localStorage.getItem('trek_user');
+  if (localStorage.getItem('rova_token')) {
+    username = localStorage.getItem('rova_user');
     document.querySelector('#navActs .signin').style.display = 'none';
     const cta = document.querySelector('#navActs .cta');
     cta.textContent = 'Open planner'; cta.href = 'rova.html';

@@ -144,7 +144,7 @@ const API = window.API_BASE;
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const ic = (name, cls = '') => `<svg class="ic ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
-const token = () => localStorage.getItem('trek_token');
+const token = () => localStorage.getItem('rova_token');
 const headers = () => ({ 'Content-Type':'application/json', 'Authorization':'Bearer ' + token() });
 const params = new URLSearchParams(location.search);
 const REDIRECT = safeRedirect(params.get('redirect'));   // a page on this site, never a script URL
@@ -155,7 +155,7 @@ let me = null;
 
 async function api(path, opts){
   const r = await apiFetch(API + path, { headers: headers(), ...opts });
-  if (r.status === 401){ localStorage.removeItem('trek_token'); location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); throw new Error('signed out'); }
+  if (r.status === 401){ localStorage.removeItem('rova_token'); location.replace('auth.html?redirect=' + encodeURIComponent('profile.html' + location.search)); throw new Error('signed out'); }
   if (!r.ok) throw new Error('Could not reach the server — your answers are kept, try again.');
   return r.json();
 }
@@ -193,7 +193,7 @@ function valueOf(q){
   }
   return v ? label(v) : null;
 }
-const initialOf = () => ((me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'R').trim().charAt(0).toUpperCase();
+const initialOf = () => ((me && (me.display_name || me.username)) || localStorage.getItem('rova_user') || 'R').trim().charAt(0).toUpperCase();
 const AVATAR_BTN = () => `<button class="avatar" data-menu data-initial aria-haspopup="menu" aria-expanded="false" aria-label="Account menu">${esc(initialOf())}</button>`;
 function skyline(){
   const r = n => { const s = Math.sin(n * 12.9898) * 43758.5453; return s - Math.floor(s); };
@@ -329,9 +329,9 @@ function syncShell(){
   let n = 0; try{ n = (JSON.parse(localStorage.getItem('wander_saved')) || []).length; }catch(e){}
   document.querySelectorAll('[data-saved-count]').forEach(el => { el.textContent = n || ''; el.dataset.n = n; });
   document.querySelectorAll('[data-initial]').forEach(el => el.textContent = initialOf());
-  const name = (me && (me.display_name || me.username)) || localStorage.getItem('trek_user') || 'Your account';
+  const name = (me && (me.display_name || me.username)) || localStorage.getItem('rova_user') || 'Your account';
   document.querySelectorAll('[data-name]').forEach(el => el.textContent = name);
-  const h = (me && me.username) || localStorage.getItem('trek_user');
+  const h = (me && me.username) || localStorage.getItem('rova_user');
   document.querySelectorAll('[data-handle]').forEach(el => el.textContent = h ? '@' + h : '');
 }
 function closeMenu(){ $('menu').classList.add('hidden'); document.querySelectorAll('[data-menu]').forEach(b => b.setAttribute('aria-expanded', 'false')); }
@@ -350,7 +350,7 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#menu')) closeMenu();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMenu(); });
-$('signOutBtn').onclick = () => { ['trek_token','trek_user','trek_refresh'].forEach(k => localStorage.removeItem(k)); location.replace('auth.html'); };
+$('signOutBtn').onclick = () => { ['rova_token','rova_user','rova_refresh'].forEach(k => localStorage.removeItem(k)); location.replace('auth.html'); };
 
 /* ================= boot ================= */
 // ?edit=1 (older links) → the whole survey from the top; ?q=<id> → just that answer.

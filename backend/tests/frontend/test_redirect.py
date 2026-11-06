@@ -15,8 +15,8 @@ OK = {"access_token": TOKEN, "refresh_token": "r", "token_type": "bearer",
 EVIL = "evil.example"
 
 ATTACKS = [
-    "javascript:alert(localStorage.getItem('trek_token'))",
-    "JaVaScRiPt:alert(localStorage.getItem('trek_token'))",
+    "javascript:alert(localStorage.getItem('rova_token'))",
+    "JaVaScRiPt:alert(localStorage.getItem('rova_token'))",
     " javascript:alert(1)",
     "java\tscript:alert(1)",
     "java\nscript:alert(1)",
@@ -56,7 +56,7 @@ def ctx(browser, site):
     def make(signed_in=False):
         c = browser.new_context()
         c.add_init_script("try{localStorage.setItem('rova_consent','no');"
-                          + (f"localStorage.setItem('trek_token','{TOKEN}');" if signed_in else "") + "}catch(e){}")
+                          + (f"localStorage.setItem('rova_token','{TOKEN}');" if signed_in else "") + "}catch(e){}")
         c.dialogs, c.offsite = [], []
 
         def route(r, req):
@@ -138,7 +138,7 @@ def _sign_in(page, site, redirect, mode="login"):
     page.click("#submitBtn")
 
 
-@pytest.mark.parametrize("attack", ["javascript:alert(localStorage.getItem('trek_token'))",
+@pytest.mark.parametrize("attack", ["javascript:alert(localStorage.getItem('rova_token'))",
                                     f"//{EVIL}/steal", f"https://{EVIL}/steal", f"/.//{EVIL}/steal"])
 def test_signing_in_from_a_crafted_link_is_safe(ctx, site, attack):
     c = ctx()
@@ -164,7 +164,7 @@ def test_signing_up_hands_only_a_safe_page_to_the_taste_survey(ctx, site):
 
 # ---- the taste page's own ?redirect= -------------------------------------------------------
 
-@pytest.mark.parametrize("value, expect", [("javascript:alert(localStorage.getItem('trek_token'))", "/rova.html"),
+@pytest.mark.parametrize("value, expect", [("javascript:alert(localStorage.getItem('rova_token'))", "/rova.html"),
                                            (f"//{EVIL}/steal", "/rova.html"),
                                            ("rova.html?q=brunch", "/rova.html?q=brunch")])
 def test_taste_page_only_links_back_to_this_site(ctx, site, value, expect):

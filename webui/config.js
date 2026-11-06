@@ -1,3 +1,14 @@
+// Sign-in keys were trek_* (an older name) before Rova: move them once, before any
+// page reads them, so nobody is signed out. Every page loads this file first, in <head>.
+try {
+  ['token', 'user', 'refresh'].forEach(function (k) {
+    var old = localStorage.getItem('trek_' + k);
+    if (old === null) return;
+    if (localStorage.getItem('rova_' + k) === null) localStorage.setItem('rova_' + k, old);
+    localStorage.removeItem('trek_' + k);
+  });
+} catch (e) {}
+
 // Single source of truth for the backend API URL — set it ONCE here.
 //
 // Local dev → your local backend. Anything else (Vercel) → production (Render).

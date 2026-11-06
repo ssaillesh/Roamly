@@ -55,7 +55,7 @@ Rova started life as **TrekRank**, a travel-logging app (trips, badges, leaderbo
 ### ⚠️ What happens when you push
 Render runs `alembic upgrade head` on start, so **`0009` drops those tables on the production database on the first deploy.** Everything the app uses is kept (accounts, taste profiles, waitlist). I haven't looked inside the production database. Since those routes have been switched off, expect little more than the 24 seeded badges there.
 
-If you want a copy first: Render dashboard → Roamly-db → **Backups**, or run `pg_dump "<external database URL>" -Fc -f roamly-before-0009.dump`.
+If you want a copy first: Render dashboard → Rova-db → **Backups**, or run `pg_dump "<external database URL>" -Fc -f rova-before-0009.dump`.
 
 ---
 
@@ -95,15 +95,27 @@ cd backend && ./run_local.sh test      # expect: 33 passed
 - removing their settings in `app/config.py` and the `YELP_*` / `FOURSQUARE_*` env vars on Render
 
 **Worth fixing:**
-- **`render.yaml`** is out of sync with the live service. It says `runtime: python` and `trekrank-redis`; the live service is Docker-runtime with `roamly-redis`. Update it or delete it (check the service isn't Blueprint-managed first).
+- **`render.yaml`** is out of sync with the live service. It says `runtime: python` and `trekrank-redis`; the live service is Docker-runtime with `rova-redis`. Update it or delete it (check the service isn't Blueprint-managed first).
 - **Naming:** "TrekRank" still appears in cosmetic places (`/health` says `"app":"TrekRank"` via `settings.app_name`, `.vscode/tasks.json`, the Grafana dashboard).
+
+## ⏳ Left for you — finishing the rename to Rova (2026-11-05)
+
+The code, pages, files and storage keys all say Rova now (old `/roamly` links redirect; old sign-in and cookie keys move over on first visit). These steps happen outside the code:
+
+- **Render service:** rename `roamly-api` in the Render dashboard first, *then* change `name:` in `render.yaml` to match. Changing the file first makes Render create a second service.
+- **Render database and Redis:** rename them to `Rova-db` and `rova-redis` (this file already uses those names).
+- **GitHub repo:** rename `ssaillesh/Roamly` (GitHub redirects the old URL), then update the URL in the User-Agent in `backend/scripts/load_venues.py`.
+- **Production env vars:** `EMAIL_FROM_NAME=Rova` (emails still say Roamly while it's set to the old name), and `FRONTEND_BASE_URL` = the live site (it's the domain in share links and on the story card).
+- **Terms:** decide whether the name change in `terms.html` / `privacy.html` (and the new "Plans you share" section) needs `TERMS_VERSION` bumped in `backend/app/legal.py` — bumping asks everyone to accept again.
+- **Trademark:** check "Rova" before publishing (see PRODUCT.md §12).
+- **Optional:** saved plans still use the `wander_saved` key; renaming it needs the same kind of one-time migration as the sign-in keys.
 
 ## Keep, even though they look like history
 
 | What | Why |
 |---|---|
 | `backend/alembic/versions/0001`–`0009` | The live database's schema history. Never delete or renumber these. |
-| `localStorage` keys `trek_token`, `trek_user`, `wander_saved` | Renaming them signs everyone out and loses their saved plans. |
+| `localStorage` key `wander_saved` | Renaming it loses everyone's saved plans unless it's migrated (the sign-in keys moved from `trek_*` to `rova_*` with a one-time migration in `config.js`). |
 | `https://trekrank.onrender.com` | The live API URL. `config.js`, `keepalive.yml` and cron-job.org use it. |
 | `.github/workflows/keepalive.yml` | In use: an hourly outage alert. |
 | `backend/scripts/smoke_test.py` | Current: tests exactly what the web app uses. |

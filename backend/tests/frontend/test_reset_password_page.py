@@ -25,7 +25,7 @@ class Page:
         self.ctx = browser.new_context(viewport={"width": 390, "height": 844})
         self.ctx.add_init_script(
             f"try{{localStorage.setItem('rova_consent','{consent}');"
-            + ("localStorage.setItem('trek_token','old-session');" if signed_in else "") + "}catch(e){}")
+            + ("localStorage.setItem('rova_token','old-session');" if signed_in else "") + "}catch(e){}")
         self.requests, self.reset_calls, self.held = [], [], []
         self.reply = (200, OK_BODY)
         self.hold = False
@@ -144,7 +144,7 @@ def test_valid_submission_posts_once_and_succeeds(ui):
     page.wait_for_selector("#success.on")
     assert page.inner_text("#successTitle") == "Password updated"
     assert page.input_value("#rpPassword") == "" and page.input_value("#rpConfirm") == ""
-    assert page.evaluate("() => localStorage.getItem('trek_token')") == "new-access"
+    assert page.evaluate("() => localStorage.getItem('rova_token')") == "new-access"
     assert len(p.reset_calls) == 1
 
 
@@ -160,7 +160,7 @@ def test_expired_or_invalid_token_shows_the_servers_message(ui, detail):
     assert page.inner_text("#rpMsg") == detail
     assert not _visible(page, "#rpForm") and _visible(page, "#rpNewLink")
     assert not _on(page, "#success")
-    assert page.evaluate("() => localStorage.getItem('trek_token')") is None
+    assert page.evaluate("() => localStorage.getItem('rova_token')") is None
 
 
 @pytest.mark.parametrize("reply, text", [((None, None), "reach the server"),
@@ -175,7 +175,7 @@ def test_failed_requests_never_claim_success(ui, reply, text):
     page.wait_for_function("() => document.getElementById('rpMsg').textContent.length > 0")
     assert text in page.inner_text("#rpMsg")
     assert not _on(page, "#success")
-    assert page.evaluate("() => localStorage.getItem('trek_token')") is None
+    assert page.evaluate("() => localStorage.getItem('rova_token')") is None
     assert page.is_enabled("#rpSubmit")                       # they can try again
     p.reply = (200, OK_BODY)
     page.click("#rpSubmit")

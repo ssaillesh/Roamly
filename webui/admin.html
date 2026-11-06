@@ -171,7 +171,7 @@
 <script>
 const API = window.API_BASE;
 const $ = id => document.getElementById(id);
-const token = () => localStorage.getItem('trek_token');
+const token = () => localStorage.getItem('rova_token');
 const authHeaders = () => token() ? { 'Authorization': 'Bearer ' + token() } : {};
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const nf = new Intl.NumberFormat();
@@ -200,7 +200,7 @@ let charts = [], maps = [];
 async function api(path, opts = {}){
   const r = await apiFetch(API + path, Object.assign({}, opts, {
     headers: Object.assign({ 'Content-Type':'application/json' }, authHeaders(), opts.headers || {}) }), 45000);
-  if (r.status === 401){ localStorage.removeItem('trek_token'); location.replace('auth.html?redirect=admin.html'); throw new Error('Signed out'); }
+  if (r.status === 401){ localStorage.removeItem('rova_token'); location.replace('auth.html?redirect=admin.html'); throw new Error('Signed out'); }
   if (r.status === 204) return null;
   const d = await r.json().catch(() => ({}));
   if (!r.ok){
