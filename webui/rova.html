@@ -1738,14 +1738,20 @@ function renderPlanPanel(){
         close: closePlan, share: shareNight, settings: () => openSheet(),
         save: () => { saveItin(lastItin); el.querySelectorAll('[data-save]').forEach(b => {
           b.classList.add('done'); b.innerHTML = b.classList.contains('it-round') ? ic('check') : `${ic('check')} Saved`; }); },
-        swap: trip ? null : i => quiet(`swap ${plan.stops[i].name} for something similar`),
+        swap: trip ? null : i => editPlan([{ op:'swap', stop: i + 1 }]),              // another of the same kind
         remove: trip ? null : removeStop,
         tweak: i => tweak(tweaks[i]),
         again: () => trip ? send('plan a different trip') : reroll(),
         surprise: trip ? null : () => planIt({ surprise:true }),
         ask: trip ? null : quiet,
-        also: i => { const ev = also[i]; addEventToPlan(plan, ev); planUi.saved = false; renderPlanPanel(); drawRoute(); renderDock(); toast(`${ev.name} is in your night`); },
-        lateBite: trip ? null : () => quiet('add a late-night bite at the end of the night'),
+        also: i => { const ev = also[i];
+          editPlan([{ op:'add_event', event:{ name:ev.name, lat:ev.lat, lng:ev.lng, time:ev.time || null, price_min:ev.price_min ?? null,
+            free:!!ev.free, venue:ev.venue || null, url:safeUrl(ev.url), image:safeUrl(ev.image), category:ev.category || null,
+            source:ev.source || null } }], { done:`${ev.name} is in your night` }); },
+        lateBite: trip ? null : () => editPlan([{ op:'add', slot:'dessert' }]),                  // food, at the end
+        setStart: trip ? null : t => editPlan([{ op:'set_start', time:t }]),
+        setParty: trip ? null : n => editPlan([{ op:'set_party', party_size:n }]),
+        setLength: trip ? null : n => editPlan([{ op:'set_length', stops:n }]),
       },
     });
   } else { closePlan(); return; }
@@ -1758,14 +1764,39 @@ function toggleStop(i){
   if (!planUi.open){ openPlan(); setTimeout(() => RovaItin.focus(i), 120); return; }
   RovaItin.focus(i); drawRoute();
 }
+/* ---- edits to the plan on screen go to the server (/plan/edit): the times, the cost
+   and the distance come back worked out, so nothing here guesses them ---- */
+function showEdited(plan, meta){
+  plan._meta = meta;
+  lastItin = { title: planName(plan), plan };
+  planUi.saved = false; shareCache = {}; openStop = -1;
+  renderPlanPanel(); drawRoute(); renderDock();
+}
+async function editPlan(ops, o = {}){
+  if (!lastItin || !lastItin.plan) return;
+  if (!token()){ requireSignIn(); return; }
+  if (busy){ toast('One sec — still working on the last one.'); return; }
+  const prev = JSON.parse(JSON.stringify(lastItin.plan));
+  const { _meta, ...plan } = lastItin.plan;
+  busy = true;
+  try{
+    const r = await apiFetch(`${API}/plan/edit`, { method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() },
+      body: JSON.stringify({ plan, ops, session_id: sessionId, seed: Math.floor(Math.random() * 1e9) }) });
+    busy = false;
+    if (r.status === 401){ requireSignIn(); return; }
+    const res = await r.json().catch(() => ({}));
+    if (res.type === 'itinerary' && res.plan){
+      showEdited(res.plan, prev._meta);
+      announce(res.message || 'Plan updated');
+      toast(o.done || res.message || 'Updated', { label:'Undo', onclick: () => showEdited(prev, prev._meta) });
+    } else {
+      toast(res.message || (typeof res.detail === 'string' ? res.detail : "Couldn't change that — try again."));
+    }
+  }catch(e){ busy = false; toast("Couldn't change that just now — try again."); }
+}
 function removeStop(i){
-  const plan = lastItin.plan, [gone] = plan.stops.splice(i, 1);
-  const pp = Math.max(1, plan.party_size || 1);
-  plan.estimated_cost = Math.max(0, (plan.estimated_cost || 0) - (gone.est_cost || 0) * pp);
-  planUi.saved = false; openStop = -1; shareCache = {};
-  renderPlanPanel(); drawRoute();
-  toast(`${gone.name} removed`, { label:'Undo', onclick: () => {
-    plan.stops.splice(i, 0, gone); plan.estimated_cost += (gone.est_cost || 0) * pp; renderPlanPanel(); drawRoute(); } });
+  const name = lastItin.plan.stops[i] && lastItin.plan.stops[i].name;
+  editPlan([{ op:'remove', stop: i + 1 }], { done: name ? `${name} removed` : null });
 }
 /* ---- Share the night (4f): a public link and a story card, made by the API ---- */
 let shareCache = {};
@@ -1773,7 +1804,7 @@ function sharePayload(itin){
   const plans = itin.days || [itin.plan], p0 = plans[0];
   const num = v => (typeof v === 'number' && isFinite(v)) ? v : (v != null && isFinite(parseFloat(v)) ? parseFloat(v) : null);
   const stops = plans.flatMap(p => p.stops || []).slice(0, 12).map(s => ({
-    name:s.name, time:s.time || null, slot:s.slot || null, label:s.label || null, categories:(s.categories || []).slice(0, 4),
+    name:s.name, vid:(typeof s.vid === 'string' ? s.vid : null), time:s.time || null, slot:s.slot || null, label:s.label || null, categories:(s.categories || []).slice(0, 4),
     address:s.address || null, why:s.why || null, price:s.price || null, image:safeUrl(s.image), url:safeUrl(s.url),
     lat:num(s.lat), lng:num(s.lng), est_cost:num(s.est_cost), rating:num(s.rating) }));
   const d = new Date();
@@ -2089,7 +2120,18 @@ function saveItin(itin){
   setSaved(a);
   planUi.saved = true;
   renderNightBar();
+  learnSaved(itin);
   toast('Saved to your plans', { label:'View', onclick: () => setPanel('saved') });
+}
+/* Tell the planner which places made it into a saved plan, so it learns what people
+   keep (backend services/feedback.py). Only the venue ids go; best effort, signed in only. */
+function learnSaved(itin){
+  if (!token()) return;
+  const stops = (itin.days || [itin.plan]).flatMap(p => (p && p.stops) || [])
+    .filter(s => typeof s.vid === 'string').slice(0, 40).map(s => ({ vid:s.vid, slot:s.slot || null }));
+  if (!stops.length) return;
+  apiFetch(`${API}/plan/feedback`, { method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() },
+    body: JSON.stringify({ event:'saved', stops }) }).catch(() => {});
 }
 function savedSub(it){
   const plan = it.plan || (it.days && it.days[0]) || {};

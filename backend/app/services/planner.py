@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from app.services import foursquare
 from app.services import geocoding
 from app.services import google_places
+from app.services import travel
 from app.services import yelp
 from app.services.osm_places import fetch_places
 from app.services import llm
@@ -149,6 +150,17 @@ ARCS = {
 # walkable route); everything else searches the whole central-city radius from the
 # centre, so you get the best spots across town — but bounded so it stays inside
 # the city (~7km of downtown = central Toronto, not Scarborough/Mississauga).
+# A plan you travel between by transit or car shouldn't zig-zag across the city: the
+# stop that matters most is picked first (dinner, then lunch, then the activity), and each
+# other stop near its already-chosen neighbours in the evening's order, with at least this
+# distance penalty per km (walking plans chain stop to stop instead). Measured on 48
+# seeded Toronto evening plans (transit / any): median route 4.2 → 3.0 km, worst 10.8 →
+# 7.5 km, hops over 3 km 8 → 0, stops with a photo 180 → 176. ROUTE_CLUSTER=False is the old way.
+ROUTE_CLUSTER = True
+ROUTE_PENALTY_KM = 0.8
+_ANCHOR_RANK = {"dinner": 0, "lunch": 1, "activity": 2, "leisure": 3, "drinks": 4, "scenic": 5,
+                "cafe": 6, "dessert": 7, "event": 8}
+
 TRANSPORT = {
     "walk":    {"radius": 1600, "penalty": 1.5, "cluster": 1000, "chain": True},
     "transit": {"radius": 7000, "penalty": 0.35, "chain": False},
@@ -165,6 +177,11 @@ START_HOUR = {"morning": 10, "afternoon": 13, "evening": 18, "night": 20}
 # Minutes per kind of stop, including getting to the next one.
 STOP_MINUTES = {"cafe": 45, "scenic": 60, "activity": 105, "lunch": 75, "dinner": 105,
                 "leisure": 90, "drinks": 75, "dessert": 40, "event": 150}
+
+# How long they're at a stop: STOP_MINUTES less ~15 minutes, which was its allowance for
+# getting to the next one. The real trip is timed per leg (services/travel.py), and a place
+# must still be open at the end of the stay, not only on arrival.
+STAY_MINUTES = {k: max(20, m - 15) for k, m in STOP_MINUTES.items()}
 
 
 def plan_start(time_of_day=None, now=None) -> datetime:
@@ -213,16 +230,56 @@ def _fixed_time(stop: dict, after: datetime) -> datetime | None:
     return at
 
 
-def retime(plan: dict) -> None:
-    """Give every stop its clock time from the plan's start (after edits too). An event
-    keeps its own time, and the stops after it follow on from it."""
+def retime(plan: dict) -> list[datetime]:
+    """Give every stop its clock time from the plan's start (after edits too): the time
+    there, then the trip to the next stop (services/travel.py). An event keeps its own
+    time, and the stops after it follow on from it. Also sets the plan's legs ("hops").
+    Returns each stop's arrival ([] when the plan has no start)."""
+    stops = plan["stops"]
+    plan["hops"] = travel.legs(stops, plan.get("transport") or "any")
     t = parse_start(plan.get("start"))
     if not t:
-        return
-    for s in plan["stops"]:
-        t = _fixed_time(s, t) or t
+        return []
+    arrivals = []
+    for i, s in enumerate(stops):
+        fixed = _fixed_time(s, t)
+        # times read as a person would write them: up to the next 5 minutes (an event keeps its own)
+        t = fixed or (t + timedelta(minutes=-t.minute % 5)).replace(second=0, microsecond=0)
         s["time"] = clock(t)
-        t += timedelta(minutes=STOP_MINUTES.get(s["slot"], 60))
+        arrivals.append(t)
+        if i < len(plan["hops"]):
+            t += timedelta(minutes=STAY_MINUTES.get(s["slot"], 45) + plan["hops"][i]["minutes"])
+    return arrivals
+
+
+def _open_for_visit(hours: str | None, arrive: datetime, slot_key: str) -> bool:
+    """Not known to be closed on arrival or before the visit ends (unknown hours pass)."""
+    if not hours:
+        return True
+    leave = arrive + timedelta(minutes=STAY_MINUTES.get(slot_key, 45) - 1)   # out by closing time is fine
+    return venue_index.is_open(hours, arrive) is not False and venue_index.is_open(hours, leave) is not False
+
+
+def _recheck_hours(plan: dict, pools: dict, used: set, penalty: float, **pick_kw) -> list[str]:
+    """Candidates were checked against estimated times; once the real times are known,
+    a stop that would be closed then is swapped for the next best place open then (from
+    the same search, so it stays near). Returns the names swapped out."""
+    arrivals = retime(plan)
+    swapped = []
+    for i, (s, arrive) in enumerate(zip(plan["stops"], arrivals)):
+        if s.get("requested") or s["slot"] == "event" or _open_for_visit(s.get("hours"), arrive, s["slot"]):
+            continue
+        cands = (pools.get(s["name"].lower()) or ([],))[0]
+        open_then = [c for c in cands if _open_for_visit(c.get("hours"), arrive, s["slot"])]
+        alt = _pick(open_then, used, (s["lat"], s["lng"]), penalty, slot_key=s["slot"],
+                    apply_fun=s["slot"] in ("activity", "leisure"), **pick_kw)
+        if alt:
+            used.add(alt["name"].lower())
+            swapped.append(s["name"])
+            plan["stops"][i] = stop_from(alt, s["slot"])
+    if swapped:
+        retime(plan)
+    return swapped
 
 
 def _haversine_km(a_lat, a_lng, b_lat, b_lng):
@@ -510,22 +567,17 @@ def stop_from(pick, slot_key, **extra) -> dict:
     }
 
 
-def route_km(stops) -> float:
-    """Total distance hopping stop to stop, in km."""
-    return round(sum(_haversine_km(a["lat"], a["lng"], b["lat"], b["lng"])
-                     for a, b in zip(stops, stops[1:])), 1)
-
-
-# How long they're at a stop (STOP_MINUTES less ~15 minutes to get to the next one): a
-# place must still be open then, not only when they arrive.
-STAY_MINUTES = {k: max(20, m - 15) for k, m in STOP_MINUTES.items()}
+def route_km(stops, mode="any") -> float:
+    """Total distance hopping stop to stop by street, in km (services/travel.py)."""
+    return round(sum(h["km"] for h in travel.legs(stops, mode)), 1)
 
 
 def _stored(anchor, slot_key, radius, dietary, term_override, cat_override, at):
     """Candidates from the stored venue list, or None (area not covered / DB trouble)."""
     want = term_override or (dietary if dietary and slot_key in ("lunch", "dinner") else None)
     try:
-        until = at + timedelta(minutes=STAY_MINUTES.get(slot_key, 60)) if at is not None else None
+        # the last minute of the visit: leaving right at closing time is fine
+        until = at + timedelta(minutes=STAY_MINUTES.get(slot_key, 60) - 1) if at is not None else None
         return venue_index.candidates(slot_key, anchor[0], anchor[1], radius,
                                       term=want, cats=cat_override, at=at, until=until)
     except Exception:
@@ -618,6 +670,7 @@ def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste
     score += c.get("boost", 0)   # stored list: well known, open then, not a chain (venue_index)
     if c.get("image"):
         score += PHOTO_BONUS     # a real photo of the place: prefer it when it's close
+    score += c.get("signal") or 0   # what people kept or dropped (services/feedback.py), capped ±0.8
     if slot_key and allowance is not None:   # its share of the budget (services/costs.py)
         score += costs.fit(_est_cost(c, slot_key), allowance, slot_key, fancy)
     if apply_fun:
@@ -784,10 +837,23 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         allow = {k: v * 1.3 for k, v in allow.items()}
     pools = {}   # picked name → (its candidates, where they were searched from, itself), for cheaper swaps
     anchor = center
-    stops, skipped = [], []
-    for i, slot_key in enumerate(slots):
+    skipped = []
+    picked: dict[int, dict] = {}         # arc position → its stop
+    cluster = ROUTE_CLUSTER and not chain
+    order = sorted(range(len(slots)), key=lambda k: _ANCHOR_RANK.get(slots[k], 9)) if cluster else range(len(slots))
+    for i in order:
+        slot_key = slots[i]
         slot = SLOT_SPECS[slot_key]
         cands, search_from = found.get(slot_key, []), center
+        pen = penalty
+        if cluster and picked:
+            # near its neighbours in the evening's order that are already chosen (the stop
+            # before and the one after), so each leg of the route stays short
+            before = max((k for k in picked if k < i), default=None)
+            after = min((k for k in picked if k > i), default=None)
+            pts = [(picked[k]["lat"], picked[k]["lng"]) for k in (before, after) if k is not None]
+            search_from = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+            pen = max(penalty, ROUTE_PENALTY_KM)
         if chain and i > 0:
             # Walk mode: chain each stop near the last for a tight walkable route.
             search_from = anchor
@@ -800,7 +866,7 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
             cands = near or cands
         # Fun/hype only matters for what you DO — not for a restaurant or cafe.
         apply_fun = slot_key in ("activity", "leisure")
-        pick = _pick(cands, used, search_from, penalty, vary, fancy, apply_fun,
+        pick = _pick(cands, used, search_from, pen, vary, fancy, apply_fun,
                      interests, rng=rng, explore=surprise, taste=taste,
                      slot_key=slot_key, allowance=allow.get(slot_key))
         if not pick:
@@ -811,7 +877,8 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         pools[pick["name"].lower()] = (cands, search_from, pick)
         if chain:
             anchor = (pick["lat"], pick["lng"])
-        stops.append(stop_from(pick, slot_key))
+        picked[i] = stop_from(pick, slot_key)
+    stops = [picked[k] for k in sorted(picked)]      # the evening's order, whatever order they were picked in
 
     # Live events happening near here (concerts, games, comedy) — surfaced as
     # options the guest can build around, not forced into the fixed stops.
@@ -951,7 +1018,11 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
     }
     if theme:
         plan["special_note"] = _theme_note(theme, stops)
-    retime(plan)
+    # the real times (stays plus trips) can differ from the estimates the search used
+    if _recheck_hours(plan, pools, used, penalty, fancy=fancy, interests=interests, taste=taste):
+        stops = plan["stops"]
+        plan["estimated_cost"] = total()
+        plan["walk_km"] = route_km(stops)
     if curated:
         plan["intro"] = curated["intro"] or _template_intro(plan)
         plan["tip"] = curated["tip"]
@@ -1114,8 +1185,22 @@ def build_from_selection(selections, *, lat, lng, party_size=2, budget=0,
             "est_cost": sel.get("est_cost") if sel.get("est_cost") is not None else _est_cost(sel, slot_key),
             "categories": sel.get("categories") or [],
             "arousal": sel.get("arousal") if sel.get("arousal") is not None else experience.arousal_for(sel.get("categories")),
+            "vid": sel.get("id") if isinstance(sel.get("id"), str) else None,
+            "hours": sel.get("hours") or None,
+            # an event keeps its own start time; the other stops are timed around it
+            **({"time": sel["time"]} if slot_key == "event" and isinstance(sel.get("time"), str) else {}),
         })
-    stops.sort(key=lambda s: SLOT_ORDER.get(s["slot"], 5))
+    # The day's natural order for the places; then each event goes where its time falls.
+    start = plan_start(time_of_day)
+    places = sorted((s for s in stops if s["slot"] != "event"), key=lambda s: SLOT_ORDER.get(s["slot"], 5))
+    timed = {"start": start.isoformat(timespec="minutes"), "stops": places}
+    retime(timed)
+    for ev in (s for s in stops if s["slot"] == "event"):
+        when = _fixed_time(ev, start)
+        at = [_fixed_time({"slot": "event", "time": s.get("time")}, start) for s in places]
+        i = next((k for k, t in enumerate(at) if when and t and t > when), len(places))
+        places.insert(i, ev)
+    stops = places
     total = sum(s["est_cost"] for s in stops) * max(1, party_size)
     spread = 0.0
     for a, b in zip(stops, stops[1:]):
@@ -1124,7 +1209,9 @@ def build_from_selection(selections, *, lat, lng, party_size=2, budget=0,
         "vibe": vibe, "budget": budget or total, "party_size": party_size, "currency": "USD",
         "estimated_cost": total, "center": {"lat": lat, "lng": lng},
         "walk_km": round(spread, 1), "stops": stops, "weather": None, "events": [],
+        "start": start.isoformat(timespec="minutes"), "interests": interests or None,
     }
+    retime(plan)                         # times for every stop, so the plan can be edited like any other
     _narrate(plan, interests, group_type, time_of_day, dietary, None, None)
     return plan
 

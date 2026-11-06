@@ -28,7 +28,7 @@ from app.models import (
 from app.api.nightlife import _as_utc, check_times, link_venue
 from app.schemas.nightlife import AdminEventIn, AdminEventPatch
 from app.redis_client import redis_client
-from app.services import ga4, llm, taste_profile, usage
+from app.services import feedback, ga4, llm, taste_profile, usage
 from app.services import events as events_svc
 from app.services import foursquare, google_places, seatgeek, yelp
 from app.services.analytics import RETENTION_DAYS, utc_today
@@ -364,11 +364,11 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
                func.count(PlanLog.id).filter(PlanLog.llm_failures > 0))
         .join(User, User.id == PlanLog.user_id)
         .where(real, PlanLog.created_at >= since).group_by(day, PlanLog.endpoint)).all()
-    by_day = defaultdict(lambda: {"chat": 0, "options": 0, "build": 0, "nothing": 0,
+    by_day = defaultdict(lambda: {"chat": 0, "options": 0, "build": 0, "edit": 0, "nothing": 0,
                                   "llm_used": 0, "llm_failed": 0})
     for d, endpoint, n, nothing, used, failed in rows:
         b = by_day[d.isoformat()]
-        b[endpoint] += n
+        b[endpoint] = b.get(endpoint, 0) + n
         b["nothing"] += nothing
         b["llm_used"] += used
         b["llm_failed"] += failed
@@ -386,16 +386,22 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
         func.count().filter(base.c.llm_failures > 0),
         func.percentile_cont(0.5).within_group(base.c.duration_ms),
         func.percentile_cont(0.95).within_group(base.c.duration_ms),
+        func.count().filter(base.c.response_type == "itinerary"),
+        func.count().filter(base.c.response["plan"]["quick"].astext == "true"),
     ).select_from(base)).one()
     total = t[0]
     latency = {e: {"p50": p50, "p95": p95} for e, p50, p95 in db.execute(select(
         base.c.endpoint, func.percentile_cont(0.5).within_group(base.c.duration_ms),
         func.percentile_cont(0.95).within_group(base.c.duration_ms)).group_by(base.c.endpoint)).all()}
 
-    dims = {k: Counter() for k in (*_PLAN_DIMENSIONS, "response_type", "budget", "radius_km")}
-    for prefs, rtype in db.execute(select(base.c.prefs, base.c.response_type)).all():
+    dims = {k: Counter() for k in (*_PLAN_DIMENSIONS, "response_type", "budget", "radius_km", "edit_ops")}
+    for prefs, rtype, endpoint in db.execute(select(base.c.prefs, base.c.response_type, base.c.endpoint)).all():
         prefs = prefs or {}
         dims["response_type"][rtype or "?"] += 1
+        if endpoint == "edit":           # which on-screen changes people make (POST /plan/edit)
+            for o in prefs.get("ops") or []:
+                if isinstance(o, dict) and o.get("op"):
+                    dims["edit_ops"][str(o["op"])] += 1
         for k in _PLAN_DIMENSIONS:
             if prefs.get(k):
                 dims[k][str(prefs[k])] += 1
@@ -434,7 +440,9 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
                    "nothing_rate": round(t[2] / total, 3) if total else None,
                    "backup_rate": round(1 - t[3] / total, 3) if total and llm.available() else None,
                    "llm_fail_rate": round(t[4] / t[3], 3) if t[3] else None,
-                   "p50_ms": t[5], "p95_ms": t[6]},
+                   "p50_ms": t[5], "p95_ms": t[6],
+                   # plans made without the AI's picks and words (it was off or failed)
+                   "quick_rate": round(t[8] / t[7], 3) if t[7] else None},
         "latency": latency,
         "breakdown": {k: [{"key": a, "count": n} for a, n in c.most_common(12)] for k, c in dims.items()},
         "recent": [{**r, "username": names.get(r["user_id"])} for r in recent],
@@ -443,7 +451,19 @@ def planner(days: int = Days, include_test: bool = IncludeTest, db: Session = De
                      "edits": edits[0], "edits_applied": edits[1],
                      "intents": [{"key": k, "count": n} for k, n in intents]},
         "llm_configured": llm.available(),
+        "learned": _learned(db),
     }
+
+
+def _learned(db: Session) -> dict:
+    """The venues people keep most and drop most (services/feedback.py), with names."""
+    out = feedback.top_and_bottom(db)
+    vids = {r["vid"] for r in out["top"] + out["bottom"]}
+    names = dict(db.execute(select(Venue.id, Venue.name).where(Venue.id.in_(vids))).all()) if vids else {}
+    for r in out["top"] + out["bottom"]:
+        r["name"] = names.get(r["vid"]) or r["vid"]
+    out.update(min_users=feedback.MIN_USERS, weight=feedback.SIGNAL_WEIGHT)
+    return out
 
 
 def _bucket(v, edges, prefix="", suffix=""):

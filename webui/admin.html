@@ -582,9 +582,10 @@ async function renderPlanner(seq){
       ${tile('Backup planner used', p.llm_configured ? pct(t.backup_rate) : 'AI off', p.llm_configured ? 'requests where the AI didn’t run' : 'No LLM key: every plan uses the rule-based planner')}
       ${tile('AI calls failing', pct(t.llm_fail_rate), `${rateBadge(t.llm_fail_rate, .05, .2)} ${reqs(t.llm_failed)}`)}
       ${tile('Typical response time', ms(t.p50_ms), `p95 ${ms(t.p95_ms)}`)}
+      ${tile('Quick plans', pct(t.quick_rate), 'plans without the AI\u2019s picks and words')}
     </div>
-    <div class="sec">${chartCard({ id:'plSeries', title:'Planner requests per day', sub:'Chat = typed or one-tap plans · Options = build-your-own lists · Build = itineraries from picks',
-      series:[{ label:'Chat' }, { label:'Options' }, { label:'Build' }] })}</div>
+    <div class="sec">${chartCard({ id:'plSeries', title:'Planner requests per day', sub:'Chat = typed or one-tap plans · Options = build-your-own lists · Build = itineraries from picks · Edit = buttons on the plan',
+      series:[{ label:'Chat' }, { label:'Options' }, { label:'Build' }, { label:'Edit' }] })}</div>
     <div class="grid g-2 sec">
       ${chartCard({ id:'plNothing', title:'Requests that found nothing', small:true, series:[{ label:'Found nothing', color: css('--serious') }] })}
       ${panel('Response time by type', table([
@@ -599,6 +600,10 @@ async function renderPlanner(seq){
       </div>`, 'Grouped by the conversation they happened in')}
       ${panel('What people asked for', barList(p.sessions.intents), 'New plan, edit the plan, what\'s on, a question… (chips = tapped settings)')}
     </div>
+    <div class="grid g-2 sec">
+      ${panel('Changes made on the plan', barList(bd.edit_ops), 'Each button press on the plan (remove, swap, start time, people, stops…)')}
+      ${learnedPanel(p.learned)}
+    </div>
     <div class="grid g-3 sec">${Object.keys(LBL).map(k => panel(LBL[k], barList(bd[k]))).join('')}</div>
     <div class="sec">${panel('Latest requests', table([
       { h:'When', f: r => `<span title="${esc(dtime(r.created_at))}">${esc(ago(r.created_at))}</span>` },
@@ -610,8 +615,22 @@ async function renderPlanner(seq){
       'Click a row to see the full request and answer')}</div>`;
   const labels = s.map(r => ({ display: dshort(r.day) }));
   drawChart('plSeries', { labels, stacked: true, series:[
-    { label:'Chat', data: s.map(r => r.chat) }, { label:'Options', data: s.map(r => r.options) }, { label:'Build', data: s.map(r => r.build) }] });
+    { label:'Chat', data: s.map(r => r.chat) }, { label:'Options', data: s.map(r => r.options) }, { label:'Build', data: s.map(r => r.build) },
+    { label:'Edit', data: s.map(r => r.edit || 0) }] });
   drawChart('plNothing', { labels, series:[{ label:'Found nothing', color: css('--serious'), data: s.map(r => r.nothing) }] });
+}
+
+/* What people keep and drop (backend services/feedback.py): the venues with the strongest
+   lean either way, and the nudge each one now gets in the planner's ranking. */
+function learnedPanel(l){
+  if (!l) return '';
+  const cols = [{ h:'Place', cls:'clip', f: r => esc(r.name) }, { h:'Saw', n:1, f: r => fmt(r.users) },
+    { h:'Kept', n:1, f: r => fmt(r.kept) }, { h:'Dropped', n:1, f: r => fmt(r.dropped) },
+    { h:'Nudge', n:1, f: r => (r.bonus > 0 ? '+' : '') + r.bonus }];
+  const body = l.counting
+    ? `<p class="t-meta">Kept most</p>${table(cols, l.top)}<p class="t-meta" style="margin-top:12px">Dropped most</p>${table(cols, l.bottom)}`
+    : `<p class="t-meta">No place has been seen by ${l.min_users} people yet, so nothing is nudged. ${fmt(l.venues)} places have some feedback.</p>`;
+  return panel('What people keep', body, l.weight ? `Counts people, not clicks · a place counts once ${l.min_users} people have seen it` : 'Switched off (SIGNAL_WEIGHT = 0)');
 }
 
 document.addEventListener('click', e => {

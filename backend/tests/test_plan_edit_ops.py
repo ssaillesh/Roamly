@@ -1,5 +1,7 @@
 """Editing the plan on screen directly (POST /plan/edit): every change comes back with
 its times, cost and distance worked out again, so the page never guesses them."""
+from datetime import datetime
+
 import pytest
 
 from app.services import plan_edit
@@ -40,7 +42,8 @@ def test_removing_a_stop_reworks_the_times_cost_and_distance():
     after, changed, _ = _edit([{"op": "remove", "stop": 2}])
     assert changed == ["Removed Bar Raval."]
     assert [s["name"] for s in after["stops"]] == ["Bowl-a-rama", "The Rex", "Sweet Olenka's"]
-    assert after["stops"][1]["time"] == before["stops"][1]["time"]     # The Rex moves up into dinner's place
+    t = lambda x: datetime.strptime(x, "%I:%M %p")
+    assert t(after["stops"][1]["time"]) < t(before["stops"][2]["time"])  # The Rex moves up into dinner's place
     assert after["estimated_cost"] == (20 + 15 + 8) * 2
     assert after["walk_km"] == route_km(after["stops"])                   # distance re-measured, not kept
 

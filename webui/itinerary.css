@@ -150,6 +150,13 @@
 .it-total b{font-size:28px; font-weight:300; letter-spacing:-.03em;}
 .it-fine{margin:0; font-size:12px; line-height:1.5; color:var(--it-muted);}
 .it-tweaks{display:flex; flex-wrap:wrap; gap:8px;}
+.it-knobs{display:flex; flex-wrap:wrap; gap:8px 18px; align-items:center; font-size:13px; color:var(--it-ash);}
+.it-knob{display:inline-flex; align-items:center; gap:8px;}
+.it-knob b{min-width:16px; text-align:center; color:var(--it-text); font-weight:500;}
+.it-knob button{width:30px; height:30px; border-radius:50%; border:1px solid var(--it-line-2); background:none; display:grid; place-items:center; font-size:15px; line-height:1;}
+.it-knob button:hover:not(:disabled){border-color:var(--it-acc); color:var(--it-acc);}
+.it-knob button:disabled{opacity:.35; cursor:default;}
+.it-knob input[type=time]{height:32px; padding:0 10px; border-radius:999px; border:1px solid var(--it-line-2); background:var(--it-surface-2); color:var(--it-text); font-size:13px; color-scheme:dark;}
 .it-tw{display:inline-flex; align-items:center; gap:6px; padding:8px 14px; border-radius:999px; border:1px solid var(--it-line-2); background:none; font-size:13px;}
 .it-tw:hover{border-color:var(--it-acc); color:var(--it-acc);}
 .it-ask{height:46px; border-radius:999px; background:var(--it-surface-2); display:flex; align-items:center; padding:0 6px 0 18px;}

@@ -15,6 +15,7 @@ from sqlalchemy import String, func, or_, select
 
 from app.database import SessionLocal
 from app.models import Area, Venue
+from app.services import feedback
 from app.services.opening_hours import is_open
 
 # Cities the loader covers: (south, west, north, east), and their time zones.
@@ -261,6 +262,7 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
                     for x in words]
             rows.update({v.id: v for v in db.scalars(select(Venue).where(*near, or_(*like)).limit(150))})
     out = []
+    learned = feedback.signals()           # vid → small nudge from what people kept/dropped
     alias = [_ALIAS_WORDS.get(a.strip(), a.strip()) for a in (cats or "").split(",") if a.strip()]
     for v in rows.values():
         c = _row_dict(v)
@@ -296,6 +298,8 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
                 continue                     # open on arrival, but closes before they'd leave
             boost += 0.2 if listed else -0.2           # listed as open beats unknown
         c["boost"] = round(boost, 2)
+        if v.id in learned:
+            c["signal"] = learned[v.id]
         out.append(c)
     if words and any(c["term_hit"] for c in out):
         out = [c for c in out if c["term_hit"]]      # like a real search: the term narrows it

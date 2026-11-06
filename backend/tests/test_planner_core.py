@@ -1,6 +1,7 @@
 """The planner's core rules: the shape of the night, weather, repeatable picks, what each
 stop carries, and the plan it makes when the AI isn't there."""
 import random
+from datetime import datetime
 
 from app.schemas.plan import Plan
 from app.services import planner
@@ -114,3 +115,52 @@ def test_an_edit_keeps_the_intro_unless_it_names_a_place_thats_gone():
     plan["intro"] = "Begin at dinner place, then on to leisure place."
     redone, _, _ = apply_edits(plan, [{"op": "remove", "slot": "dinner"}], EditContext())
     assert "dinner place" not in redone["intro"]                         # it named the removed stop
+
+
+# ---- plans built from the user's picks ----
+
+def test_a_plan_from_picks_has_times_and_its_event_keeps_its_own(monkeypatch):
+    monkeypatch.setattr(planner.llm, "available", lambda: False)
+    monkeypatch.setattr(planner, "plan_start", lambda tod=None, now=None: datetime(2026, 11, 6, 18, 0, tzinfo=planner.LOCAL_TZ))
+    picks = [{"slot": "drinks", "name": "Civil Liberties", "lat": A[0], "lng": A[1], "id": "ovt:civ"},
+             {"slot": "event", "name": "Jazz at The Rex", "lat": A[0], "lng": A[1], "time": "9:30 PM", "est_cost": 15},
+             {"slot": "dinner", "name": "Bar Raval", "lat": A[0], "lng": A[1]}]
+    plan = planner.build_from_selection(picks, lat=A[0], lng=A[1], party_size=2, budget=150, time_of_day="evening")
+    # dinner, then drinks (they fit before the show), then the show at its own time
+    assert [(s["name"], s["time"]) for s in plan["stops"]] == [
+        ("Bar Raval", "6:00 PM"), ("Civil Liberties", "7:35 PM"), ("Jazz at The Rex", "9:30 PM")]
+    assert plan["start"].startswith("2026-11-06T18:00") and plan["stops"][1]["vid"] == "ovt:civ"
+    edited, changed, _ = apply_edits(plan, [{"op": "set_start", "time": "5 PM"}], EditContext())
+    assert edited["stops"][0]["time"] == "5:00 PM" and edited["stops"][2]["time"] == "9:30 PM"   # the show doesn't move
+
+
+# ---- real times, real hours ----
+
+def test_a_place_closed_at_the_real_time_is_swapped_for_one_open_then(monkeypatch):
+    six = datetime(2026, 11, 6, 18, 0, tzinfo=planner.LOCAL_TZ)
+    monkeypatch.setattr(planner, "plan_start", lambda tod=None, now=None: six)
+
+    def gather(anchor, slot_key, *a, **k):
+        if slot_key == "dinner":   # the better one shuts at 7:30, before an after-activity dinner
+            return [{"id": "ovt:early", "name": "Early Bird", "lat": A[0], "lng": A[1], "rating": 4.9,
+                     "review_count": 900, "categories": ["restaurant"], "hours": "Mo-Su 17:00-19:30"},
+                    {"id": "ovt:late", "name": "Night Kitchen", "lat": A[0], "lng": A[1], "rating": 4.0,
+                     "review_count": 50, "categories": ["restaurant"], "hours": "Mo-Su 17:00-23:00"}]
+        return _spots(slot_key)
+    _offline(monkeypatch, gather)
+    plan = planner.build_plan(lat=A[0], lng=A[1], budget=300, vibe="chill", transport="transit",
+                              time_of_day="night", target_stops=2)   # night arc: dinner first…
+    assert plan["stops"][0]["name"] == "Early Bird"                    # …at 6, while it's open
+    plan = planner.build_plan(lat=A[0], lng=A[1], budget=300, vibe="chill", transport="transit",
+                              time_of_day="evening", target_stops=3)  # scenic, activity, then dinner
+    dinner = next(s for s in plan["stops"] if s["slot"] == "dinner")
+    assert dinner["name"] == "Night Kitchen"                           # Early Bird would be closed by then
+
+
+def test_each_leg_has_a_time_and_a_way_of_getting_there(monkeypatch):
+    _offline(monkeypatch, _gather)
+    plan = planner.build_plan(lat=A[0], lng=A[1], budget=200, vibe="chill", transport="transit",
+                              time_of_day="evening", target_stops=3)
+    assert len(plan["hops"]) == len(plan["stops"]) - 1
+    assert all(h["minutes"] >= 1 and h["mode"] in ("walk", "transit", "car") for h in plan["hops"])
+    assert Plan(**plan).hops[0].minutes == plan["hops"][0]["minutes"]

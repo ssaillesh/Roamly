@@ -33,6 +33,8 @@ window.RovaItin = (() => {
   };
   const walkMin = km => Math.max(1, Math.round(km * 12.5));
   const money = n => '$' + Math.round(n || 0);
+  // "7:30 PM" → "19:30" (for a time input)
+  const to24 = s => { const m = parseClock(s); return m == null ? '' : `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
 
   const SLOT = { dinner:['fork-knife','Dinner'], lunch:['fork-knife','Lunch'], cafe:['coffee','Café'], activity:['star','Activity'],
     scenic:['tree','Outdoors'], leisure:['music-notes','Night out'], drinks:['martini','Drinks'], dessert:['ice-cream','Dessert'], event:['ticket','Live event'] };
@@ -134,15 +136,22 @@ window.RovaItin = (() => {
     </article>`;
   }
 
-  function walkHtml(a, b, transport){
-    const km = legKm(a, b);
-    if (km == null) return '<div class="it-walk"><span></span><div><span class="it-dash"></span></div></div>';
+  /* The leg to the next stop. The plan's own `hops` (worked out by the server, per way of
+     getting around) when it has them; older plans fall back to an estimate here. */
+  const MODE = { walk:['person-simple-walk', 'walk'], transit:['train-simple', 'by transit'], car:['car', 'drive'] };
+  function walkHtml(a, b, transport, hop){
+    let km, mins, mode;
+    if (hop && hop.km != null){ km = hop.km; mins = hop.minutes; mode = hop.mode; }
+    else {
+      km = legKm(a, b);
+      if (km == null) return '<div class="it-walk"><span></span><div><span class="it-dash"></span></div></div>';
+      mode = transport === 'walk' || km < 1.6 ? 'walk' : transport === 'car' ? 'car' : 'transit';
+      mins = mode === 'walk' ? walkMin(km) : null;
+    }
+    const [icon, word] = MODE[mode] || MODE.transit;
     const tb = parseClock(b.time);
-    const walking = transport === 'walk' || km < 1.6;
-    const mins = walking ? walkMin(km) : null;
-    const leave = walking && tb != null ? ` <span class="it-dot">·</span> Leave at ${short(tb - mins)}` : '';
-    const what = walking ? `${ic('person-simple-walk')} ${mins} min walk · ${(Math.round(km * 10) / 10)} km`
-      : `${ic(transport === 'car' ? 'car' : 'train-simple')} ${(Math.round(km * 10) / 10)} km`;
+    const leave = mins && tb != null ? ` <span class="it-dot">·</span> Leave at ${short(tb - mins)}` : '';
+    const what = `${ic(icon)} ${mins ? `${mins} min ${word} · ` : ''}${(Math.round(km * 10) / 10)} km`;
     return `<div class="it-walk"><span></span><div><span class="it-dash"></span>${what}${leave}</div></div>`;
   }
 
@@ -181,7 +190,7 @@ window.RovaItin = (() => {
     const hours = plans.map((p, d) => {
       const n = (p.stops || []).length;
       const body = (p.stops || []).map((s, i) => {
-        const h = stopHtml(s, gi, { ...ctx, count: plans.length > 1 ? Infinity : n }) + (i < n - 1 ? walkHtml(s, p.stops[i + 1], o.transport) : '');
+        const h = stopHtml(s, gi, { ...ctx, count: plans.length > 1 ? Infinity : n }) + (i < n - 1 ? walkHtml(s, p.stops[i + 1], o.transport || p.transport, (p.hops || [])[i]) : '');
         gi++; return h;
       }).join('');
       return (plans.length > 1 ? `<h2 class="it-day">Day ${esc(p.day || d + 1)}${p.estimated_cost ? ` <span class="it-dim">· about ${money(p.estimated_cost / st.pp)} each</span>` : ''}</h2>` : '') + body;
@@ -250,6 +259,13 @@ window.RovaItin = (() => {
             <span class="it-maplabel" id="itMapLabel">Route${st.km != null ? ` · ${st.km} km${st.onFoot ? ' on foot' : ''}` : ''}</span></div>` : ''}
           ${costBox(plans, st)}
           ${!o.readOnly && (o.tweaks || on.ask) ? `<div class="it-box"><span class="it-label">Make it yours</span>
+            ${on.setStart || on.setParty || on.setLength ? `<div class="it-knobs">
+              ${on.setStart && plans.length === 1 ? `<label class="it-knob">Starts <input type="time" data-start value="${esc(to24(plan.stops[0] && plan.stops[0].time))}" aria-label="Start time"></label>` : ''}
+              ${on.setParty ? `<span class="it-knob">For <button type="button" data-party="-1" aria-label="One fewer person"${st.pp <= 1 ? ' disabled' : ''}>−</button>
+                <b class="num">${st.pp}</b><button type="button" data-party="1" aria-label="One more person"${st.pp >= 20 ? ' disabled' : ''}>+</button></span>` : ''}
+              ${on.setLength ? `<span class="it-knob">Stops <button type="button" data-len="-1" aria-label="One fewer stop"${st.n <= 2 ? ' disabled' : ''}>−</button>
+                <b class="num">${st.n}</b><button type="button" data-len="1" aria-label="One more stop"${st.n >= 8 ? ' disabled' : ''}>+</button></span>` : ''}
+            </div>` : ''}
             <div class="it-tweaks">${(o.tweaks || []).map((t, i) => `<button type="button" class="it-tw" data-tw="${i}">${esc(t)}</button>`).join('')}
               ${on.again ? `<button type="button" class="it-tw" data-again>${ic('arrows-clockwise')} Try another</button>` : ''}
               ${on.surprise ? `<button type="button" class="it-tw" data-surprise>${ic('shuffle')} Surprise me</button>` : ''}</div>
@@ -283,6 +299,9 @@ window.RovaItin = (() => {
     if (on.surprise) wire('[data-surprise]', () => on.surprise());
     if (on.also) wire('[data-also]', (e, b) => on.also(+b.dataset.also));
     if (on.lateBite) wire('[data-late]', () => on.lateBite());
+    if (on.setStart) all('[data-start]').forEach(inp => inp.addEventListener('change', () => { if (inp.value) on.setStart(inp.value); }));
+    if (on.setParty) wire('[data-party]', (e, b) => on.setParty(st.pp + +b.dataset.party));
+    if (on.setLength) wire('[data-len]', (e, b) => on.setLength(st.n + +b.dataset.len));
     wire('[data-tomap]', () => { const m = root.querySelector('#itMapBox'); if (m) m.scrollIntoView({ behavior:'smooth', block:'center' }); });
     const ask = root.querySelector('[data-ask]');
     if (ask && on.ask) ask.addEventListener('submit', e => { e.preventDefault(); const v = ask.q.value.trim(); if (v){ on.ask(v); ask.reset(); } });

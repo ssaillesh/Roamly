@@ -183,12 +183,14 @@ def test_planner_uses_the_stored_list_with_times(seeded, monkeypatch):
     stops = plan["stops"]
     assert [s["slot"] for s in stops] == ["scenic", "activity", "dinner"]
     assert stops[2]["name"] in ("Kaito Sushi", "Le Bistro")          # open at 8:45 PM, not a chain
-    assert [s["time"] for s in stops] == ["6:00 PM", "7:00 PM", "8:45 PM"]
+    # each stop starts after the time at the last one plus the walk there, to the next 5 minutes
+    assert [s["time"] for s in stops] == ["6:00 PM", "6:50 PM", "8:25 PM"]
+    assert [h["mode"] for h in plan["hops"]] == ["walk", "walk"]
     assert plan["start"].startswith("2026-10-09T18:00")
 
     # removing a stop moves the later ones up
     edited, changed, _ = apply_edits(plan, [{"op": "remove", "stop": 1}], EditContext())
-    assert changed and [s["time"] for s in edited["stops"]] == ["6:00 PM", "7:45 PM"]
+    assert changed and [s["time"] for s in edited["stops"]] == ["6:00 PM", "7:35 PM"]
 
 
 def test_plan_start_rules():

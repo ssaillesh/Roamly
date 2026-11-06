@@ -240,6 +240,12 @@ def _maintenance_once_a_day() -> None:
             daily_maintenance(db)
     except Exception:
         log.exception("daily maintenance failed")
+    try:
+        from app.services import feedback
+        with SessionLocal() as db:
+            feedback.aggregate(db)        # what people kept/dropped → tomorrow's venue nudges
+    except Exception:
+        log.exception("venue signal summary failed")
 
 
 async def stats_loop() -> None:

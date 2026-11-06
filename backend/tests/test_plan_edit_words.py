@@ -49,3 +49,29 @@ def test_remove_and_cheaper():
 def test_no_plan_or_start_over_is_a_new_plan():
     assert route_rules("add bowling", None)["intent"] == "new_plan"
     assert route_rules("start over", PLAN)["intent"] == "new_plan"
+
+
+PLAN4 = {"stops": PLAN["stops"] + [{"name": "Bowl-a-rama", "slot": "activity"}]}
+
+
+def test_whole_plan_changes_are_edits_not_new_plans():
+    cases = {
+        "can we start at 8pm": [{"op": "set_start", "time": "8pm"}],
+        "begin around 7:30": [{"op": "set_start", "time": "7:30"}],
+        "make it for 6": [{"op": "set_party", "party_size": 6}],
+        "6 of us now": [{"op": "set_party", "party_size": 6}],
+        "it's just me now": [{"op": "set_party", "party_size": 1}],
+        "make it shorter": [{"op": "set_length", "stops": 3}],
+        "add one more stop": [{"op": "set_length", "stops": 5}],
+        "just 3 stops": [{"op": "set_length", "stops": 3}],
+        "move the dessert to the start": [{"op": "move", "slot": "dessert", "to": 1}],
+        "move bar raval to the end": [{"op": "move", "name": "Bar Raval", "to": 4}],
+    }
+    for text, ops in cases.items():
+        r = route_rules(text, PLAN4)
+        assert (r["intent"], r["ops"]) == ("edit_plan", ops), text
+
+
+def test_stop_edits_still_work_alongside():
+    assert route_rules("add bowling", PLAN4)["ops"] == [{"op": "add", "wish": "bowling"}]
+    assert route_rules("swap the dinner for sushi", PLAN4)["ops"] == [{"op": "swap", "slot": "dinner", "wish": "sushi"}]

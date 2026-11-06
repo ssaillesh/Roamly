@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-from app.services import costs
+from app.services import costs, feedback
 from app.services.planner import (
     LOCAL_TZ, SLOT_ORDER, SLOT_SPECS, TRANSPORT, VIBE_PLANS, DEFAULT_VIBE, PLAN_TIME_BUDGET, _POOL,
     _est_cost, _gather, _pick, _result, _template_intro, allowed, cuisine_term, parse_start, retime, route_for,
@@ -80,6 +80,9 @@ class EditContext:
     radius: int | None = None
     taste: dict = field(default_factory=dict)
     seed: int | None = None
+    # (event, vid, slot) for each place the user took out or asked to change, with no
+    # particular wish: services/feedback.py learns from these.
+    dropped: list = field(default_factory=list)
 
 
 def slot_for_text(text: str, default: str | None = None) -> str | None:
@@ -174,7 +177,9 @@ def _remove(stops, op, plan, ctx, exclude, changed, problems):
     if i is None:
         problems.append("I couldn't tell which stop to remove.")
         return
-    changed.append(f"Removed {stops.pop(i)['name']}.")
+    gone = stops.pop(i)
+    ctx.dropped += feedback.rows_for("removed", [gone])
+    changed.append(f"Removed {gone['name']}.")
 
 
 def _swap(stops, op, plan, ctx, exclude, changed, problems):
@@ -204,6 +209,8 @@ def _swap(stops, op, plan, ctx, exclude, changed, problems):
     new = stop_from(pick, slot, **({"time": old["time"]} if old.get("time") else {}))
     stops[i] = new
     exclude.add(new["name"].lower())
+    if not wish:                 # "something else": about the place, not tonight's wish
+        ctx.dropped += feedback.rows_for("swapped", [old])
     changed.append(f"Swapped {old['name']} for {new['name']}.")
 
 
@@ -241,7 +248,7 @@ def _move(stops, op, plan, ctx, exclude, changed, problems):
     changed.append(f"Moved {s['name']} to stop {to}.")
 
 
-_CLOCK = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?\s*m?\.?\s*$", re.I)
+_CLOCK = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?(?::\d{2})?\s*([ap])?\.?\s*m?\.?\s*$", re.I)
 
 
 def parse_clock(text, base: datetime | None = None) -> datetime | None:

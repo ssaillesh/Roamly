@@ -6,7 +6,7 @@ import secrets
 import string
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Path, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -17,6 +17,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user
 from app.models import SharedPlan, User
 from app.schemas.share import SharedPlanIn, SharedPlanOut, ShareLinkOut
+from app.services import feedback
 from app.services.share_card import card_for
 
 router = APIRouter(prefix="/share", tags=["share"])
@@ -51,8 +52,11 @@ def _get(db: Session, code: str) -> SharedPlan:
 
 
 @router.post("/plan", response_model=ShareLinkOut)
-def share_plan(body: SharedPlanIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def share_plan(body: SharedPlanIn, background: BackgroundTasks, user: User = Depends(get_current_user),
+               db: Session = Depends(get_db)):
     plan = body.model_dump(exclude_none=True)
+    if feedback.counts_for(user) and (rows := feedback.rows_for("shared", plan["stops"])):
+        background.add_task(feedback.record, user.id, feedback.plan_key(plan["stops"]), rows)
     digest = hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     row = db.scalar(select(SharedPlan).where(SharedPlan.user_id == user.id, SharedPlan.digest == digest))
     if not row:   # the same plan shared twice keeps one link

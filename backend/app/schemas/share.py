@@ -19,6 +19,7 @@ class SharedStop(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1, max_length=200)
+    vid: str | None = Field(default=None, max_length=80)     # the stored venue, for services/feedback.py
     time: str | None = None
     slot: str | None = None
     label: str | None = None

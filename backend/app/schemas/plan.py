@@ -30,6 +30,13 @@ class PlanStop(BaseModel):
     requested: bool = False
 
 
+class Hop(BaseModel):
+    """Getting from one stop to the next (services/travel.py estimates)."""
+    km: float
+    minutes: int
+    mode: str            # walk | transit | car
+
+
 class Center(BaseModel):
     lat: float
     lng: float
@@ -84,6 +91,8 @@ class Plan(BaseModel):
     # kept so an edit works to it without the page sending it again.
     transport: str | None = None
     interests: str | None = None
+    # One leg between each pair of stops, in order (empty on older plans).
+    hops: list[Hop] = Field(default_factory=list)
 
 
 class ChatMessage(BaseModel):
@@ -203,6 +212,19 @@ class EditRequest(BaseModel):
     ops: list[EditOp] = Field(min_length=1, max_length=10)
     session_id: str | None = Field(default=None, max_length=64)
     seed: int | None = None
+
+
+class FeedbackStop(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    vid: str | None = Field(default=None, max_length=80)
+    slot: str | None = Field(default=None, max_length=20)
+    name: str | None = Field(default=None, max_length=200)
+
+
+class FeedbackRequest(BaseModel):
+    """POST /plan/feedback: the plan on screen was saved. Only the venue ids matter."""
+    event: Literal["saved"]
+    stops: list[FeedbackStop] = Field(min_length=1, max_length=40)
 
 
 class BuildRequest(BaseModel):

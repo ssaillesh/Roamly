@@ -19,9 +19,10 @@ from app.middleware.auth import get_current_user, require_admin
 from app.models import User, TasteProfile
 from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event, EditRequest,
+    FeedbackRequest,
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
-from app.services import plan_intent, venue_index
+from app.services import feedback, plan_intent, venue_index
 from app.services.analytics import save_plan_log
 from app.services.plan_edit import EditContext, apply_edits
 from app.services import events as events_svc
@@ -686,7 +687,21 @@ def chat(req: ChatRequest, background: BackgroundTasks, user: User = Depends(get
         lat=seen.get("lat", req.lat), lng=seen.get("lng", req.lng), resp=resp, tracker=tracker,
         duration_ms=int((time.perf_counter() - start) * 1000),
         session_id=req.session_id, intent=seen.get("intent") or resp.intent)
+    _learn(background, user, resp, seen)
     return resp
+
+
+def _learn(background: BackgroundTasks, user: User, resp, seen: dict) -> None:
+    """Queue what this answer showed, and what an edit in it dropped, for
+    services/feedback.py. Admin and test accounts don't count."""
+    if not feedback.counts_for(user):
+        return
+    if seen.get("dropped") and seen.get("before"):
+        background.add_task(feedback.record, user.id, feedback.plan_key(seen["before"]), list(seen["dropped"]))
+    for p in ([resp.plan] if getattr(resp, "plan", None) else list(getattr(resp, "days", None) or [])):
+        stops = [s.model_dump() for s in p.stops]
+        if rows := feedback.rows_for("shown", stops):
+            background.add_task(feedback.record, user.id, feedback.plan_key(stops), rows)
 
 
 def _chat(req: ChatRequest, user: User, db: Session, seen: dict) -> ChatResponse:
@@ -833,6 +848,7 @@ def _edit(current: dict, ops: list[dict], prefs: dict, seen: dict, seed=None) ->
                "energy": prefs.get("energy")},
         seed=seed)
     plan, changed, problems = apply_edits(current, ops, ctx)
+    seen.update(dropped=ctx.dropped, before=current["stops"])
     message = " ".join(changed + problems) or "I left the plan as it was."
     if not changed:
         return ChatResponse(type="message", message=message, intent="edit_plan")
@@ -863,12 +879,22 @@ def edit(req: EditRequest, background: BackgroundTasks, user: User = Depends(get
     start = time.perf_counter()
     with usage.request_tracker() as tracker:
         taste = _taste_defaults(db, user)
-        resp = _edit(plan, ops, {k: taste[k] for k in _EDIT_TASTE if k in taste}, {}, seed=req.seed)
+        seen: dict = {}
+        resp = _edit(plan, ops, {k: taste[k] for k in _EDIT_TASTE if k in taste}, seen, seed=req.seed)
     background.add_task(
         save_plan_log, user_id=user.id, endpoint="edit", user_text=None, prefs={"ops": ops},
         lat=plan["center"]["lat"], lng=plan["center"]["lng"], resp=resp, tracker=tracker,
         duration_ms=int((time.perf_counter() - start) * 1000), session_id=req.session_id, intent="edit_plan")
+    _learn(background, user, resp, seen)
     return resp
+
+
+@router.post("/feedback", status_code=status.HTTP_204_NO_CONTENT)
+def plan_feedback(req: FeedbackRequest, background: BackgroundTasks, user: User = Depends(get_current_user)):
+    """The page says a plan was saved (sharing is recorded by /share/plan itself)."""
+    stops = [s.model_dump() for s in req.stops]
+    if feedback.counts_for(user) and (rows := feedback.rows_for(req.event, stops)):
+        background.add_task(feedback.record, user.id, feedback.plan_key(stops), rows)
 
 
 @router.post("/options", response_model=OptionsResponse)
@@ -949,6 +975,7 @@ def build(req: BuildRequest, background: BackgroundTasks, user: User = Depends(g
                "picked": len(req.selections)},
         lat=req.lat, lng=req.lng, resp=resp, tracker=tracker,
         duration_ms=int((time.perf_counter() - start) * 1000))
+    _learn(background, user, resp, {})
     return resp
 
 
