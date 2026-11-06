@@ -167,6 +167,30 @@ def is_show_venue(name: str, categories) -> bool:
     if cats and _SHOW_PRIMARY.search(cats[0]):
         return True
     return bool(_SHOW_NAME.search(name or "")) and not _DRINK_WORDS.search(" ".join(cats))
+# ---- places that aren't places to go: the map data's mislabelled offices --------------
+# Overture tags some businesses with a venue category they aren't ("Sherrida Personal
+# Management Inc" as a theatre venue, a shipping company as an amusement park, a condo
+# building as a park). A name that says it's an office, a service or a building is never
+# a stop. Tuned on Toronto's 20,654 stored places with scripts/audit_nonvenues.py: not
+# "lawyer", "barrister", "wholesale", "importing" or "financial district" (the Honest
+# Lawyer and Barristers Bar are bars, Barzula Torrefazione and Importing a café, PLANTA
+# Financial District a restaurant), and a company suffix alone means nothing (C'Est What
+# Inc is a pub, Badlands Inc paintball).
+_OFFICE_NAME = re.compile(
+    r"\b(?:management|consult(?:ing|ants?|ancy)?|insurance|realty|real estate|staffing|logistics|shipping|"
+    r"freight|locksmiths?|accounting|accountants?|cpa|law (?:office|firm)s?|mortgages?|"
+    r"recruit(?:ing|ment|ers?)|dental|dentistry|dentists?|clinic|medical|physiotherapy|chiropract\w*|"
+    r"holdings|properties|investments?|investors?|wealth|financial(?! district)|immigration|condo(?:minium)?s?|"
+    r"(?:talent|travel|marketing|advertising|employment|modell?ing) agency|plumbing|roofing|renovations?|"
+    r"contractors?|construction|movers|moving (?:company|services)|trucking|storage|auto (?:repair|body|parts)|"
+    r"tax (?:services|preparation)|cleaning services?|security services?|printing|distributors?|trading)\b", re.I)
+
+
+def is_office(name: str) -> bool:
+    """The name says it's an office, a service or a building, not somewhere to go."""
+    return bool(_OFFICE_NAME.search(name or ""))
+
+
 # Places like these keep daytime hours; without listed hours, assume roughly these
 # (no art gallery at 9:45 PM).
 _DAYTIME = re.compile(r"museum|gallery|zoo|farmers market|public market|historic|library|botanical")
@@ -214,9 +238,12 @@ def _row_dict(v: Venue) -> dict:
 
 
 def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: str | None = None,
-               cats: str | None = None, at: datetime | None = None, limit: int = 300) -> list[dict] | None:
+               cats: str | None = None, at: datetime | None = None, until: datetime | None = None,
+               limit: int = 300) -> list[dict] | None:
     """Stored places that can be `slot_key` near (lat, lng), each with a `boost` for
-    the planner's ranking. None when this area isn't in the stored list."""
+    the planner's ranking. None when this area isn't in the stored list. With `at`, places
+    closed then are left out; with `until` too, so are places that close before then
+    (no 9:30 dinner at a kitchen that shuts at 10)."""
     if not covers(lat, lng):
         return None
     s, n, w, e = _box(lat, lng, radius_m)
@@ -242,6 +269,8 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
         kinds = " ".join(c["categories"]).lower()
         if slot_key in ("leisure", "drinks") and is_show_venue(v.name, c["categories"]):
             continue
+        if is_office(v.name):
+            continue                         # an office the map data calls a venue
         hay = v.name.lower() + " " + kinds
         c["term_hit"] = bool(words) and any(x in hay for x in words)
         c["fast_food"] = is_fast_food(c)
@@ -257,10 +286,14 @@ def candidates(slot_key: str, lat: float, lng: float, radius_m: float, *, term: 
             boost += KIND_MATCH
         if at is not None:
             open_now = listed = is_open(v.hours, at)
+            hours = v.hours
             if open_now is None and _DAYTIME.search(kinds):
-                open_now = is_open(DAYTIME_HOURS, at)  # no (readable) hours: assume daytime
+                hours = DAYTIME_HOURS        # no (readable) hours: assume daytime
+                open_now = is_open(hours, at)
             if open_now is False:
                 continue                     # closed at the planned time
+            if open_now and until is not None and is_open(hours, until) is False:
+                continue                     # open on arrival, but closes before they'd leave
             boost += 0.2 if listed else -0.2           # listed as open beats unknown
         c["boost"] = round(boost, 2)
         out.append(c)
@@ -374,7 +407,7 @@ def nightlife(lat: float, lng: float, radius_m: float, *, limit: int = 400) -> l
     for v in rows:
         kind = night_kind(v.name, v.categories or [v.category])
         km = _km(lat, lng, v.lat, v.lng)
-        if not kind or km * 1000 > radius_m:
+        if not kind or km * 1000 > radius_m or is_office(v.name):
             continue
         c = _row_dict(v)
         c.update(kind=kind, area=area_of(v.lat, v.lng), distance_km=round(km, 1))

@@ -102,6 +102,46 @@ def test_evening_rules(seeded):
     assert night == {"Corner Pub"}                   # a concert hall is for a show, not drinks
 
 
+def test_a_place_must_stay_open_for_the_whole_visit(seeded):
+    # Kaito Sushi closes at 23:00: a 9 PM dinner fits, a 10 PM one would run past closing.
+    nine, ten = datetime(2026, 10, 9, 21, 0), datetime(2026, 10, 9, 22, 0)
+    stay = planner.STAY_MINUTES["dinner"]
+    from datetime import timedelta
+    fits = {c["name"] for c in REAL_CANDIDATES("dinner", LAT, LNG, 5000, at=nine, until=nine + timedelta(minutes=stay))}
+    late = {c["name"] for c in REAL_CANDIDATES("dinner", LAT, LNG, 5000, at=ten, until=ten + timedelta(minutes=stay))}
+    assert "Kaito Sushi" in fits and "Kaito Sushi" not in late
+    assert "Le Bistro" in late                       # unknown hours still count as open
+
+
+def test_offices_the_map_calls_venues_are_never_stops(seeded):
+    extra = [_v("agency", "Sherrida Personal Management Inc", ["activity"], 0.001,
+                website="https://sherrida.example", categories=["theatre venue"]),
+             _v("locks", "The 6ix Locksmiths, Inc", ["leisure", "drinks"], 0.001, categories=["pub"]),
+             _v("lawyer", "Honest Lawyer", ["leisure", "drinks"], 0.001, categories=["bar"]),
+             _v("barristers", "Barristers Bar", ["leisure", "drinks"], 0.001, categories=["bar"])]
+    with SessionLocal() as db:
+        db.bulk_insert_mappings(Venue, extra)
+        db.commit()
+    acts = {c["name"] for c in REAL_CANDIDATES("activity", LAT, LNG, 5000)}
+    bars = {c["name"] for c in REAL_CANDIDATES("leisure", LAT, LNG, 5000)}
+    assert "Sherrida Personal Management Inc" not in acts
+    assert "The 6ix Locksmiths, Inc" not in bars
+    assert {"Honest Lawyer", "Barristers Bar"} <= bars          # bars named for lawyers are bars
+    guide = {c["name"] for c in venue_index.nightlife(LAT, LNG, 5000) or []}
+    assert "The 6ix Locksmiths, Inc" not in guide
+
+
+@pytest.mark.parametrize("name, office", [
+    ("Sherrida Personal Management Inc", True), ("Zim Integrated Shipping Services Canada Company Ltd", True),
+    ("Queen's Park Condominium", True), ("Capital Mortgage Services", True),
+    ("Honest Lawyer", False), ("Barristers Bar", False), ("PLANTA Burger Financial District", False),
+    ("Barzula Torrefazione and Importing", False), ("C'Est What Inc", False), ("Badlands Inc", False),
+    ("Cineplex Odeon Corp", False), ("Phipps Desserts & Wholesale Bakery Toronto", False),
+])
+def test_office_names(name, office):
+    assert venue_index.is_office(name) is office
+
+
 def test_a_search_term_narrows_and_the_radius_holds(seeded):
     assert [c["name"] for c in REAL_CANDIDATES("dinner", LAT, LNG, 5000, term="sushi")] == ["Kaito Sushi"]
     near = {c["name"] for c in REAL_CANDIDATES("activity", LAT, LNG, 500)}

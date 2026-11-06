@@ -10,7 +10,7 @@ import random
 import re
 import time
 
-from fastapi import APIRouter, BackgroundTasks, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -18,7 +18,7 @@ from app.database import get_db
 from app.middleware.auth import get_current_user, require_admin
 from app.models import User, TasteProfile
 from app.schemas.plan import (
-    ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event,
+    ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event, EditRequest,
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
 from app.services import plan_intent, venue_index
@@ -177,7 +177,8 @@ _AVOID_RE = re.compile(
     r"(?=[,.!?;]|$|\s+(?:please|though|tho|but|can|instead|today|tonight)\b)")
 
 # "no limit / no cap / not sure"-style phrases are not avoids
-_AVOID_NOISE = ("limit", "cap", "sure", "idea", "preference", "budget", "alcohol", "drink")
+_AVOID_NOISE = ("limit", "cap", "sure", "idea", "preference", "budget", "alcohol", "drink",
+                "later", "earlier", "longer", "more", "less", "problem", "worries", "rush", "matter")
 
 
 def _extract_avoid(text):
@@ -213,42 +214,67 @@ def _party_size(text):
     return n if n and 1 <= n <= 20 else None
 
 
+# A number that isn't money: a time ("10 pm", "7:30"), a distance, a duration, a head count.
+_NOT_MONEY = r"(?!\s*(?:a\.?m\b|p\.?m\b|:\d|%|km\b|kms\b|mi\b|miles?\b|mins?\b|minutes?\b|hours?\b|hrs?\b|"\
+             r"people\b|ppl\b|persons?\b|of us\b|friends\b|guys\b|kids\b|adults\b|th\b|st\b|nd\b|rd\b|days?\b|stops?\b))"
+_MONEY_AFTER = r"\s*(?:\$|dollars?\b|bucks\b|cad\b|each\b|pp\b|per person\b|a head\b|a person\b|total\b|budget\b)"
+_MONEY_BEFORE = r"\b(?:budget(?: of| is)?|under|around|about|max(?:imum)?|up to|spend(?:ing)?|less than|no more than)\s*\$?\s*"
+_BUDGET_RANGE = re.compile(rf"\$?\s*\b(\d{{2,4}})\s*(?:-|to)\s*\$?\s*(\d{{2,4}})\b{_NOT_MONEY}")
+_BUDGET_ONE = re.compile(rf"\$\s*(\d{{2,4}})\b|\b(\d{{2,4}})(?={_MONEY_AFTER})|{_MONEY_BEFORE}(\d{{2,4}})\b{_NOT_MONEY}")
+
+
+def _budget(text: str) -> float | None:
+    """'$60', '60 each', '60 bucks', 'under 60', 'budget 60', '50-100' → the amount.
+    A bare number is never money: '10 pm', '20 minutes', '15 km', '2025' are not budgets."""
+    m = _BUDGET_RANGE.search(text)
+    if m:
+        return float(max(int(m.group(1)), int(m.group(2))))
+    m = _BUDGET_ONE.search(text)
+    return float(next(g for g in m.groups() if g)) if m else None
+
+
+def _word(text: str, *words: str) -> bool:
+    """Any of these as whole words ("car" in "by car", not in "card"; plural allowed)."""
+    return any(re.search(rf"\b{re.escape(w)}s?\b", text) for w in words)
+
+
+def _stem(text: str, *stems: str) -> bool:
+    """Any word starting with one of these ("relax" → "relaxing"; "date" not in "update")."""
+    return any(re.search(rf"\b{re.escape(w)}", text) for w in stems)
+
+
 def _heuristic_extract(text):
     out = {"days": _extract_days(text)}
     n = _party_size(text)
     if n:
         out["party_size"] = n
-    rng = re.search(r"\$?\s*(\d{2,4})\s*(?:-|to)\s*\$?\s*(\d{2,4})", text)   # "50-100"
-    if rng:
-        out["budget"] = float(max(int(rng.group(1)), int(rng.group(2))))
-    else:
-        m = re.search(r"\$?\s*(\d{2,4})\b", text)
-        if m:
-            out["budget"] = float(m.group(1))
+    b = _budget(text)
+    if b is not None:
+        out["budget"] = b
     for vibe, kws in _VIBE_KEYWORDS.items():
-        if any(k in text for k in kws):
+        if _stem(text, *kws):
             out["vibe"] = vibe
             break
-    if any(w in text for w in ["morning", "breakfast", "brunch"]):
+    if _word(text, "morning", "breakfast", "brunch"):
         out["time_of_day"] = "morning"
-    elif any(w in text for w in ["afternoon", "midday", "lunch"]):
+    elif _word(text, "afternoon", "midday", "lunch"):
         out["time_of_day"] = "afternoon"
-    elif any(w in text for w in ["late night", "night out", "clubbing"]):
+    elif _word(text, "late night", "late-night", "night out", "clubbing"):
         out["time_of_day"] = "night"
-    if any(w in text for w in ["walk", "walking", "on foot"]):
+    if _word(text, "walk", "walking", "on foot"):
         out["transport"] = "walk"
-    elif any(w in text for w in ["transit", "subway", "metro", "bus", "train"]):
+    elif _word(text, "transit", "subway", "metro", "bus", "buses", "train", "ttc", "streetcar"):
         out["transport"] = "transit"
-    elif any(w in text for w in ["car", "driving", "drive"]):
+    elif _word(text, "car", "driving", "drive"):
         out["transport"] = "car"
-    if any(w in text for w in ["solo", "myself", "just me", "alone"]):
+    if _word(text, "solo", "myself", "just me", "alone"):
         out["group_type"], out["party_size"] = "solo", 1
-    elif "family" in text or "kids" in text:
+    elif _word(text, "family", "kid", "kids"):
         out["group_type"] = "family"
-    elif "friends" in text:
+    elif _word(text, "friend", "friends"):
         out["group_type"] = "friends"
         out.setdefault("party_size", 4)
-    elif any(w in text for w in ["date", "couple", "for two", "partner"]):
+    elif _word(text, "date", "couple", "for two", "partner"):
         out["group_type"], out["party_size"] = "date", out.get("party_size", 2)
     for diet in ["vegan", "vegetarian", "halal", "kosher", "gluten-free", "gluten free", "pescatarian"]:
         if diet in text:
@@ -795,10 +821,13 @@ def _valid_plan(raw) -> dict | None:
 def _edit(current: dict, ops: list[dict], prefs: dict, seen: dict, seed=None) -> ChatResponse | None:
     """Change only the stops a follow-up names; the rest stay exactly as shown."""
     seen.update(lat=current["center"]["lat"], lng=current["center"]["lng"])
+    # The plan carries the brief it was made to (transport, what they asked for); this
+    # turn's words win, the plan fills the rest, so a swap keeps to the same kind of night.
     ctx = EditContext(
         vibe=prefs.get("vibe") or current["vibe"], party_size=int(current["party_size"] or 2),
-        transport=prefs.get("transport") or "any", group_type=prefs.get("group_type"),
-        dietary=prefs.get("dietary") or "", interests="", avoid=prefs.get("avoid") or "",
+        transport=prefs.get("transport") or current.get("transport") or "any", group_type=prefs.get("group_type"),
+        dietary=prefs.get("dietary") or "", interests=current.get("interests") or "",
+        avoid=prefs.get("avoid") or "",
         no_alcohol=bool(prefs.get("no_alcohol")), radius=prefs.get("radius"),
         taste={"likes": prefs.get("likes", ""), "crowd_pref": prefs.get("crowd_pref") or 0.0,
                "energy": prefs.get("energy")},
@@ -813,6 +842,33 @@ def _edit(current: dict, ops: list[dict], prefs: dict, seen: dict, seed=None) ->
     if not problems:
         message += " Everything else stays the same."
     return ChatResponse(type="itinerary", message=message, plan=Plan(**plan), intent="edit_plan")
+
+
+# The taste settings that shape a re-pick. Not the profile's transport, group or vibe:
+# the plan on screen already says those, and an edit keeps to the plan.
+_EDIT_TASTE = ("likes", "crowd_pref", "energy", "avoid", "no_alcohol", "dietary")
+MAX_EDIT_STOPS = 10
+
+
+@router.post("/edit", response_model=ChatResponse)
+def edit(req: EditRequest, background: BackgroundTasks, user: User = Depends(get_current_user),
+         db: Session = Depends(get_db)):
+    """Change the plan on screen directly: remove, swap, add or move a stop, change the
+    start time, the party size or the length, or add an event from beside the plan. The
+    times, cost and distance come back re-worked, so the page never has to guess them."""
+    plan = req.plan.model_dump()
+    if len(plan["stops"]) > MAX_EDIT_STOPS:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"A plan has at most {MAX_EDIT_STOPS} stops.")
+    ops = [o.model_dump(exclude_none=True) for o in req.ops]
+    start = time.perf_counter()
+    with usage.request_tracker() as tracker:
+        taste = _taste_defaults(db, user)
+        resp = _edit(plan, ops, {k: taste[k] for k in _EDIT_TASTE if k in taste}, {}, seed=req.seed)
+    background.add_task(
+        save_plan_log, user_id=user.id, endpoint="edit", user_text=None, prefs={"ops": ops},
+        lat=plan["center"]["lat"], lng=plan["center"]["lng"], resp=resp, tracker=tracker,
+        duration_ms=int((time.perf_counter() - start) * 1000), session_id=req.session_id, intent="edit_plan")
+    return resp
 
 
 @router.post("/options", response_model=OptionsResponse)

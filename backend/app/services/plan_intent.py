@@ -24,9 +24,10 @@ plan currently on screen (if any) and the current settings, then output ONLY JSO
 }
 intent:
 - edit_plan: a plan is on screen and the LATEST message changes specific stops of it
-  (swap/replace one, remove one, add one, reorder). Keep everything else.
+  (swap/replace one, remove one, add one, reorder), or its start time, how many are going,
+  or how many stops it has. Keep everything else.
 - new_plan: no plan yet, or the latest message asks for a different/whole new plan, or
-  changes something about the WHOLE plan (budget, mood, day/time, area, group size).
+  changes something about the WHOLE plan (budget, mood, another day, morning vs evening, area).
 - events: asks what's on / happening / events / shows nearby (not a plan).
 - ask_about_plan: a question about the plan on screen; answer it from the plan only.
 - chitchat: anything else; answer in one friendly sentence and invite a request.
@@ -35,6 +36,9 @@ ops (edit_plan), stops are numbered as shown, 1-based:
   {"op":"remove","stop":N}
   {"op":"add","wish":"what to add, e.g. bowling","position":N or null}
   {"op":"move","stop":N,"to":M}
+  {"op":"set_start","time":"7:30 PM"}        // "start at 7:30", "can we begin at 8"
+  {"op":"set_party","party_size":N}          // "make it for 6", "it's just me now"
+  {"op":"set_length","stops":N}              // "shorter" → one fewer than now, "longer" → one more, "3 stops"
 prefs (null/"" when not stated — never invent; later messages win over earlier ones):
   budget: the dollar amount stated (a range → the higher end), or null
   budget_scope: "per_person" if they said each/pp/per person/a head; "total" if they said
@@ -137,6 +141,58 @@ def _stop_ref(text: str, plan: dict) -> dict | None:
     return None
 
 
+_NUMS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+_NUM = r"(\d{1,2}|" + "|".join(_NUMS) + r")"
+_TIME = r"(\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)?)"
+_START_RE = re.compile(r"\b(?:start|begin|kick (?:it |things )?off|head out|meet up|meet)\b(?:\s+\w+){0,3}?\s+"
+                       r"(?:at|around|by|from)\s+" + _TIME + r"(?!\s*(?:people|of us|ppl|stops?|friends|km|mins?|minutes))")
+_PARTY_RE = re.compile(r"\b(?:make it|now|it'?s|plan it|make the plan) for " + _NUM + r"\b"
+                       r"|\b" + _NUM + r" of us\b|\b" + _NUM + r" (?:people|ppl)\b")
+_SOLO_RE = re.compile(r"\b(?:it'?s )?just me(?: now)?\b|\bonly me\b|\bgoing solo\b")
+_SHORTER_RE = re.compile(r"\b(?:shorter|fewer stops|less stops|cut it down|one (?:less|fewer) stop|drop a stop)\b")
+_LONGER_RE = re.compile(r"\b(?:longer|more stops|(?:one|another) more stop|add (?:a|another|one more) stop|extend it)\b")
+_STOPS_RE = re.compile(r"\b(?:just |only )?" + _NUM + r" stops\b")
+_MOVE_RE = re.compile(r"\bmove\s+(?:the\s+)?(.+?)\s+to\s+(?:the\s+)?(first|start|beginning|front|end|last|second|third|"
+                      r"fourth|fifth|1st|2nd|3rd|4th|5th|stop\s*\d|\d)\b")
+_TO_POS = {"first": 1, "start": 1, "beginning": 1, "front": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3,
+           "fourth": 4, "4th": 4, "fifth": 5, "5th": 5, "1st": 1}
+
+
+def _n(word: str) -> int | None:
+    return int(word) if word.isdigit() else _NUMS.get(word)
+
+
+def _plan_ops(text: str, plan: dict) -> list[dict]:
+    """Changes to the whole plan on screen: its start, its party, its length, its order."""
+    n_stops = len(plan.get("stops") or [])
+    m = _START_RE.search(text)
+    if m:
+        return [{"op": "set_start", "time": m.group(1).strip()}]
+    if _SOLO_RE.search(text):
+        return [{"op": "set_party", "party_size": 1}]
+    m = _PARTY_RE.search(text)
+    if m:
+        n = _n(next(g for g in m.groups() if g))
+        if n:
+            return [{"op": "set_party", "party_size": n}]
+    m = _STOPS_RE.search(text)
+    if m and _n(m.group(1)):
+        return [{"op": "set_length", "stops": _n(m.group(1))}]
+    if _SHORTER_RE.search(text):
+        return [{"op": "set_length", "stops": max(2, n_stops - 1)}]
+    if _LONGER_RE.search(text):
+        return [{"op": "set_length", "stops": min(8, n_stops + 1)}]
+    m = _MOVE_RE.search(text)
+    if m:
+        ref = _stop_ref(m.group(1), plan)
+        where = m.group(2).replace(" ", "")
+        to = n_stops if where in ("end", "last") else _TO_POS.get(where) or (
+            int(re.sub(r"\D", "", where)) if re.sub(r"\D", "", where) else None)
+        if ref and to:
+            return [{"op": "move", **ref, "to": to}]
+    return []
+
+
 def route_rules(text: str, current_plan: dict | None, events: bool = False) -> dict:
     """Keyword routing over the latest user turn (lower-cased)."""
     text = (text or "").lower().strip()
@@ -145,6 +201,9 @@ def route_rules(text: str, current_plan: dict | None, events: bool = False) -> d
         return {**base, "intent": "events"}
     if not (current_plan and current_plan.get("stops")) or _NEW_RE.search(text):
         return {**base, "intent": "new_plan"}
+    whole = _plan_ops(text, current_plan)
+    if whole:
+        return {**base, "intent": "edit_plan", "ops": whole}
     ref = _stop_ref(text, current_plan)
     if _ADD_RE.search(text):
         m = _ADD_WISH_RE.search(text)

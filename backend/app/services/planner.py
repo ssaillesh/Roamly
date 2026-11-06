@@ -199,12 +199,30 @@ def parse_start(value) -> datetime | None:
     return t if t.tzinfo else t.replace(tzinfo=LOCAL_TZ)
 
 
+def _fixed_time(stop: dict, after: datetime) -> datetime | None:
+    """An event's own start time ('8:45 PM'), on the evening that `after` is in."""
+    if stop.get("slot") != "event" or not stop.get("time"):
+        return None
+    try:
+        t = datetime.strptime(stop["time"].strip().upper(), "%I:%M %p")
+    except ValueError:
+        return None
+    at = after.replace(hour=t.hour, minute=t.minute, second=0, microsecond=0)
+    if at < after - timedelta(hours=6):
+        at += timedelta(days=1)          # a 12:30 AM set after a 10 PM stop is the next day
+    return at
+
+
 def retime(plan: dict) -> None:
-    """Give every stop its clock time from the plan's start (after edits too)."""
-    start = parse_start(plan.get("start"))
-    if start:
-        for s, t in zip(plan["stops"], schedule([s["slot"] for s in plan["stops"]], start)):
-            s["time"] = clock(t)
+    """Give every stop its clock time from the plan's start (after edits too). An event
+    keeps its own time, and the stops after it follow on from it."""
+    t = parse_start(plan.get("start"))
+    if not t:
+        return
+    for s in plan["stops"]:
+        t = _fixed_time(s, t) or t
+        s["time"] = clock(t)
+        t += timedelta(minutes=STOP_MINUTES.get(s["slot"], 60))
 
 
 def _haversine_km(a_lat, a_lng, b_lat, b_lng):
@@ -484,6 +502,10 @@ def stop_from(pick, slot_key, **extra) -> dict:
         "est_cost": _est_cost(pick, slot_key), "categories": pick.get("categories") or [],
         # arousal (energy) drives the narration's emotional arc downstream.
         "arousal": experience.arousal_for(pick.get("categories")),
+        # The stored venue it came from ("ovt:…"), so edits and feedback can name the
+        # exact place; and its opening hours, so later checks don't need a lookup.
+        "vid": pick.get("id") if isinstance(pick.get("id"), str) else None,
+        "hours": pick.get("hours") or None,
         **extra,
     }
 
@@ -494,12 +516,18 @@ def route_km(stops) -> float:
                      for a, b in zip(stops, stops[1:])), 1)
 
 
+# How long they're at a stop (STOP_MINUTES less ~15 minutes to get to the next one): a
+# place must still be open then, not only when they arrive.
+STAY_MINUTES = {k: max(20, m - 15) for k, m in STOP_MINUTES.items()}
+
+
 def _stored(anchor, slot_key, radius, dietary, term_override, cat_override, at):
     """Candidates from the stored venue list, or None (area not covered / DB trouble)."""
     want = term_override or (dietary if dietary and slot_key in ("lunch", "dinner") else None)
     try:
+        until = at + timedelta(minutes=STAY_MINUTES.get(slot_key, 60)) if at is not None else None
         return venue_index.candidates(slot_key, anchor[0], anchor[1], radius,
-                                      term=want, cats=cat_override, at=at)
+                                      term=want, cats=cat_override, at=at, until=until)
     except Exception:
         log.exception("stored venue lookup failed; using the live search")
         return None
@@ -914,6 +942,8 @@ def _build_plan(*, lat, lng, budget, vibe=DEFAULT_VIBE, party_size=2, transport=
         "walk_km": spread, "stops": stops, "start": start.isoformat(timespec="minutes"),
         "weather": (wx["summary"] if wx else None),
         "events": events,
+        # what the plan was made for, so an edit later works to the same brief
+        "transport": transport, "interests": interests or None,
         # names the user asked for that no verified source could confirm nearby
         "unverified_requests": unverified,
         # slots dropped because the time budget ran out (not for lack of places)

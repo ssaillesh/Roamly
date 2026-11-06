@@ -10,16 +10,22 @@ Ops (from services/plan_intent.py):
   {"op": "remove", "stop": 3 | None, "slot": "dessert" | None}
   {"op": "add",    "wish": "bowling", "slot": None, "position": 2 | None}
   {"op": "move",   "stop": 3, "to": 1}
+  {"op": "set_start", "time": "7:30 PM"}        every stop re-timed from the new start
+  {"op": "set_party", "party_size": 6}          the cost re-counted for that many
+  {"op": "set_length", "stops": 3}              shorter: the least needed stops go; longer: more are added
+  {"op": "add_event", "event": {...}}           an event from the list beside the plan, at its own time
 `stop` is 1-based, as the user sees the stops numbered; it may also be "last".
 """
 import copy
 import random
 import re
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta
 
+from app.services import costs
 from app.services.planner import (
-    SLOT_ORDER, SLOT_SPECS, TRANSPORT, VIBE_PLANS, DEFAULT_VIBE, PLAN_TIME_BUDGET, _POOL,
-    _est_cost, _gather, _pick, _result, allowed, cuisine_term, parse_start, retime, route_for,
+    LOCAL_TZ, SLOT_ORDER, SLOT_SPECS, TRANSPORT, VIBE_PLANS, DEFAULT_VIBE, PLAN_TIME_BUDGET, _POOL,
+    _est_cost, _gather, _pick, _result, _template_intro, allowed, cuisine_term, parse_start, retime, route_for,
     route_km, schedule, stop_from, too_casual,
 )
 
@@ -30,6 +36,9 @@ _SLOT_WORDS = [
     ("cafe", ["coffee", "cafe", "café", "latte", "matcha"]),
     ("lunch", ["lunch", "brunch"]),
     ("dinner", ["dinner", "restaurant", "food", "eat", "meal", "supper"]),
+    # "a late-night bite", "a snack": something small to eat at the end, not a full meal
+    # (after the dinner words, so "a bite to eat" / "a bite for dinner" stays dinner).
+    ("dessert", ["bite", "snack", "nibble"]),
     ("leisure", ["bar", "drinks", "drink", "pub", "club", "lounge", "cocktail", "nightlife",
                  "hookah", "karaoke", "comedy", "live music", "rooftop", "speakeasy", "wine"]),
     ("scenic", ["park", "view", "scenic", "beach", "waterfront", "garden", "lookout", "trail", "sunset"]),
@@ -42,6 +51,17 @@ _SAME = {"dinner": {"dinner", "lunch"}, "lunch": {"lunch", "dinner"},
          "leisure": {"leisure", "drinks"}, "drinks": {"drinks", "leisure"}}
 _ORDINALS = {"first": 1, "1st": 1, "second": 2, "2nd": 2, "third": 3, "3rd": 3,
              "fourth": 4, "4th": 4, "fifth": 5, "5th": 5, "sixth": 6, "6th": 6}
+# "Swap it for something similar / something else": no real wish, just "another one".
+_NO_WISH = re.compile(r"^(?:(?:for|with|to)\s+)?(?:some(?:thing|where)|any(?:thing|where)|another(?: one)?|a different one|one)"
+                      r"(?:\s+(?:similar|else|different|new|like it|like that))?$", re.I)
+
+
+def real_wish(text: str) -> str:
+    """The wish in a swap or add, or "" when it's only "something similar" / "another one"."""
+    t = " ".join((text or "").split()).strip(" .!")
+    return "" if _NO_WISH.match(t) else t
+
+
 _CHEAPER = re.compile(r"\b(cheap(er)?|less expensive|budget|affordable|inexpensive)\b")
 _FANCIER = re.compile(r"\b(fanc(y|ier)|nicer|upscale|classier|high[- ]end|luxur\w*|splurge)\b")
 
@@ -158,7 +178,7 @@ def _remove(stops, op, plan, ctx, exclude, changed, problems):
 
 
 def _swap(stops, op, plan, ctx, exclude, changed, problems):
-    wish = (op.get("wish") or "").strip()
+    wish = real_wish(op.get("wish") or "")
     i = find_stop(stops, op)
     if i is None:
         if slot_for_text(wish) or op.get("slot"):     # "swap dinner for sushi" with no dinner yet
@@ -188,7 +208,7 @@ def _swap(stops, op, plan, ctx, exclude, changed, problems):
 
 
 def _add(stops, op, plan, ctx, exclude, changed, problems):
-    wish = (op.get("wish") or "").strip()
+    wish = real_wish(op.get("wish") or "")
     slot = op.get("slot") if op.get("slot") in SLOT_SPECS else slot_for_text(wish, "activity")
     pos = op.get("position")
     if isinstance(pos, int) and 1 <= pos <= len(stops) + 1:
@@ -221,7 +241,114 @@ def _move(stops, op, plan, ctx, exclude, changed, problems):
     changed.append(f"Moved {s['name']} to stop {to}.")
 
 
-_OPS = {"remove": _remove, "swap": _swap, "add": _add, "move": _move}
+_CLOCK = re.compile(r"^\s*(\d{1,2})(?::(\d{2}))?\s*([ap])?\.?\s*m?\.?\s*$", re.I)
+
+
+def parse_clock(text, base: datetime | None = None) -> datetime | None:
+    """'7:30 PM' / '19:30' / '7pm' → that time on the plan's day (today if it has none).
+    A bare '7' or '11:30' takes its half of the day from the plan: in an evening plan
+    (from 3 PM on, or no plan) it's PM; in a daytime plan, AM."""
+    m = _CLOCK.match(str(text or ""))
+    if not m:
+        return None
+    h, mi, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+    if h > 23 or mi > 59 or (ap and not 1 <= h <= 12):
+        return None
+    if ap == "p" and h != 12:
+        h += 12
+    elif ap == "a" and h == 12:
+        h = 0
+    elif not ap and 1 <= h <= 11 and (base is None or base.hour >= 15):
+        h += 12
+    day = base or datetime.now(LOCAL_TZ)
+    return day.replace(hour=h, minute=mi, second=0, microsecond=0)
+
+
+def _set_start(stops, op, plan, ctx, exclude, changed, problems):
+    base = parse_start(plan.get("start"))
+    t = parse_clock(op.get("time"), base)
+    if not t:
+        problems.append("I couldn't read that start time — try something like 7:30 PM.")
+        return
+    plan["start"] = t.isoformat(timespec="minutes")
+    changed.append(f"It now starts at {t.strftime('%I:%M %p').lstrip('0')}.")
+
+
+def _set_party(stops, op, plan, ctx, exclude, changed, problems):
+    try:
+        n = int(op.get("party_size"))
+    except (TypeError, ValueError):
+        n = 0
+    if not 1 <= n <= 20:
+        problems.append("Tell me how many are going (1 to 20).")
+        return
+    plan["party_size"] = ctx.party_size = n
+    changed.append("It's now for just you." if n == 1 else f"It's now for {n}.")
+
+
+# Which stops go first when a plan is made shorter (the evening's heart, dinner, stays).
+_DROP_ORDER = ["dessert", "cafe", "scenic", "drinks", "leisure", "activity", "lunch", "dinner", "event"]
+# What a longer plan gets next, in this order, if it hasn't got one.
+_GROW_ORDER = ["dessert", "leisure", "activity", "scenic", "cafe"]
+
+
+def _set_length(stops, op, plan, ctx, exclude, changed, problems):
+    try:
+        want = int(op.get("stops"))
+    except (TypeError, ValueError):
+        want = 0
+    if not 2 <= want <= 8:
+        problems.append("A plan can have 2 to 8 stops.")
+        return
+    while len(stops) > want:
+        drop = next((i for slot in _DROP_ORDER for i in range(len(stops) - 1, -1, -1)
+                     if stops[i].get("slot") == slot and not stops[i].get("requested")), None)
+        if drop is None:
+            break
+        changed.append(f"Removed {stops.pop(drop)['name']}.")
+    have = {s.get("slot") for s in stops}
+    for slot in [x for x in _GROW_ORDER if x not in have]:
+        if len(stops) >= want:
+            break
+        _add(stops, {"op": "add", "slot": slot}, plan, ctx, exclude, changed, problems)
+    if len(stops) < want and not problems:
+        problems.append(f"I couldn't find more stops nearby, so it has {len(stops)}.")
+
+
+def _add_event(stops, op, plan, ctx, exclude, changed, problems):
+    ev = op.get("event") if isinstance(op.get("event"), dict) else {}
+    name, lat, lng = str(ev.get("name") or "").strip()[:120], ev.get("lat"), ev.get("lng")
+    if not name or not isinstance(lat, (int, float)) or not isinstance(lng, (int, float)):
+        problems.append("That event has no place on the map, so I can't add it.")
+        return
+    if name.lower() in exclude:
+        problems.append(f"{name} is already in the plan.")
+        return
+    price = 0 if ev.get("free") else ev.get("price_min")
+    cost = int(round(price)) if isinstance(price, (int, float)) and price >= 0 else \
+        costs.estimate({"categories": [ev.get("category") or "event"]}, "event")
+    url = ev.get("url") if isinstance(ev.get("url"), str) and ev["url"].startswith(("https://", "http://")) else None
+    img = ev.get("image") if isinstance(ev.get("image"), str) and ev["image"].startswith("https://") else None
+    retime(plan)                         # the times as they stand, to place it among them
+    when = parse_clock(ev.get("time"), parse_start(plan.get("start")))
+    new = {**stop_from({"name": name, "lat": lat, "lng": lng, "address": ev.get("venue"), "image": img,
+                        "url": url, "source": ev.get("source") or "ticketmaster",
+                        "categories": [c for c in [ev.get("category")] if c]}, "event"),
+           "est_cost": cost, "label": "Live event"}
+    if when:   # at its own time: in the plan where that time falls
+        times = [parse_clock(s.get("time"), when) for s in stops]
+        times = [t + timedelta(days=1) if t and when and t < when - timedelta(hours=6) else t for t in times]
+        i = next((k for k, t in enumerate(times) if t and t > when), len(stops))
+        new["time"] = when.strftime("%I:%M %p").lstrip("0")
+    else:
+        i = len(stops)
+    stops.insert(i, new)
+    exclude.add(name.lower())
+    changed.append(f"Added {name}.")
+
+
+_OPS = {"remove": _remove, "swap": _swap, "add": _add, "move": _move, "set_start": _set_start,
+        "set_party": _set_party, "set_length": _set_length, "add_event": _add_event}
 
 
 def apply_edits(plan: dict, ops: list[dict], ctx: EditContext) -> tuple[dict, list[str], list[str]]:
@@ -245,9 +372,11 @@ def apply_edits(plan: dict, ops: list[dict], ctx: EditContext) -> tuple[dict, li
     plan["estimated_cost"] = sum(s.get("est_cost") or 0 for s in stops) * max(1, ctx.party_size)
     plan["walk_km"] = route_km(stops)
     if changed:
-        # The old intro/tip may name venues that are gone; say what changed instead.
-        plan["intro"] = " ".join(changed)
+        # The intro and tip stay as the user read them, unless they name a place that's
+        # gone; the reply message says what changed.
         gone = [m.group(1) for c in changed if (m := re.match(r"(?:Removed|Swapped) (.+?)(?: for .+)?\.$", c))]
+        if not plan.get("intro") or any(g in plan["intro"] for g in gone):
+            plan["intro"] = _template_intro(plan)
         if plan.get("tip") and any(g in plan["tip"] for g in gone):
             plan["tip"] = None
     return plan, changed, problems

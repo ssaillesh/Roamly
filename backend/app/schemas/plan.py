@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PlanStop(BaseModel):
@@ -18,6 +20,14 @@ class PlanStop(BaseModel):
     categories: list[str] = []
     why: str | None = None
     time: str | None = None
+    # The stored venue ("ovt:…"): edits and feedback name the exact place by it.
+    vid: str | None = None
+    # Opening hours (OpenStreetMap opening_hours syntax), when known.
+    hours: str | None = None
+    # How lively the stop is (1–5); the narration builds around the liveliest.
+    arousal: float | None = None
+    # A place the user asked for by name: a shorter plan never drops it.
+    requested: bool = False
 
 
 class Center(BaseModel):
@@ -70,6 +80,10 @@ class Plan(BaseModel):
     stops: list[PlanStop]
     events: list[Event] = Field(default_factory=list)
     day: int | None = None
+    # The brief the plan was made to (walk / transit / car / any; what they asked for),
+    # kept so an edit works to it without the page sending it again.
+    transport: str | None = None
+    interests: str | None = None
 
 
 class ChatMessage(BaseModel):
@@ -165,6 +179,30 @@ class OptionsResponse(BaseModel):
     context: dict = Field(default_factory=dict)   # vibe, budget, party_size, …
     sections: list[Section] = Field(default_factory=list)
     events: list[Event] = Field(default_factory=list)
+
+
+class EditOp(BaseModel):
+    """One change to a plan (services/plan_edit.py has what each does)."""
+    model_config = ConfigDict(extra="ignore")
+    op: Literal["remove", "swap", "add", "move", "set_start", "set_party", "set_length", "add_event"]
+    stop: int | str | None = Field(default=None)           # 1-based, or "last"
+    name: str | None = Field(default=None, max_length=120)
+    slot: str | None = Field(default=None, max_length=20)
+    wish: str | None = Field(default=None, max_length=200)
+    position: int | None = Field(default=None, ge=1, le=10)
+    to: int | None = Field(default=None, ge=1, le=10)
+    time: str | None = Field(default=None, max_length=20)
+    party_size: int | None = Field(default=None, ge=1, le=20)
+    stops: int | None = Field(default=None, ge=2, le=8)
+    event: dict | None = None
+
+
+class EditRequest(BaseModel):
+    """Change the plan on screen directly (a button, not a typed sentence)."""
+    plan: Plan
+    ops: list[EditOp] = Field(min_length=1, max_length=10)
+    session_id: str | None = Field(default=None, max_length=64)
+    seed: int | None = None
 
 
 class BuildRequest(BaseModel):
