@@ -50,6 +50,10 @@ BUZZ_WEIGHT = 0.7
 # live "trendy right now" signal. Weighted so a genuinely buzzing spot can beat
 # a slightly better-rated sleepy one, without drowning out rating/distance.
 POPULARITY_WEIGHT = 1.5
+# A place with a real photo of itself (checked by scripts/load_venues.py) shows better in
+# the plan and on its share card. Worth ~0.4 of a star or ~300 m of walking: it settles
+# near-ties, never outranks a clearly better place (chains −1.2, kind match +2.0).
+PHOTO_BONUS = 0.8
 
 # ---- time budget ----
 # The page gives /plan/* requests 60s, and LLM extraction/narration can use some
@@ -584,6 +588,8 @@ def _score(c, anchor, penalty, fancy=False, apply_fun=False, interests="", taste
     score += (level - 1) * 0.6 if fancy else -(level - 1) * 0.5   # tier preference
     score += math.log10((c.get("review_count") or 0) + 1) * BUZZ_WEIGHT * crowd   # buzz / popularity
     score += c.get("boost", 0)   # stored list: well known, open then, not a chain (venue_index)
+    if c.get("image"):
+        score += PHOTO_BONUS     # a real photo of the place: prefer it when it's close
     if slot_key and allowance is not None:   # its share of the budget (services/costs.py)
         score += costs.fit(_est_cost(c, slot_key), allowance, slot_key, fancy)
     if apply_fun:
