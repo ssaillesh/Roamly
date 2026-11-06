@@ -1734,6 +1734,7 @@ function renderPlanPanel(){
       tweaks: tweaks.map(t => t.label),
       also: also.map(e => ({ name:e.name, sub:[e.venue, evWhen(e), evPrice(e)].filter(Boolean).join(' · '), img:safeUrl(e.image) })),
       days: trip ? lastItin.days : null, saved: planUi.saved, transport: ready.transport, coming: true,
+      review: lastItin.review || (lastItin.review = {}),          // this plan's stars and comment, if given
       on: {
         close: closePlan, share: shareNight, settings: () => openSheet(),
         save: () => { saveItin(lastItin); el.querySelectorAll('[data-save]').forEach(b => {
@@ -1752,6 +1753,7 @@ function renderPlanPanel(){
         setStart: trip ? null : t => editPlan([{ op:'set_start', time:t }]),
         setParty: trip ? null : n => editPlan([{ op:'set_party', party_size:n }]),
         setLength: trip ? null : n => editPlan([{ op:'set_length', stops:n }]),
+        rate: ratePlan,
       },
     });
   } else { closePlan(); return; }
@@ -1766,6 +1768,27 @@ function toggleStop(i){
 }
 /* ---- edits to the plan on screen go to the server (/plan/edit): the times, the cost
    and the distance come back worked out, so nothing here guesses them ---- */
+/* "How was this plan?" (itinerary.js): the stars, and the comment if they write one,
+   go to the team's Reviews page. Sent one after another, so a quick star then comment
+   can't race. An edited plan is a new plan, with its own rating. */
+let rateChain = Promise.resolve();
+function ratePlan(stars, comment){
+  const itin = lastItin;
+  if (!itin) return;
+  if (!token()){ requireSignIn(); return; }
+  const strip = p => { const { _meta, ...rest } = p; return rest; };
+  const body = { stars, session_id: sessionId, ...(itin.days ? { days: itin.days.map(strip) } : { plan: strip(itin.plan) }) };
+  if (comment != null) body.comment = comment;
+  rateChain = rateChain.then(async () => {
+    try{
+      const r = await apiFetch(`${API}/plan/review`, { method:'POST', headers:{ 'Content-Type':'application/json', ...authHeaders() },
+        body: JSON.stringify(body) });
+      if (r.status === 401){ requireSignIn(); return; }
+      if (!r.ok) throw new Error('review failed');
+      track(comment != null ? 'plan_review_comment' : 'plan_rated', { stars });
+    }catch(e){ toast("Couldn't send your rating \u2014 try again"); }
+  });
+}
 function showEdited(plan, meta){
   plan._meta = meta;
   lastItin = { title: planName(plan), plan };

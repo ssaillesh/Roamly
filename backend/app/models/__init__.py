@@ -11,6 +11,7 @@ from app.models.venue import Venue, Area
 from app.models.nightlife import NightlifeEvent
 from app.models.shared_plan import SharedPlan
 from app.models.feedback import StopFeedback, VenueSignal
+from app.models.review import PlanReview
 from app.models.analytics import (
     UserActivityDay, PlanLog, HealthSnapshot, ApiUsage, DailyRollup, AdminAuditLog,
 )
@@ -31,4 +32,5 @@ __all__ = [
     "SharedPlan",
     "StopFeedback",
     "VenueSignal",
+    "PlanReview",
 ]

@@ -129,6 +129,23 @@
 .it-also-row div{flex:1; min-width:0; display:flex; flex-direction:column;}
 .it-also-row b{font-size:15px; font-weight:500;}
 .it-also-row small{font-size:12.5px; color:var(--it-muted);}
+/* "How was this plan?" */
+.it-rate .it-label.it-gap{margin-bottom:10px;}
+.it-stars{display:flex; align-items:center; gap:2px; flex-wrap:wrap;}
+.it-stars button{width:44px; height:44px; border:0; background:none; color:var(--it-faint); font-size:26px; display:grid; place-items:center; border-radius:12px; cursor:pointer;}
+.it-stars button.on{color:var(--it-champagne);}
+.it-stars button:hover{background:rgba(242,237,228,.06);}
+.it-stars button:focus-visible{outline:2px solid var(--it-acc); outline-offset:1px;}
+.it-star-word{margin-left:10px; font-size:14px; color:var(--it-ash);}
+.it-rate-form{margin-top:12px; display:flex; flex-direction:column; align-items:flex-start; gap:10px;}
+.it-rate-form[hidden],.it-rate-note[hidden]{display:none;}
+.it-rate-form textarea{width:100%; box-sizing:border-box; resize:vertical; min-height:84px; padding:12px 16px; border-radius:16px;
+  border:1px solid var(--it-line-2); background:var(--it-surface); color:var(--it-text); font:inherit; font-size:14px; outline:none;}
+.it-rate-form textarea:focus{border-color:var(--it-acc);}
+.it-rate-form textarea::placeholder{color:var(--it-muted);}
+.it-rate-note{margin:12px 0 0; display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:14px; color:var(--it-ash);}
+.it-rate-note .ph{color:var(--it-acc);}
+.it-rate-note button{border:0; background:none; padding:0; color:var(--it-acc); font:inherit; text-decoration:underline; cursor:pointer;}
 
 /* side column */
 .it-side{display:flex; flex-direction:column; gap:16px; position:sticky; top:24px;}

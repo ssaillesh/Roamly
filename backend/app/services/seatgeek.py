@@ -25,8 +25,24 @@ _TTL = 60 * 10
 _HEADERS = {"User-Agent": "Rova/1.0 (outing planner; Nightlife tab)", "Accept": "application/json"}
 
 
+# A refused client ID (401/403) won't start working on the next request: stop asking
+# for a while instead of failing every Nightlife search, and say why on the dashboard.
+_PAUSE_REFUSED = 6 * 60 * 60
+
+
 def available() -> bool:
-    return bool(settings.seatgeek_client_id) and not usage.disabled("seatgeek")
+    return (bool(settings.seatgeek_client_id) and not usage.disabled("seatgeek")
+            and not usage.paused("seatgeek"))
+
+
+def _reason(resp) -> str:
+    """SeatGeek's own words for a refusal, if it gave any."""
+    try:
+        body = resp.json()
+        msg = body.get("message") or body.get("error") or body.get("status")
+    except ValueError:
+        msg = (resp.text or "").strip()
+    return " ".join(str(msg or "no reason given").split())[:120]
 
 
 def _utc(dt: datetime) -> str:
@@ -81,6 +97,12 @@ def search_events(lat: float, lng: float, *, radius_km: float = 10, start_utc: d
             r = httpx.get(_URL, params=params, headers=_HEADERS, timeout=15.0)
             r.raise_for_status()
         out = [_event(e) for e in r.json().get("events", []) if e.get("title")]
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code in (401, 403):
+            usage.pause("seatgeek", _PAUSE_REFUSED, f"HTTP {e.response.status_code}: SeatGeek refused the client ID "
+                        f"({_reason(e.response)}). Check the app at seatgeek.com/account/develop; "
+                        "retrying in 6 hours.")
+        return []
     except (httpx.HTTPError, ValueError):
         return []
     redis_client.setex(key, _TTL, json.dumps(out))

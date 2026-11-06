@@ -178,6 +178,47 @@ window.RovaItin = (() => {
   /* ---------------------------------------------------------------- render */
   let cur = null;   // { root, map, pins:[], stops:[] }
 
+  /* "How was this plan?": 1–5 stars, then an optional comment, for the team to read
+     (POST /plan/review). Tapping a star sends the rating straight away; the comment
+     follows if they write one. */
+  const star = on => `<i class="${on ? 'ph-fill' : 'ph'} ph-star" aria-hidden="true"></i>`;
+  const STAR_WORDS = ['', 'Not for me', 'Not quite', 'It\u2019s OK', 'Good plan', 'Love it'];
+  function rateHtml(r){
+    const n = r.stars || 0;
+    return `<div class="it-rate" data-rate-box>
+      <span class="it-label it-gap">How was this plan?</span>
+      <div class="it-stars" role="radiogroup" aria-label="Rate this plan out of 5">${[1, 2, 3, 4, 5].map(k =>
+        `<button type="button" role="radio" data-star="${k}" aria-checked="${k === n}" aria-label="${k} star${k > 1 ? 's' : ''}: ${STAR_WORDS[k]}" class="${k <= n ? 'on' : ''}">${star(k <= n)}</button>`).join('')}
+        <span class="it-star-word" data-star-word>${esc(STAR_WORDS[n] || '')}</span></div>
+      <form class="it-rate-form" data-rate-form${n && !r.sent ? '' : ' hidden'}>
+        <textarea name="c" maxlength="1000" rows="3" placeholder="What worked, what didn\u2019t? (optional)" aria-label="Tell us more about this plan">${esc(r.comment || '')}</textarea>
+        <button type="submit" class="it-btn sm">Send</button></form>
+      <p class="it-rate-note" data-rate-note${r.sent ? '' : ' hidden'}>${ic('check')} Thanks \u2014 the team reads every one.${r.comment ? '' : ' <button type="button" data-rate-more>Add a comment</button>'}</p>
+    </div>`;
+  }
+  function wireRate(root, on, r){
+    const box = root.querySelector('[data-rate-box]'); if (!box) return;
+    const form = box.querySelector('[data-rate-form]'), note = box.querySelector('[data-rate-note]');
+    const paint = n => box.querySelectorAll('[data-star]').forEach(b => {
+      const k = +b.dataset.star; b.classList.toggle('on', k <= n); b.setAttribute('aria-checked', String(k === n));
+      b.innerHTML = star(k <= n); });
+    box.querySelectorAll('[data-star]').forEach(b => b.addEventListener('click', () => {
+      const n = +b.dataset.star; r.stars = n; paint(n);
+      box.querySelector('[data-star-word]').textContent = STAR_WORDS[n];
+      if (!r.sent){ form.hidden = false; }
+      on.rate(n, null);
+    }));
+    form.addEventListener('submit', e => {
+      e.preventDefault();
+      const c = form.c.value.trim();
+      on.rate(r.stars, c);
+      r.comment = c; r.sent = true;
+      form.hidden = true; note.hidden = false;
+      const more = note.querySelector('[data-rate-more]'); if (more && c) more.remove();
+    });
+    note.addEventListener('click', e => { if (e.target.closest('[data-rate-more]')){ note.hidden = true; form.hidden = false; form.c.focus(); } });
+  }
+
   function render(root, plan, o = {}){
     const on = o.on || {};
     const plans = o.days && o.days.length ? o.days : [plan];
@@ -253,6 +294,7 @@ window.RovaItin = (() => {
           ${(o.also || []).length ? `<span class="it-label it-gap">Also on nearby</span><div class="it-also">${o.also.map((e, i) => `<div class="it-also-row">
             ${photo({ image:e.img, slot:'event' }, 'it-also-ph')}<div><b>${esc(e.name)}</b><small>${esc(e.sub || '')}</small></div>
             <button type="button" class="it-btn sm" data-also="${i}">${ic('plus')} Add</button></div>`).join('')}</div>` : ''}
+          ${!o.readOnly && on.rate ? rateHtml(o.review || {}) : ''}
         </div>
         <aside class="it-side">
           ${allStops.some(s => s.lat != null) ? `<div class="it-mapbox" id="itMapBox"><div class="it-map" id="itMap" role="region" aria-label="Route map"></div>
@@ -299,6 +341,7 @@ window.RovaItin = (() => {
     if (on.surprise) wire('[data-surprise]', () => on.surprise());
     if (on.also) wire('[data-also]', (e, b) => on.also(+b.dataset.also));
     if (on.lateBite) wire('[data-late]', () => on.lateBite());
+    if (on.rate && !o.readOnly) wireRate(root, on, o.review || {});
     if (on.setStart) all('[data-start]').forEach(inp => inp.addEventListener('change', () => { if (inp.value) on.setStart(inp.value); }));
     if (on.setParty) wire('[data-party]', (e, b) => on.setParty(st.pp + +b.dataset.party));
     if (on.setLength) wire('[data-len]', (e, b) => on.setLength(st.n + +b.dataset.len));

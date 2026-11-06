@@ -227,6 +227,23 @@ class FeedbackRequest(BaseModel):
     stops: list[FeedbackStop] = Field(min_length=1, max_length=40)
 
 
+class ReviewRequest(BaseModel):
+    """POST /plan/review: 1–5 stars for the plan on screen (or a trip's days), and an
+    optional comment. Sending the same plan again updates the rating; leaving `comment`
+    out keeps the one already sent."""
+    plan: Plan | None = None
+    days: list[Plan] = Field(default_factory=list, max_length=5)
+    stars: int = Field(ge=1, le=5)
+    comment: str | None = Field(default=None, max_length=1000)
+    session_id: str | None = Field(default=None, max_length=64)
+
+
+class ReviewOut(BaseModel):
+    id: str
+    stars: int
+    comment: str | None = None
+
+
 class BuildRequest(BaseModel):
     selections: list[dict]            # picked Option/event dicts (flexible shape)
     session_id: str | None = Field(default=None, max_length=64)

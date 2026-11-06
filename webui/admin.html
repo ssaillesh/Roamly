@@ -163,6 +163,13 @@
     .kv{grid-template-columns:1fr;} .kv dt{margin-top:6px;}
     .bar-row{grid-template-columns:minmax(80px,40%) 1fr auto;}
   }
+  .stars{color:#d4a72c; letter-spacing:1px; white-space:nowrap;} .stars .off{color:#d9d6cf;}
+  .rv-quote{padding:10px 0; border-top:1px solid rgba(0,0,0,.08);} .rv-quote:first-child{border-top:0; padding-top:0;}
+  .rv-quote p{margin:4px 0 2px; font-size:14px;}
+  .rv-head{display:flex; align-items:center; gap:10px; font-size:20px; margin-bottom:10px;}
+  .rv-comment{margin:0 0 12px; padding:12px 14px; border-left:3px solid #d4a72c; background:rgba(212,167,44,.08); border-radius:6px; white-space:pre-wrap; font-size:15px;}
+  .rv-stops{margin:6px 0 0; padding-left:20px; display:flex; flex-direction:column; gap:6px; font-size:14px;}
+  .linkish{border:0; background:none; padding:0; color:inherit; font:inherit; text-decoration:underline; cursor:pointer;}
 </style>
 </head>
 <body>
@@ -326,6 +333,7 @@ const SECTIONS = [
   { id:'traffic', title:'Traffic sources', group:'Reach', render: renderTraffic },
   { id:'geo', title:'Where users are', group:'Reach', render: renderGeo },
   { id:'planner', title:'Planner', group:'Product', render: renderPlanner },
+  { id:'reviews', title:'Plan reviews', group:'Product', render: renderReviews },
   { id:'taste', title:'Taste insights', group:'Product', render: renderTaste },
   { id:'health', title:'Server health', group:'Systems', render: renderHealth },
   { id:'apis', title:'Outside APIs', group:'Systems', render: renderApis },
@@ -335,8 +343,8 @@ const SECTIONS = [
   { id:'audit', title:'Admin activity', group:'Manage', render: renderAudit },
 ];
 const RANGES = [[7,'7d'],[30,'30d'],[90,'90d'],[365,'1y']];
-const usesRange = new Set(['activity','funnel','traffic','geo','planner','apis']);
-const usesTestToggle = new Set(['overview','activity','funnel','geo','planner','taste']);
+const usesRange = new Set(['activity','funnel','traffic','geo','planner','reviews','apis']);
+const usesTestToggle = new Set(['overview','activity','funnel','geo','planner','reviews','taste']);
 
 function shell(){
   let groups = '', last = null;
@@ -356,7 +364,8 @@ function shell(){
         <div class="dd-menu hidden" id="exportMenu" role="menu">
           <button role="menuitem" data-export="users">All users</button>
           <button role="menuitem" data-export="waitlist">Waitlist</button>
-          <button role="menuitem" data-export="plans">Plan logs (selected range)</button></div></div>
+          <button role="menuitem" data-export="plans">Plan logs (selected range)</button>
+          <button role="menuitem" data-export="reviews">Plan reviews (selected range)</button></div></div>
       <button class="btn btn-ghost btn-sm" id="refreshBtn">Refresh</button></div>
       <div id="sec"></div></main></div>`;
 
@@ -371,7 +380,7 @@ function shell(){
   document.addEventListener('click', () => { $('exportMenu').classList.add('hidden'); $('exportBtn').setAttribute('aria-expanded', 'false'); });
   $('exportMenu').onclick = e => { const b = e.target.closest('[data-export]'); if (!b) return;
     const k = b.dataset.export, stamp = new Date().toISOString().slice(0, 10);
-    download(`/admin/export/${k}.csv${k === 'plans' ? '?days=' + state.days : ''}`, `rova-${k}-${stamp}.csv`); };
+    download(`/admin/export/${k}.csv${k === 'plans' || k === 'reviews' ? '?days=' + state.days : ''}`, `rova-${k}-${stamp}.csv`); };
   document.addEventListener('click', e => { const b = e.target.closest('[data-table-toggle]'); if (!b) return;
     const id = b.dataset.tableToggle, showTbl = $(id + '-tbl').classList.toggle('hidden') === false;
     $(id + '-box').classList.toggle('hidden', showTbl); b.textContent = showTbl ? 'Chart' : 'Table'; });
@@ -633,7 +642,84 @@ function learnedPanel(l){
   return panel('What people keep', body, l.weight ? `Counts people, not clicks · a place counts once ${l.min_users} people have seen it` : 'Switched off (SIGNAL_WEIGHT = 0)');
 }
 
+// ---- plan reviews: what people thought of their plans (POST /plan/review)
+const rvState = { stars:'all', show:'all', comments:false, page:1 };
+const starsHtml = n => `<span class="stars" aria-label="${n} out of 5 stars">${'★'.repeat(n)}<span class="off">${'★'.repeat(5 - n)}</span></span>`;
+async function renderReviews(seq){
+  const d = await api('/admin/reviews' + q({ stars: rvState.stars, show: rvState.show, comments: rvState.comments,
+    page: rvState.page, per_page: 50 }));
+  if (stale(seq)) return;
+  const sm = d.summary, pages = Math.max(1, Math.ceil(d.total / d.per_page));
+  const S = [['all','All'],['low','1–2★'],['mid','3★'],['high','4–5★']];
+  const W = [['all','All'],['new','Unread'],['reviewed','Reviewed']];
+  const low = d.reviews.filter(r => r.stars <= 2 && r.comment).slice(0, 4);
+  $('secSub').textContent = rangeText();
+  $('sec').innerHTML = `
+    <div class="grid g-tiles">
+      ${tile('Ratings', fmt(sm.count))}
+      ${tile('Average', sm.avg != null ? `${sm.avg}<small> / 5</small>` : '—', sm.avg != null ? starsHtml(Math.round(sm.avg)) : '')}
+      ${tile('With a comment', fmt(sm.with_comment), sm.count ? pct(sm.with_comment / sm.count, 0) + ' of ratings' : '')}
+      ${tile('Unread', fmt(sm.unread), sm.unread ? '<span class="badge warn">to review</span>' : '<span class="badge good">all read</span>')}
+    </div>
+    <div class="grid g-2 sec">
+      ${panel('How people rated their plans', barList(sm.by_stars, { total: sm.count }), 'Each person’s latest rating of each plan')}
+      ${panel('Low ratings with a comment', low.length
+        ? low.map(r => `<div class="rv-quote click" data-review="${r.id}">${starsHtml(r.stars)}<p>${esc(r.comment)}</p><span class="t-meta">@${esc(r.username || '?')} · ${esc(ago(r.created_at))}</span></div>`).join('')
+        : '<p class="t-meta">None in this view.</p>', 'From the list below')}
+    </div>
+    <div class="toolbar sec">
+      <span class="t-meta">Stars</span><div class="chips" role="group" aria-label="Stars">${S.map(([k, l]) => `<button class="chip sm ${rvState.stars === k ? 'on' : ''}" data-rvs="${k}">${l}</button>`).join('')}</div>
+      <span class="t-meta">Show</span><div class="chips" role="group" aria-label="Status">${W.map(([k, l]) => `<button class="chip sm ${rvState.show === k ? 'on' : ''}" data-rvw="${k}">${l}</button>`).join('')}</div>
+      <label class="t-meta"><input type="checkbox" id="rvC" ${rvState.comments ? 'checked' : ''}> Only with a comment</label></div>
+    ${panel(`Reviews (${fmt(d.total)})`, table([
+      { h:'When', f: r => `<span title="${esc(dtime(r.created_at))}">${esc(ago(r.created_at))}</span>` },
+      { h:'User', f: r => '@' + esc(r.username || '?') },
+      { h:'Stars', f: r => starsHtml(r.stars) },
+      { h:'Comment', cls:'clip', f: r => r.comment ? esc(r.comment) : '<span class="t-meta">—</span>' },
+      { h:'Plan', cls:'clip', f: r => esc([r.days ? `${r.days}-day trip` : null, r.vibe, `${r.stops} stops`].filter(Boolean).join(' · '))
+          + (r.quick ? ' <span class="badge plain">quick</span>' : '') },
+      { h:'Status', f: r => r.reviewed_at ? '<span class="badge good">read</span>' : '<span class="badge warn">new</span>' }],
+      d.reviews, { rowAttr: r => `class="click" data-review="${r.id}"`, empty:'No ratings match. They appear here once people rate their plans.' }),
+      'Click a row to read it in full and see the plan')}
+    <div class="pager"><span>Page ${d.page} of ${pages}</span>
+      <button class="mini" id="rvPrev" ${d.page <= 1 ? 'disabled' : ''}>Previous</button><button class="mini" id="rvNext" ${d.page >= pages ? 'disabled' : ''}>Next</button></div>`;
+  document.querySelectorAll('[data-rvs]').forEach(b => b.onclick = () => { rvState.stars = b.dataset.rvs; rvState.page = 1; route(); });
+  document.querySelectorAll('[data-rvw]').forEach(b => b.onclick = () => { rvState.show = b.dataset.rvw; rvState.page = 1; route(); });
+  $('rvC').onchange = e => { rvState.comments = e.target.checked; rvState.page = 1; route(); };
+  $('rvPrev').onclick = () => { rvState.page--; route(); };
+  $('rvNext').onclick = () => { rvState.page++; route(); };
+}
+
+async function openReview(id){
+  const box = overlay(xHead('Plan review') + '<p class="t-meta">Loading…</p>', 'drawer');
+  let r;
+  try{ r = await api('/admin/reviews/' + id); }
+  catch(e){ box.innerHTML = xHead('Plan review') + notice('Couldn’t load this review', e.message, 'err'); return; }
+  const plans = r.plans || [];
+  const about = [r.days ? `${r.days}-day trip` : null, r.vibe, r.party_size ? `for ${r.party_size}` : null,
+    r.cost ? `about $${r.cost}` : null].filter(Boolean).join(' · ');
+  const changed = r.updated_at && r.updated_at !== r.created_at ? ` <span class="t-meta">(changed ${esc(ago(r.updated_at))})</span>` : '';
+  box.innerHTML = xHead('Plan review') + `
+    <div class="rv-head">${starsHtml(r.stars)} ${r.reviewed_at ? '<span class="badge good">read</span>' : '<span class="badge warn">new</span>'}</div>
+    ${r.comment ? `<blockquote class="rv-comment">${esc(r.comment)}</blockquote>` : '<p class="t-meta">No comment, just the stars.</p>'}
+    <dl class="kv sec"><dt>From</dt><dd><button class="linkish" data-user="${r.user_id}">@${esc(r.username || '?')}</button></dd>
+      <dt>Rated</dt><dd>${esc(dtime(r.created_at))}${changed}</dd>
+      <dt>Plan</dt><dd>${esc(about || '—')}${r.quick ? ' <span class="badge plain">quick version (no AI)</span>' : ''}</dd></dl>
+    ${plans.map((p, d) => `<div class="sec">${plans.length > 1 ? `<p class="t-label">Day ${d + 1}</p>` : ''}
+      ${p.intro ? `<p class="t-meta">${esc(p.intro)}</p>` : ''}
+      <ol class="rv-stops">${(p.stops || []).map(s => `<li><b>${esc(s.time || '')}</b> ${esc(s.name)} <span class="t-meta">${esc(s.label || s.slot || '')}${s.est_cost != null ? ` · ~$${esc(s.est_cost)}` : ''}</span></li>`).join('')}</ol></div>`).join('')}
+    <div class="acts"><button class="btn btn-primary btn-sm" data-rv-read="${!r.reviewed_at}">${r.reviewed_at ? 'Mark as unread' : 'Mark as reviewed'}</button></div>`;
+  box.onclick = async e => {
+    const b = e.target.closest('[data-rv-read]'); if (!b) return;
+    try{
+      await api(`/admin/reviews/${r.id}/reviewed`, { method:'POST', body: JSON.stringify({ value: b.dataset.rvRead === 'true' }) });
+      toast('Saved'); openReview(r.id); if (location.hash.startsWith('#reviews')) route();
+    }catch(err){ toast(err.message); }
+  };
+}
+
 document.addEventListener('click', e => {
+  const rv = e.target.closest('[data-review]'); if (rv){ openReview(rv.dataset.review); return; }
   const tr = e.target.closest('[data-plan]'); if (tr) openPlan(tr.dataset.plan);
   const u = e.target.closest('[data-user]'); if (u) openUser(u.dataset.user);
 });
@@ -743,7 +829,7 @@ async function renderHealth(seq){
 // ---- outside APIs
 const PROVIDER = { llm:'AI (LLM)', yelp:'Yelp', google_places:'Google Places', foursquare:'Foursquare',
   ticketmaster:'Ticketmaster', seatgeek:'SeatGeek (Nightlife only)', overpass:'OpenStreetMap (Overpass)', nominatim:'Nominatim geocoding',
-  open_meteo:'Open-Meteo weather', resend:'Resend email', sendgrid:'SendGrid email (replaced by Resend)' };
+  open_meteo:'Open-Meteo weather', met_norway:'MET Norway weather (backup)', resend:'Resend email', sendgrid:'SendGrid email (replaced by Resend)' };
 const PER = { day:'today (UTC)', month:'this month' };
 function guardCell(r){
   const q = r.quota;
@@ -769,7 +855,7 @@ async function renderApis(seq){
       : notice('Free-tier blocker is OFF', 'FREE_TIER_ONLY is set to false on the API, so services can be called past their free allowance and may bill. Remove that setting to turn the blocker back on.', 'err')}
     ${capped.length ? `<div class="sec">${notice('At or near a free limit', capped.map(p => `${PROVIDER[p.provider] || p.provider}: ${fmt(p.quota.used)} of ${fmt(p.quota.cap)} ${PER[p.quota.period]}`).join(' · '))}</div>` : ''}
     <div class="sec">${panel('Usage and free limits', table([
-      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? ` <span class="t-meta">${esc(a.llm_label)}</span>` : ''}<div class="t-meta" style="max-width:360px;white-space:normal">${esc(r.note || '')}</div>${r.error ? `<div style="max-width:360px;white-space:normal;margin-top:4px"><span class="badge crit">failing</span> <span class="t-meta">${esc(r.error)}</span></div>` : ''}` },
+      { h:'Service', f: r => `<b>${esc(PROVIDER[r.provider] || r.provider)}</b>${r.provider === 'llm' ? ` <span class="t-meta">${esc(a.llm_label)}</span>` : ''}<div class="t-meta" style="max-width:360px;white-space:normal">${esc(r.note || '')}</div>${r.paused ? `<div style="max-width:360px;white-space:normal;margin-top:4px"><span class="badge warn">paused until ${esc(dtime(r.paused.until))}</span> <span class="t-meta">${esc(r.paused.reason)}</span></div>` : r.error ? `<div style="max-width:360px;white-space:normal;margin-top:4px"><span class="badge crit">failing</span> <span class="t-meta">${esc(r.error)}</span></div>` : ''}` },
       { h:'Set up', f: r => r.configured ? '<span class="badge good">on</span>' : '<span class="badge plain">off</span>' },
       { h:'Free-tier guard', f: guardCell },
       { h:'Today', n:1, f: r => fmt(r.today) + (r.today_errors ? ` <span class="badge crit">${fmt(r.today_errors)} failed</span>` : '') },

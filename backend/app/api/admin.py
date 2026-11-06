@@ -22,7 +22,7 @@ from app.config import settings
 from app.database import get_db
 from app.middleware.auth import require_admin
 from app.models import (
-    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, NightlifeEvent, PlanLog, TasteProfile, User,
+    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, NightlifeEvent, PlanLog, PlanReview, TasteProfile, User,
     UserActivityDay, Venue, WaitlistSignup,
 )
 from app.api.nightlife import _as_utc, check_times, link_venue
@@ -182,7 +182,9 @@ def _live_status(db: Session) -> dict:
         "google_places": None if google_places.available() else "switched off in code: "
                          + usage.DISABLED["google_places"],
         "ticketmaster": None if events_svc.available() else missing("TICKETMASTER_API_KEY"),
-        "seatgeek": None if seatgeek.available() else missing("SEATGEEK_CLIENT_ID") + " (Nightlife tab only)",
+        "seatgeek": (None if seatgeek.available()
+                     else f"paused: {usage.paused('seatgeek')['reason']}" if usage.paused("seatgeek")
+                     else missing("SEATGEEK_CLIENT_ID") + " (Nightlife tab only)"),
         "email": email_problem(),
         "ga4": ga4.problem(),
     }.items() if v}
@@ -344,6 +346,93 @@ def geo(days: int = Days, include_test: bool = IncludeTest, db: Session = Depend
         "home_cities": [{"city": c, "users": n} for c, n in home],
         "web": _ga4(web),
     }
+
+
+# --- reviews ------------------------------------------------------------------
+# What people thought of the plans they were given: 1–5 stars and a comment
+# (POST /plan/review). New ones are unread until an admin marks them reviewed.
+
+_STAR_FILTERS = {"all": (1, 5), "low": (1, 2), "mid": (3, 3), "high": (4, 5),
+                 **{str(n): (n, n) for n in range(1, 6)}}
+
+
+def _plans_of(r: PlanReview) -> list[dict]:
+    return [r.plan["plan"]] if r.plan.get("plan") else list(r.plan.get("days") or [])
+
+
+def _review_row(r: PlanReview, username: str | None) -> dict:
+    plans = _plans_of(r)
+    first = plans[0] if plans else {}
+    stops = [s for p in plans for s in p.get("stops") or []]
+    return {"id": r.id, "created_at": r.created_at, "updated_at": r.updated_at, "user_id": r.user_id,
+            "username": username, "stars": r.stars, "comment": r.comment, "reviewed_at": r.reviewed_at,
+            "vibe": first.get("vibe"), "days": len(plans) if len(plans) > 1 else None,
+            "stops": len(stops), "names": [s.get("name") for s in stops][:8],
+            "quick": bool(first.get("quick")), "cost": first.get("estimated_cost"),
+            "party_size": first.get("party_size")}
+
+
+@router.get("/reviews")
+def reviews(days: int = Days, include_test: bool = IncludeTest,
+            stars: str = Query("all", pattern="^(all|low|mid|high|[1-5])$"),
+            show: str = Query("all", pattern="^(all|new|reviewed)$"), comments: bool = False,
+            page: int = Query(1, ge=1), per_page: int = Query(50, ge=1, le=200),
+            db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    base = [_real(include_test), PlanReview.created_at >= _since(days)]
+    joined = lambda q: q.select_from(PlanReview).join(User, User.id == PlanReview.user_id)
+    n, avg, with_comment, unread = db.execute(joined(select(
+        func.count(), func.avg(PlanReview.stars),
+        func.count().filter(PlanReview.comment.is_not(None)),
+        func.count().filter(PlanReview.reviewed_at.is_(None)))).where(*base)).one()
+    by_stars = dict(db.execute(joined(select(PlanReview.stars, func.count())).where(*base)
+                               .group_by(PlanReview.stars)).all())
+    lo, hi = _STAR_FILTERS[stars]
+    where = [*base, PlanReview.stars.between(lo, hi)]
+    if show == "new":
+        where.append(PlanReview.reviewed_at.is_(None))
+    elif show == "reviewed":
+        where.append(PlanReview.reviewed_at.is_not(None))
+    if comments:
+        where.append(PlanReview.comment.is_not(None))
+    total = db.scalar(joined(select(func.count())).where(*where)) or 0
+    rows = db.execute(select(PlanReview, User.username).join(User, User.id == PlanReview.user_id)
+                      .where(*where).order_by(PlanReview.created_at.desc())
+                      .offset((page - 1) * per_page).limit(per_page)).all()
+    return {"summary": {"count": n, "avg": round(float(avg), 2) if avg is not None else None,
+                        "with_comment": with_comment, "unread": unread,
+                        "by_stars": [{"key": f"{s} star{'s' if s > 1 else ''}", "stars": s,
+                                      "count": by_stars.get(s, 0)} for s in range(5, 0, -1)]},
+            "total": total, "page": page, "per_page": per_page,
+            "reviews": [_review_row(r, name) for r, name in rows]}
+
+
+def _review_or_404(db: Session, review_id: uuid.UUID) -> PlanReview:
+    r = db.get(PlanReview, review_id)
+    if not r:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Review not found")
+    return r
+
+
+@router.get("/reviews/{review_id}")
+def review_detail(review_id: uuid.UUID, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    r = _review_or_404(db, review_id)
+    u = db.get(User, r.user_id)
+    return {**_review_row(r, u.username if u else None), "plans": _plans_of(r), "session_id": r.session_id,
+            "email": u.email if u else None}
+
+
+class ReviewedBody(BaseModel):
+    value: bool
+
+
+@router.post("/reviews/{review_id}/reviewed")
+def mark_reviewed(review_id: uuid.UUID, body: ReviewedBody, db: Session = Depends(get_db),
+                  admin: User = Depends(require_admin)):
+    r = _review_or_404(db, review_id)
+    r.reviewed_at = datetime.now(timezone.utc) if body.value else None
+    _audit(db, admin, "review_read" if body.value else "review_unread", str(r.id), stars=r.stars)
+    db.commit()
+    return {"id": r.id, "reviewed_at": r.reviewed_at}
 
 
 # --- planner ------------------------------------------------------------------
@@ -635,6 +724,7 @@ def apis(days: int = Days, db: Session = Depends(get_db), _admin: User = Depends
             "period_errors": sum(r.errors for r in p_calls),
             "quota": q, "status": status, "note": q["note"] if q else _KEYLESS.get(p),
             "error": (h["last_error"] or {}).get("error") if (h := usage.health(p))["failing"] else None,
+            "paused": h["paused"],
             "est_cost_month": cost,
         })
     series = defaultdict(dict)
@@ -942,6 +1032,8 @@ _EXPORTS = {
     "users": ["id", "email", "username", "display_name", "home_city", "created_at", "last_seen_at",
               "is_admin", "is_disabled", "is_test", "survey_completed_at", "plans", "active_days"],
     "waitlist": ["id", "email", "name", "desired_username", "source", "created_at", "invited_at"],
+    "reviews": ["id", "created_at", "updated_at", "username", "stars", "comment", "vibe", "stops", "names",
+                "quick", "reviewed_at"],
     "plans": ["id", "created_at", "user_id", "username", "endpoint", "user_text", "area", "lat", "lng",
               "response_type", "stops", "found_nothing", "llm_calls", "llm_failures", "duration_ms",
               "prefs"],
@@ -956,6 +1048,11 @@ def export(kind: str, days: int = Days, db: Session = Depends(get_db),
     cols = _EXPORTS[kind]
     if kind == "users":
         rows = [_user_list_row(*r) for r in db.execute(_users_stmt().order_by(User.created_at))]
+    elif kind == "reviews":
+        rows = [{**row, "names": " · ".join(filter(None, row["names"]))}
+                for row in (_review_row(r, name) for r, name in db.execute(select(PlanReview, User.username).join(User, User.id == PlanReview.user_id)
+                                          .where(PlanReview.created_at >= _since(days))
+                                          .order_by(PlanReview.created_at)))]
     elif kind == "waitlist":
         rows = [{c: getattr(w, c) for c in cols} for w in
                 db.scalars(select(WaitlistSignup).order_by(WaitlistSignup.created_at))]

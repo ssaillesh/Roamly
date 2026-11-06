@@ -9,17 +9,20 @@ key it degrades to a keyword heuristic so the app still works.
 import random
 import re
 import time
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.middleware.auth import get_current_user, require_admin
-from app.models import User, TasteProfile
+from app.models import PlanReview, User, TasteProfile
 from app.schemas.plan import (
     ChatRequest, ChatResponse, Plan, Option, Section, OptionsResponse, BuildRequest, Event, EditRequest,
-    FeedbackRequest,
+    FeedbackRequest, ReviewOut, ReviewRequest,
 )
 from app.services import foursquare, google_places, llm, osm_places, yelp, taste_profile, usage
 from app.services import feedback, plan_intent, venue_index
@@ -887,6 +890,56 @@ def edit(req: EditRequest, background: BackgroundTasks, user: User = Depends(get
         duration_ms=int((time.perf_counter() - start) * 1000), session_id=req.session_id, intent="edit_plan")
     _learn(background, user, resp, seen)
     return resp
+
+
+MAX_REVIEWS_PER_HOUR = 30
+
+
+@router.post("/review", response_model=ReviewOut)
+def review_plan(req: ReviewRequest, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Rate the plan on screen, 1–5 stars, with an optional comment, for the admin
+    Reviews page. One rating per person per plan: sending it again changes it."""
+    plans = [req.plan] if req.plan else list(req.days)
+    if not plans or not any(p.stops for p in plans):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "There's no plan to rate.")
+    if any(len(p.stops) > MAX_EDIT_STOPS for p in plans):
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"A plan has at most {MAX_EDIT_STOPS} stops.")
+    dumped = [p.model_dump(mode="json") for p in plans]
+    key = feedback.plan_key([s for p in dumped for s in p["stops"]])
+    comment = " ".join(req.comment.split())[:1000] or None if req.comment is not None else None
+    for attempt in range(2):
+        try:
+            row = _save_review(db, user, req, key, dumped, comment)
+            break
+        except IntegrityError:        # the same plan rated twice at once: update the one that won
+            db.rollback()
+            if attempt:
+                raise
+    return ReviewOut(id=str(row.id), stars=row.stars, comment=row.comment)
+
+
+def _save_review(db: Session, user: User, req: ReviewRequest, key: str, dumped: list[dict],
+                 comment: str | None) -> PlanReview:
+    row = db.scalar(select(PlanReview).where(PlanReview.user_id == user.id, PlanReview.plan_key == key))
+    if row is None:
+        hour_ago = datetime.now(timezone.utc) - timedelta(hours=1)
+        recent = db.scalar(select(func.count()).select_from(PlanReview).where(
+            PlanReview.user_id == user.id, PlanReview.created_at >= hour_ago)) or 0
+        if recent >= MAX_REVIEWS_PER_HOUR:
+            raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "That's a lot of ratings — try again later.")
+        row = PlanReview(user_id=user.id, plan_key=key, stars=req.stars, comment=comment,
+                         plan={"plan": dumped[0]} if req.plan else {"days": dumped},
+                         session_id=req.session_id)
+        db.add(row)
+    else:
+        if req.comment is not None and comment != row.comment:
+            row.comment = comment
+            row.reviewed_at = None        # something new to read
+        if row.stars != req.stars:
+            row.stars = req.stars
+            row.reviewed_at = None
+    db.commit()
+    return row
 
 
 @router.post("/feedback", status_code=status.HTTP_204_NO_CONTENT)

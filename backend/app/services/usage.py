@@ -53,7 +53,10 @@ FREE_TIER = {
     "ticketmaster":  ("day",   5000, 4900, "Free: 5,000 calls a day (over it they refuse; never billed)."),
     "seatgeek":      ("day",   2000, 2000, "Free developer access. SeatGeek publishes no fixed limit, so this "
                                            "is Rova's own daily cap (results are cached 10 minutes)."),
-    "open_meteo":    ("day",  10000, 9000, "Free for non-commercial use: 10,000 calls a day."),
+    "open_meteo":    ("day",  10000, 9000, "Free for non-commercial use: 10,000 calls a day, counted per "
+                                           "server address (a shared host can hit it early; MET Norway is the backup)."),
+    "met_norway":    ("day",  5000, 5000, "Weather backup when Open-Meteo says no. Free, no key; asks for "
+                                          "an identifying User-Agent and under 20 requests a second."),
 }
 # Daily token allowances, checked alongside the request caps (Groq's free tier
 # runs out of tokens long before requests: ~3k tokens per plan → ~60 plans a day).
@@ -134,6 +137,28 @@ def note(provider: str, ok: bool, error: str | None = None) -> None:
         pass
 
 
+def pause(provider: str, seconds: int, reason: str) -> None:
+    """Stop calling `provider` for a while: it said no in a way retrying won't fix
+    soon (a 429 from a shared server address, a refused key). Shared by every process
+    through Redis; shown on the dashboard. Never raises."""
+    try:
+        until = datetime.now(timezone.utc).timestamp() + seconds
+        redis_client.set(f"api:paused:{provider}", json.dumps(
+            {"until": datetime.fromtimestamp(until, timezone.utc).isoformat(timespec="seconds"),
+             "reason": redact(reason)[:200]}), ex=max(1, int(seconds)))
+    except Exception:
+        pass
+
+
+def paused(provider: str) -> dict | None:
+    """{"until": iso, "reason"} while `provider` is paused, else None."""
+    try:
+        v = redis_client.get(f"api:paused:{provider}")
+        return json.loads(v) if v else None
+    except Exception:
+        return None
+
+
 def health(provider: str) -> dict:
     """{"last_ok": iso, "last_error": {"at", "error"}, "failing": bool} for the dashboard."""
     try:
@@ -142,7 +167,8 @@ def health(provider: str) -> dict:
         err = json.loads(err) if err else None
     except Exception:
         ok = err = None
-    return {"last_ok": ok, "last_error": err, "failing": bool(err and (not ok or err["at"] > ok))}
+    return {"last_ok": ok, "last_error": err, "failing": bool(err and (not ok or err["at"] > ok)),
+            "paused": paused(provider)}
 
 
 def drain() -> dict[tuple[date, str], list[int]]:
