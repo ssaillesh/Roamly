@@ -11,8 +11,12 @@ Runs monthly from .github/workflows/venues.yml against the production database
      low-confidence places are dropped.
   2. Wikidata: places with Wikipedia articles, and how many languages cover them
      → `notability` (the "well known" signal). Matched by name + distance.
-  3. OpenStreetMap opening hours (best effort: the public servers are often busy;
-     a tile that fails keeps no hours, and the plan treats hours as unknown).
+  3. OpenStreetMap opening hours, from a downloaded copy of the city's map data
+     (OSM_EXTRACTS: BBBike's weekly city file, read with the standard library), so
+     no busy public server is needed. Cities without one ask the live Overpass
+     servers tile by tile (best effort: a tile that fails keeps no hours). Places
+     with unknown hours are treated as open. `--hours-only` refreshes just the hours
+     of the venues already stored.
   4. Overture neighbourhood names → `areas` (so "Kensington Market" is placed
      without a live geocoder).
   5. Photos (best effort, time-boxed), only real photos of the place: the venue
@@ -26,6 +30,10 @@ Runs monthly from .github/workflows/venues.yml against the production database
   6. Replace the city's rows in one transaction.
 """
 import argparse
+import gzip
+import os
+import tempfile
+import xml.etree.ElementTree as ET
 import hashlib
 import html as htmllib
 import io
@@ -722,6 +730,185 @@ def osm_hours(box, tile=0.08, budget_s=480) -> list[dict]:
     return out
 
 
+# A downloaded copy of each city's OpenStreetMap data: BBBike's free city extracts,
+# rebuilt weekly (download.bbbike.org/osm/bbbike/). OpenStreetMap data, ODbL.
+OSM_EXTRACTS = {"toronto": "https://download.bbbike.org/osm/bbbike/Toronto/Toronto.osm.gz"}
+
+
+def download_extract(url: str) -> str:
+    """Stream the extract to a temporary file; returns its path (the caller removes it)."""
+    fd, path = tempfile.mkstemp(suffix=".osm.gz")
+    t = time.time()
+    with os.fdopen(fd, "wb") as f, httpx.stream("GET", url, timeout=600, follow_redirects=True,
+                                                 headers={"User-Agent": UA}) as r:
+        r.raise_for_status()
+        for chunk in r.iter_bytes(1 << 20):
+            f.write(chunk)
+    log(f"  OSM: downloaded {os.path.getsize(path) / 1e6:.0f} MB in {time.time() - t:.0f}s")
+    return path
+
+
+def _osm_elements(path: str):
+    """(element, tags) for every node and way in an .osm or .osm.gz file, streamed."""
+    opener = gzip.open if path.endswith(".gz") else open
+    with opener(path, "rb") as f:
+        for _, el in ET.iterparse(f, events=("end",)):
+            if el.tag in ("node", "way"):
+                tags = {t.get("k"): t.get("v") for t in el.iter("tag")}
+                yield el, tags
+                el.clear()
+            elif el.tag == "relation":
+                el.clear()
+
+
+def hours_from_extract(path: str, box) -> list[dict]:
+    """Named places with opening_hours inside `box`, from a downloaded OSM file. Two
+    passes: places mapped as a point come with their position; for buildings (ways)
+    the first pass notes their corner nodes and the second finds where those are."""
+    s, w, n, e = box
+    inside = lambda lat, lng: s <= lat <= n and w <= lng <= e
+    t = time.time()
+    out, ways, wanted = [], [], set()
+    for el, tags in _osm_elements(path):
+        if not (tags.get("name") and tags.get("opening_hours")):
+            continue
+        item = {"name": tags["name"], "hours": tags["opening_hours"][:300],
+                "kind": tags.get("amenity") or tags.get("shop") or tags.get("leisure") or tags.get("tourism") or ""}
+        if el.tag == "node":
+            lat, lng = float(el.get("lat")), float(el.get("lon"))
+            if inside(lat, lng):
+                out.append({**item, "lat": lat, "lng": lng})
+        else:
+            refs = [nd.get("ref") for nd in el.iter("nd")][:40]
+            if refs:
+                ways.append((item, refs))
+                wanted.update(refs)
+    pos = {}
+    if ways:
+        opener = gzip.open if path.endswith(".gz") else open
+        with opener(path, "rb") as f:
+            for _, el in ET.iterparse(f, events=("end",)):
+                if el.tag == "node":
+                    if el.get("id") in wanted:
+                        pos[el.get("id")] = (float(el.get("lat")), float(el.get("lon")))
+                    el.clear()
+                elif el.tag == "way":
+                    el.clear()
+                    break                # OSM files list every node before the first way
+    for item, refs in ways:
+        pts = [pos[r] for r in refs if r in pos]
+        if pts:
+            lat, lng = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+            if inside(lat, lng):
+                out.append({**item, "lat": lat, "lng": lng})
+    log(f"  OSM: {len(out)} places with hours in the file ({time.time() - t:.0f}s)")
+    return out
+
+
+def city_hours(city: str, box, osm_file: str | None = None) -> list[dict]:
+    """Opening hours for the city: from the downloaded extract when there is one
+    (or a file given with --osm-file), else the live Overpass servers."""
+    src = osm_file or OSM_EXTRACTS.get(city)
+    if not src:
+        return osm_hours(box)
+    path, tmp = src, None
+    try:
+        if src.startswith(("http://", "https://")):
+            path = tmp = download_extract(src)
+        return hours_from_extract(path, box)
+    except (httpx.HTTPError, OSError, ET.ParseError) as e:
+        log(f"  OSM extract unavailable ({type(e).__name__}: {e}); asking the live servers instead")
+        return osm_hours(box)
+    finally:
+        if tmp:
+            os.remove(tmp)
+
+
+def hours_only(city: str, box, osm_file: str | None, dry_run: bool) -> int:
+    """Refresh the opening hours of the venues already stored, nothing else."""
+    hours = city_hours(city, box, osm_file)
+    if len(hours) < 500:
+        log(f"Refusing to write: only {len(hours)} places with hours (a failed download?). Hours kept.")
+        return 1
+    with SessionLocal() as db:
+        rows = [{"id": v.id, "name": v.name, "lat": v.lat, "lng": v.lng, "hours": None, "old": v.hours}
+                for v in db.scalars(select(Venue).where(Venue.city == city))]
+        if not rows:
+            log(f"No stored venues for {city}: run the full load first.")
+            return 1
+        hit = match_hours(rows, hours)
+        changed = [r for r in rows if r["hours"] != r["old"]]
+        log(f"  hours matches: {hit}; venues with hours: {sum(1 for r in rows if r['hours'])} of {len(rows)} "
+            f"(was {sum(1 for r in rows if r['old'])}); {len(changed)} changed")
+        if dry_run:
+            log("Dry run: nothing written.")
+            return 0
+        for r in changed:
+            db.query(Venue).filter(Venue.id == r["id"]).update({"hours": r["hours"]}, synchronize_session=False)
+        db.commit()
+    log(f"Updated the hours of {len(changed)} {city} venues.")
+    return 0
+
+
+# A place and its OSM point are the same if the names match and they're this close
+# (OSM often maps the building, Overture the door).
+HOURS_WITHIN_KM = 0.08
+# Names written differently ("Scaddabush" / "Scaddabush Italian Kitchen and Bar",
+# "Felix & Norton" / "Felix and Norton Cookies") match when one name's words are all in
+# the other's and one of them has 4+ letters ("Joe" never matches "Joe's Pho House"), closer still, and only for OSM places of a kind Rova plans with: a
+# mall's or a bank's hours must never land on the café inside it.
+LOOSE_HOURS_WITHIN_KM = 0.06
+HOURS_KINDS = {
+    "restaurant", "cafe", "bar", "pub", "fast_food", "ice_cream", "nightclub", "biergarten", "food_court",
+    "bakery", "pastry", "confectionery", "coffee", "tea", "deli", "chocolate", "cinema", "theatre",
+    "arts_centre", "bowling_alley", "escape_game", "amusement_arcade", "museum", "gallery", "attraction",
+    "zoo", "aquarium", "theme_park", "karaoke_box", "music_venue", "dance", "miniature_golf", "brewery",
+}
+_HOURS_FILLER = {"the", "and", "restaurant", "bar", "cafe", "grill", "kitchen", "toronto", "downtown",
+                 "inc", "ltd", "co", "de", "la", "le", "et"}
+
+
+def name_words(name: str) -> set[str]:
+    plain = unicodedata.normalize("NFKD", (name or "").lower()).encode("ascii", "ignore").decode()
+    plain = re.sub(r"\(.*?\)", " ", plain.replace("&", " and ").replace("+", " and "))
+    return {w for w in re.findall(r"[a-z0-9]+", plain) if len(w) >= 2 and w not in _HOURS_FILLER}
+
+
+def match_hours(rows: list[dict], hours: list[dict]) -> int:
+    """Give each row the opening hours of its OSM place: the same name nearby first,
+    then names worded differently (see HOURS_KINDS). Returns how many OSM places matched."""
+    def take(row, it):
+        row["hours"] = it["hours"]
+        row["_hours_from"] = it["name"]
+    hit = match(rows, hours, lambda r: HOURS_WITHIN_KM, take)
+    left = [it for i, it in enumerate(hours) if i not in hit and it.get("kind") in HOURS_KINDS]
+    grid: dict[tuple[int, int], list[dict]] = {}
+    for r in rows:
+        if not r.get("hours"):
+            grid.setdefault((round(r["lat"] * 200), round(r["lng"] * 200)), []).append(r)   # ~500 m cells
+    loose = 0
+    for it in left:
+        words = name_words(it["name"])
+        if not words or max(len(w) for w in words) < 4:
+            continue
+        gy, gx = round(it["lat"] * 200), round(it["lng"] * 200)
+        best = None
+        for r in (r for dy in (-1, 0, 1) for dx in (-1, 0, 1) for r in grid.get((gy + dy, gx + dx), [])):
+            if r.get("hours"):
+                continue
+            theirs = r.setdefault("_words", name_words(r["name"]))
+            small = words if len(words) <= len(theirs) else theirs
+            if not theirs or not (words <= theirs or theirs <= words) or max(len(w) for w in small) < 4:
+                continue
+            d = km(r["lat"], r["lng"], it["lat"], it["lng"])
+            if d <= LOOSE_HOURS_WITHIN_KM and (best is None or d < best[0]):
+                best = (d, r)
+        if best:
+            take(best[1], it)
+            loose += 1
+    return len(hit) + loose
+
+
 def match(rows: list[dict], items: list[dict], within_km, apply, loose: bool = False,
           fits=lambda row, item: True) -> set[int]:
     """For each item, the nearest row that fits(row, item) with the same name (or, if
@@ -794,7 +981,7 @@ def build(places: list[dict], notable: list[dict], hours: list[dict], city: str)
         return 1.5 if row["cat"] in ("park", "beach", "botanical_garden", "nature_reserve", "island") else 0.4
     matched = {id(usable[i]) for i in match(stops, usable, reach, set_notable, loose=True, fits=fits)}
     log(f"  Wikidata matches: {len(matched)} (of {len(usable)} stop-like items)")
-    log(f"  hours matches: {len(match(places, hours, lambda r: 0.08, lambda row, it: row.update(hours=it['hours'])))}")
+    log(f"  hours matches: {match_hours(places, hours)}")
     out = []
     # Well-known places Overture doesn't list as stops (CN Tower, Distillery District…), by their Wikidata type.
     taken = {v["wikidata"] for v in places if v["wikidata"]}
@@ -869,6 +1056,10 @@ def main(argv=None) -> int:
     ap.add_argument("--city", default="toronto", choices=sorted(CITIES))
     ap.add_argument("--release", default=None, help="Overture release (default: newest)")
     ap.add_argument("--skip-osm", action="store_true", help="don't fetch opening hours")
+    ap.add_argument("--osm-file", default=None,
+                    help="an .osm/.osm.gz file (or URL) to read opening hours from, instead of the city's extract")
+    ap.add_argument("--hours-only", action="store_true",
+                    help="only refresh opening hours for the venues already stored (no Overture reload)")
     ap.add_argument("--dry-run", action="store_true", help="build everything, write nothing")
     ap.add_argument("--skip-images", action="store_true", help="don't fetch website photos (keeps earlier ones)")
     ap.add_argument("--refresh-images", action="store_true", help="look at every website again")
@@ -890,6 +1081,9 @@ def main(argv=None) -> int:
     if has_image_col is False and not args.dry_run:
         log("The venues table has no `image` column: run `alembic upgrade head` (0015_venue_images) first.")
         return 1
+    if args.hours_only:
+        log(f"Refreshing opening hours for {args.city} …")
+        return hours_only(args.city, CITIES[args.city], args.osm_file, args.dry_run)
     if args.images_only:
         if not has_image_col:
             log("--images-only needs the database (with migration 0015_venue_images).")
@@ -912,7 +1106,7 @@ def main(argv=None) -> int:
         log(f"  Wikidata unavailable ({e}); notability left at 0")
         notable = []
     log(f"  Wikidata: {len(notable)} places with Wikipedia articles")
-    hours = [] if args.skip_osm else osm_hours(box)
+    hours = [] if args.skip_osm else city_hours(args.city, box, args.osm_file)
     venues = build(places, notable, hours, args.city)
     prev = {} if (args.refresh_images or not has_image_col) else previous_images(args.city)
     if args.recheck_photos and prev and not args.skip_images:

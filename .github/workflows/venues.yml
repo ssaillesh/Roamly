@@ -3,6 +3,9 @@ name: Refresh venues
 # Reloads the stored venue list the planner picks from (backend/scripts/load_venues.py):
 # Overture Maps places + Wikidata (how well known) + OpenStreetMap opening hours, all
 # free open data. Monthly is plenty: Overture publishes about once a month.
+# Opening hours come from BBBike's weekly Toronto copy of OpenStreetMap (~225 MB,
+# read in ~2 min), not the busy public servers. Tick "hours only" to refresh just
+# the hours of the stored venues (no Overture reload, no photos: ~5 min).
 # Photos, only real photos of the place: the venue website's own (each one downloaded
 # and checked to be a photo, not a logo or text card), else a Wikimedia Commons photo
 # (from Wikidata, or geotagged at the venue and named for it). Websites: up to 10 min;
@@ -22,11 +25,15 @@ on:
         description: "Re-check every stored photo and drop the ones that aren't real photos"
         type: boolean
         default: false
+      hours_only:
+        description: "Only refresh opening hours (quick; keeps everything else)"
+        type: boolean
+        default: false
 
 jobs:
   load:
     runs-on: ubuntu-24.04
-    # ~3 min download + up to 8 min for opening hours (the public OSM servers are often slow)
+    # ~3 min download + ~4 min for opening hours (download and read the OSM copy)
     # + up to 10 min for website photos (+ up to 10 more re-checking them, when asked)
     # + up to 4 min for Commons photos
     timeout-minutes: 50
@@ -51,4 +58,8 @@ jobs:
             echo "::error::Add the VENUES_DATABASE_URL repository secret (the database's External URL)"
             exit 1
           fi
-          python -m scripts.load_venues --city toronto ${{ inputs.recheck_photos && '--recheck-photos' || '' }}
+          if [ "${{ inputs.hours_only }}" = "true" ]; then
+            python -m scripts.load_venues --city toronto --hours-only
+          else
+            python -m scripts.load_venues --city toronto ${{ inputs.recheck_photos && '--recheck-photos' || '' }}
+          fi

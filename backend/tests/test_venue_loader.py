@@ -273,3 +273,54 @@ def test_one_photo_on_many_places_is_not_a_photo_of_any_of_them():
                                                                 {"id": "y", "image": ""}]
     assert L.drop_shared_photos(venues) == 5
     assert [v["image"] for v in venues] == [""] * 5 + ["https://bar.example/room.jpg", ""]
+
+
+# ---- opening hours from a downloaded OpenStreetMap file ----
+
+OSM_FILE = """<?xml version='1.0' encoding='UTF-8'?>
+<osm version="0.6">
+  <node id="1" lat="43.6500" lon="-79.4000"><tag k="name" v="Bar Raval"/><tag k="amenity" v="bar"/>
+    <tag k="opening_hours" v="Mo-Su 11:00-02:00"/></node>
+  <node id="2" lat="43.6600" lon="-79.3900"><tag k="name" v="No Hours Cafe"/><tag k="amenity" v="cafe"/></node>
+  <node id="3" lat="45.5000" lon="-73.5600"><tag k="name" v="Far Away"/><tag k="opening_hours" v="24/7"/></node>
+  <node id="10" lat="43.6450" lon="-79.3800"/><node id="11" lat="43.6452" lon="-79.3800"/>
+  <node id="12" lat="43.6452" lon="-79.3802"/>
+  <way id="100"><nd ref="10"/><nd ref="11"/><nd ref="12"/>
+    <tag k="name" v="The Keg"/><tag k="amenity" v="restaurant"/><tag k="opening_hours" v="Mo-Su 16:00-23:00"/></way>
+</osm>"""
+BOX = (43.58, -79.64, 43.86, -79.11)
+
+
+def test_hours_come_from_points_and_buildings_inside_the_city(tmp_path):
+    import gzip
+    f = tmp_path / "city.osm.gz"
+    f.write_bytes(gzip.compress(OSM_FILE.encode()))
+    got = {h["name"]: h for h in L.hours_from_extract(str(f), BOX)}
+    assert set(got) == {"Bar Raval", "The Keg"}                    # no hours, or outside the box: left out
+    assert got["Bar Raval"]["hours"] == "Mo-Su 11:00-02:00" and got["Bar Raval"]["kind"] == "bar"
+    keg = got["The Keg"]                                           # a building: placed at its middle
+    assert abs(keg["lat"] - 43.64513) < 1e-4 and abs(keg["lng"] + 79.38007) < 1e-4
+
+
+def _row(name, lat, lng):
+    return {"name": name, "lat": lat, "lng": lng, "hours": None}
+
+
+def test_hours_match_the_same_place_even_when_worded_differently():
+    rows = [_row("Bar Raval", 43.6500, -79.4000), _row("Scaddabush Italian Kitchen + Bar", 43.6451, -79.3801),
+            _row("Felix and Norton Cookies", 43.6700, -79.3900), _row("Chatime Pacific Mall", 43.8250, -79.3060),
+            _row("Bar Raval", 43.7000, -79.4000)]                 # same name, 5 km away
+    hours = [{"name": "Bar Raval", "lat": 43.6501, "lng": -79.4001, "hours": "A", "kind": "bar"},
+             {"name": "Scaddabush", "lat": 43.6451, "lng": -79.3800, "hours": "B", "kind": "restaurant"},
+             {"name": "Felix & Norton", "lat": 43.6701, "lng": -79.3900, "hours": "C", "kind": "confectionery"},
+             {"name": "Pacific Mall", "lat": 43.8251, "lng": -79.3060, "hours": "D", "kind": "mall"}]
+    assert L.match_hours(rows, hours) == 3
+    assert [r["hours"] for r in rows] == ["A", "B", "C", None, None]   # a mall's hours never go to a shop inside it
+
+
+def test_short_names_need_an_exact_match():
+    rows = [_row("Fresh Kitchen", 43.65, -79.40)]
+    assert L.match_hours(rows, [{"name": "Fresh Kitchen Too", "lat": 43.65, "lng": -79.40, "hours": "x",
+                                 "kind": "restaurant"}]) == 1
+    rows = [_row("Joe's Pho House", 43.65, -79.40)]
+    assert L.match_hours(rows, [{"name": "Joe", "lat": 43.65, "lng": -79.40, "hours": "x", "kind": "cafe"}]) == 0
