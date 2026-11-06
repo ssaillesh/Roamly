@@ -160,6 +160,10 @@ _IMG = re.compile(r"<img\b[^>]*>", re.I)
 _LD = re.compile(r"<script\b[^>]*application/ld\+json[^>]*>(.*?)</script>", re.I | re.S)
 _ATTR = re.compile(r"""([\w:-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))""")
 _OG_KEYS = ("og:image:secure_url", "og:image", "og:image:url", "twitter:image", "twitter:image:src")
+# A venue domain that lapsed and was taken over: its "photos" are real but not the venue.
+_HIJACKED = re.compile(r"\b(?:togel|gacor|judi|slot (?:online|gacor)|situs slot|maxwin|bandar (?:togel|judi)|casino online|online casino)\b", re.I)
+# One photo on this many venues is a stock or chain picture, not a photo of each place.
+SHARED_PHOTO_LIMIT = 4
 # A big picture in the page body: sized wide, or named like a room / food / hero shot.
 _BODY_HINT = re.compile(r"hero|banner|interior|dining|gallery|slide|patio|room|bar|food|dish|space|venue", re.I)
 
@@ -367,8 +371,11 @@ def fetch_og_image(client: httpx.Client, site: str) -> str | None:
                 buf += chunk
                 if len(buf) >= _PAGE_BYTES or b"</head>" in buf.lower():
                     break
+            head = buf.decode(enc, errors="replace")
+            if _HIJACKED.search(head):
+                return ""                   # not the venue's site any more
             tried: list[str] = []
-            for cand in page_photos(buf.decode(enc, errors="replace"), base):
+            for cand in page_photos(head, base):
                 if len(tried) >= _TRIES_PER_SITE:
                     break
                 tried.append(cand)
@@ -563,6 +570,21 @@ def assign_images(venues: list[dict], prev: dict[str, tuple], fetched: dict[str,
             v["image"] = "" if (site_img == "" or not site) else None
 
 
+def drop_shared_photos(venues: list[dict], limit: int = SHARED_PHOTO_LIMIT) -> int:
+    """A photo used by `limit` or more venues (a city page's skyline on every park, a
+    chain's brand shot) isn't a photo of each place: "" for all of them. Returns how many."""
+    uses: dict[str, int] = {}
+    for v in venues:
+        if v.get("image"):
+            uses[v["image"]] = uses.get(v["image"], 0) + 1
+    shared = {u for u, n in uses.items() if n >= limit}
+    n = 0
+    for v in venues:
+        if v.get("image") in shared:
+            v["image"], n = "", n + 1
+    return n
+
+
 def add_commons(venues: list[dict], prev: dict[str, tuple], budget_s: float) -> None:
     """After the websites: a Commons photo for venues still without one. Last month's
     Commons find is kept for venues not asked about this time."""
@@ -639,6 +661,7 @@ def images_only(city: str, budget_s: float, refresh: bool = False, recheck: bool
     _photo_log(todo, fetched, t, "next time")
     assign_images(venues, prev, fetched)
     add_commons(venues, prev, commons_s)
+    log(f"  {drop_shared_photos(venues)} venues dropped a photo shared by {SHARED_PHOTO_LIMIT}+ places (not of them)")
     # Write only the rows whose photo changed: every rewritten row leaves a dead copy
     # behind until vacuum, and on Neon the change history counts toward storage.
     before = {r.id: r.image for r in rows}
@@ -900,6 +923,7 @@ def main(argv=None) -> int:
     _photo_log(todo, fetched, t, "next month")
     assign_images(venues, prev, fetched)
     add_commons(venues, prev, 0 if args.skip_images else args.commons_budget)
+    log(f"  {drop_shared_photos(venues)} venues dropped a photo shared by {SHARED_PHOTO_LIMIT}+ places (not of them)")
     log(f"  with photos: {sum(1 for v in venues if v['image'])} "
         f"({sum(1 for v in venues if is_commons(v['image']))} from Wikimedia Commons)")
     by_slot: dict[str, int] = {}

@@ -254,3 +254,22 @@ def test_last_months_commons_find_is_kept():
     venues = [{"id": "a", "image": "", "slots": ["drinks"], "notability": 0, "name": "Bar A", "lat": 1, "lng": 2}]
     L.add_commons(venues, {"a": (None, commons)}, budget_s=0)
     assert venues[0]["image"] == commons
+
+
+def test_a_lapsed_domain_taken_over_by_spam_gives_no_photo():
+    spam = (b'<html><head><title>Situs Slot Gacor Maxwin</title><meta property="og:image" content="/promo.jpg"></head></html>')
+    photo = _jpeg(_photo())
+    def handler(req):
+        if req.url.path == "/":
+            return httpx.Response(200, content=spam, headers={"content-type": "text/html"})
+        return httpx.Response(200, content=photo, headers={"content-type": "image/jpeg"})
+    with httpx.Client(transport=httpx.MockTransport(handler), follow_redirects=True) as c:
+        assert L.fetch_og_image(c, "https://old-bistro.example.com") == ""
+
+
+def test_one_photo_on_many_places_is_not_a_photo_of_any_of_them():
+    sky = "https://city.example/skyline.jpg"
+    venues = [{"id": str(i), "image": sky} for i in range(5)] + [{"id": "x", "image": "https://bar.example/room.jpg"},
+                                                                {"id": "y", "image": ""}]
+    assert L.drop_shared_photos(venues) == 5
+    assert [v["image"] for v in venues] == [""] * 5 + ["https://bar.example/room.jpg", ""]
