@@ -22,8 +22,8 @@ from app.config import settings
 from app.database import get_db
 from app.middleware.auth import require_admin
 from app.models import (
-    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, NightlifeEvent, PlanLog, PlanReview, TasteProfile, User,
-    UserActivityDay, Venue, WaitlistSignup,
+    AdminAuditLog, ApiUsage, DailyRollup, HealthSnapshot, NightlifeEvent, PlanLog, PlanReview, SharedPlan,
+    TasteProfile, User, UserActivityDay, Venue, WaitlistSignup,
 )
 from app.api.nightlife import _as_utc, check_times, link_venue
 from app.schemas.nightlife import AdminEventIn, AdminEventPatch
@@ -34,6 +34,7 @@ from app.services import foursquare, google_places, seatgeek, yelp
 from app.services.analytics import RETENTION_DAYS, utc_today
 from app.services.email import email_enabled, email_problem, send_email, send_password_reset
 from app.services.security import create_reset_token
+from app.services.planner import LOCAL_TZ
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -94,6 +95,132 @@ def _ga4(fn):
         return {"connected": True, "error": str(e)}
     except Exception as e:   # network etc.
         return {"connected": True, "error": f"{type(e).__name__}: {str(e)[:200]}"}
+
+
+# --- home: the overview's numbers, the review queue -----------------------------
+# "Today" here is Toronto's day, the one the people making plans are living in.
+
+_MADE = (PlanLog.response_type == "itinerary", PlanLog.endpoint.in_(("chat", "build")))
+LOW_STARS = 2          # plan ratings at or under this go to the review queue
+
+
+def _plan_of(resp: dict | None) -> dict | None:
+    """The (first) plan in a logged answer: a night, or a trip's first day."""
+    resp = resp or {}
+    return resp.get("plan") or next(iter(resp.get("days") or []), None)
+
+
+def _start_hour(plan: dict) -> int | None:
+    start = plan.get("start")
+    if isinstance(start, str):
+        try:
+            t = datetime.fromisoformat(start)
+            return (t.astimezone(LOCAL_TZ) if t.tzinfo else t).hour
+        except ValueError:
+            pass
+    first = (plan.get("stops") or [{}])[0].get("time")
+    if isinstance(first, str):
+        try:
+            return datetime.strptime(first.strip().upper(), "%I:%M %p").hour
+        except ValueError:
+            return None
+    return None
+
+
+def _queue(db: Session, include_done: bool = False, limit: int = 50) -> dict:
+    """What needs an admin's decision: event submissions waiting for approval, and
+    low plan ratings nobody has read yet. With include_done, recent decided ones too."""
+    items = []
+    ev = select(NightlifeEvent).order_by(NightlifeEvent.created_at.desc()).limit(limit)
+    ev = ev.where(NightlifeEvent.source == "submission") if include_done else ev.where(NightlifeEvent.status == "pending")
+    events = db.scalars(ev).all()
+    images = dict(db.execute(select(Venue.id, Venue.image).where(
+        Venue.id.in_({e.venue_id for e in events if e.venue_id}))).all()) if events else {}
+    for e in events:
+        when = e.starts_at.astimezone(LOCAL_TZ)
+        price = "Free" if e.free else f"${e.price_min:g}" if e.price_min else None
+        items.append({
+            "kind": "event", "id": str(e.id), "label": "Event", "title": e.title,
+            "sub": " · ".join(filter(None, [when.strftime("%a %-I:%M %p").replace(":00", ""), e.venue_name, price])),
+            "from": e.submitter_name or ("Public form" if e.source == "submission" else "Admin"),
+            "at": e.created_at, "signal": e.kind.replace("_", " ").capitalize(),
+            "image": images.get(e.venue_id), "status": e.status,
+            "pending": e.status == "pending"})
+    rv = (select(PlanReview, User.username).join(User, User.id == PlanReview.user_id)
+          .where(PlanReview.stars <= LOW_STARS).order_by(PlanReview.created_at.desc()).limit(limit))
+    if not include_done:
+        rv = rv.where(PlanReview.reviewed_at.is_(None))
+    for r, name in db.execute(rv).all():
+        plan = (r.plan or {}).get("plan") or next(iter((r.plan or {}).get("days") or []), {}) or {}
+        stops = plan.get("stops") or []
+        items.append({
+            "kind": "review", "id": str(r.id), "label": "Low rating",
+            "title": " · ".join(s.get("name") for s in stops[:3] if s.get("name")) or "A plan",
+            "sub": (f"\u201c{r.comment[:90]}\u201d" if r.comment else "No comment, just the stars"),
+            "from": f"@{name}" if name else "Someone", "at": r.created_at,
+            "signal": f"{r.stars} star{'s' if r.stars > 1 else ''}", "stars": r.stars,
+            "image": next((s.get("image") for s in stops if s.get("image")), None),
+            "status": "read" if r.reviewed_at else "new", "pending": r.reviewed_at is None})
+    items.sort(key=lambda i: i["at"], reverse=True)
+    pending = [i for i in items if i["pending"]]
+    return {"items": items[:limit], "pending": len(pending),
+            "oldest": min((i["at"] for i in pending), default=None)}
+
+
+@router.get("/queue")
+def queue(show: str = Query("pending", pattern="^(pending|all)$"), db: Session = Depends(get_db),
+          _admin: User = Depends(require_admin)):
+    out = _queue(db, include_done=show == "all")
+    if show == "all":                 # the badge always counts what's waiting
+        waiting = _queue(db)
+        out.update(pending=waiting["pending"], oldest=waiting["oldest"])
+    return out
+
+
+@router.get("/home")
+def home(include_test: bool = IncludeTest, db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+    real = _real(include_test)
+    now = datetime.now(LOCAL_TZ)
+    day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    def plans_between(a, b):
+        return db.scalar(select(func.count(PlanLog.id)).join(User, User.id == PlanLog.user_id)
+                         .where(real, *_MADE, PlanLog.created_at >= a, PlanLog.created_at < b)) or 0
+    today = plans_between(day0, now + timedelta(seconds=1))
+    last_week = plans_between(day0 - timedelta(days=7), now - timedelta(days=7))    # same weekday, same hour
+    shared = db.scalar(select(func.count(SharedPlan.id)).join(User, User.id == SharedPlan.user_id)
+                       .where(real, SharedPlan.created_at >= day0)) or 0
+    venues = db.scalar(select(func.count()).select_from(Venue)) or 0
+    with_photos = db.scalar(select(func.count()).select_from(Venue).where(Venue.image.is_not(None))) or 0
+    tonight_end = day0 + timedelta(days=1, hours=6)
+    events_tonight = db.scalar(select(func.count()).select_from(NightlifeEvent).where(
+        NightlifeEvent.status == "approved", NightlifeEvent.starts_at >= now - timedelta(hours=3),
+        NightlifeEvent.starts_at < tonight_end)) or 0
+
+    hours, added, images = Counter(), Counter(), {}
+    for resp in db.scalars(select(PlanLog.response).join(User, User.id == PlanLog.user_id)
+                           .where(real, *_MADE, PlanLog.created_at >= day0)):
+        plan = _plan_of(resp)
+        if not plan:
+            continue
+        h = _start_hour(plan)
+        if h is not None:
+            hours[h] += 1
+        for st in plan.get("stops") or []:
+            if st.get("name") and st.get("slot") != "event":
+                added[st["name"]] += 1
+                images.setdefault(st["name"], st.get("image"))
+    order = [(6 + i) % 24 for i in range(24)]          # the day as a night planner sees it: 6am → 5am
+    q = _queue(db, limit=5)
+    return {
+        "now": now.isoformat(), "name": admin.display_name or admin.username,
+        "plans_today": today, "plans_last_week": last_week,
+        "shared_today": shared, "share_rate": round(shared / today, 3) if today else None,
+        "venues": venues, "venues_with_photos": with_photos, "events_tonight": events_tonight,
+        "queue": q,
+        "start_hours": [{"hour": h, "count": hours.get(h, 0)} for h in order],
+        "most_added": [{"name": n, "count": c, "image": images.get(n)} for n, c in added.most_common(5)],
+    }
 
 
 # --- overview -----------------------------------------------------------------
@@ -746,15 +873,14 @@ def users(q: str = "", filter: str = Query("all", pattern="^(all|real|test|admin
         like = f"%{q.strip()}%"
         stmt = stmt.where(or_(User.email.ilike(like), User.username.ilike(like),
                               User.display_name.ilike(like)))
-    stmt = stmt.where({
-        "all": True, "real": and_(User.is_test.is_(False), User.is_admin.is_(False)),
-        "test": User.is_test.is_(True), "admin": User.is_admin.is_(True),
-        "disabled": User.is_disabled.is_(True)}[filter])
-    total = db.scalar(select(func.count()).select_from(stmt.subquery()))
+    counts = {k: db.scalar(select(func.count()).select_from(stmt.where(f()).subquery())) or 0
+              for k, f in _USER_FILTERS.items()}
+    stmt = stmt.where(_USER_FILTERS[filter]())
+    total = counts[filter]
     rows = db.execute(stmt.order_by(User.created_at.desc())
                       .offset((page - 1) * per_page).limit(per_page)).all()
-    return {"total": total, "page": page, "per_page": per_page,
-            "users": [_user_list_row(*r) for r in rows]}
+    return {"total": total, "page": page, "per_page": per_page, "counts": counts,
+            "summary": _users_summary(db), "users": [_user_list_row(*r) for r in rows]}
 
 
 def _users_stmt():
@@ -764,15 +890,38 @@ def _users_stmt():
     active = (select(UserActivityDay.user_id, func.count().label("active_days"))
               .group_by(UserActivityDay.user_id).subquery())
     return (select(User, func.coalesce(plans.c.plans, 0), func.coalesce(active.c.active_days, 0),
-                   TasteProfile.completed_at)
+                   TasteProfile.completed_at, TasteProfile.user_id.is_not(None))
             .outerjoin(plans, plans.c.user_id == User.id)
             .outerjoin(active, active.c.user_id == User.id)
             .outerjoin(TasteProfile, TasteProfile.user_id == User.id))
 
 
-def _user_list_row(u: User, plans: int, active_days: int, survey_completed_at) -> dict:
+def _user_list_row(u: User, plans: int, active_days: int, survey_completed_at, started: bool = False) -> dict:
     return {**_user_row(u), "plans": plans, "active_days": active_days,
-            "survey_completed_at": survey_completed_at}
+            "survey_completed_at": survey_completed_at,
+            "survey": "done" if survey_completed_at else "partial" if started else "none"}
+
+
+_USER_FILTERS = {
+    "all": lambda: True, "real": lambda: and_(User.is_test.is_(False), User.is_admin.is_(False)),
+    "test": lambda: User.is_test.is_(True), "admin": lambda: User.is_admin.is_(True),
+    "disabled": lambda: User.is_disabled.is_(True)}
+
+
+def _users_summary(db: Session) -> dict:
+    """The Users page's numbers, for real accounts only."""
+    real = _USER_FILTERS["real"]()
+    n = db.scalar(select(func.count(User.id)).where(real)) or 0
+    week = utc_today() - timedelta(days=6)
+    active = db.scalar(select(func.count(distinct(UserActivityDay.user_id))).join(User, User.id == UserActivityDay.user_id)
+                       .where(real, UserActivityDay.day >= week)) or 0
+    surveyed = db.scalar(select(func.count(TasteProfile.user_id)).join(User, User.id == TasteProfile.user_id)
+                         .where(real, TasteProfile.completed_at.is_not(None))) or 0
+    planned = db.scalar(select(func.count(distinct(PlanLog.user_id))).join(User, User.id == PlanLog.user_id)
+                        .where(real, *_MADE, PlanLog.created_at >= _since(7))) or 0
+    return {"real": n, "active_week": active,
+            "survey_rate": round(surveyed / n, 3) if n else None,
+            "planned_week_rate": round(planned / n, 3) if n else None}
 
 
 def _user_row(u: User) -> dict:
@@ -799,7 +948,25 @@ def user_detail(user_id: uuid.UUID, db: Session = Depends(get_db), _admin: User 
         "active_days_total": db.scalar(select(func.count()).select_from(UserActivityDay)
                                        .where(UserActivityDay.user_id == u.id)),
         "plans": [_plan_row(p) for p in plans],
+        "plans_total": db.scalar(select(func.count(PlanLog.id)).where(PlanLog.user_id == u.id, *_MADE)) or 0,
+        "shared_total": db.scalar(select(func.count(SharedPlan.id)).where(SharedPlan.user_id == u.id)) or 0,
+        "latest_plan": _latest_plan(db, u.id),
     }
+
+
+def _latest_plan(db: Session, user_id) -> dict | None:
+    row = db.execute(select(PlanLog.created_at, PlanLog.response).where(PlanLog.user_id == user_id, *_MADE)
+                     .order_by(PlanLog.created_at.desc()).limit(1)).first()
+    plan = _plan_of(row.response) if row else None
+    if not plan or not plan.get("stops"):
+        return None
+    stops = plan["stops"]
+    party = max(1, int(plan.get("party_size") or 1))
+    return {"created_at": row.created_at, "stops": len(stops),
+            "names": [s.get("name") for s in stops if s.get("name")][:4],
+            "each": round((plan.get("estimated_cost") or 0) / party) or None,
+            "image": next((s.get("image") for s in stops if s.get("image")), None),
+            "days": len((row.response or {}).get("days") or []) or None}
 
 
 class FlagBody(BaseModel):
