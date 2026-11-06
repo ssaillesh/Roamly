@@ -72,8 +72,9 @@ window.RovaItin = (() => {
   const nWord = n => ['No stops','One stop','Two stops','Three stops','Four stops','Five stops','Six stops'][n] || `${n} stops`;
 
   /* Every photo says where it's from: a Commons photo links to its file page (author
-     and licence), a venue's own photo names the site it came from. */
-  function photoCredit(src){
+     and licence); a venue's own photo credits the venue (linked to its site), not the
+     web host the file happens to sit on. */
+  function photoCredit(src, stop){
     const u = safeUrl(src); if (!u) return '';
     let url; try { url = new URL(u); } catch(e){ return ''; }
     if (url.hostname.endsWith('wikimedia.org')){
@@ -81,6 +82,8 @@ window.RovaItin = (() => {
       return name ? `Photo: <a href="https://commons.wikimedia.org/wiki/File:${encodeURIComponent(name)}" target="_blank" rel="noopener">Wikimedia Commons</a>`
                   : 'Photo: Wikimedia Commons';
     }
+    const name = stop && stop.name, site = stop && safeUrl(stop.url);
+    if (name) return site ? `Photo: <a href="${esc(site)}" target="_blank" rel="noopener">${esc(name)}</a>` : `Photo: ${esc(name)}`;
     return `Photo: ${esc(url.hostname.replace(/^www\./, ''))}`;
   }
 
@@ -125,7 +128,7 @@ window.RovaItin = (() => {
           ${s.why ? `<p>${esc(s.why)}</p>` : ''}
           ${chips ? `<div class="it-chips">${chips}</div>` : ''}
           <div class="it-links">${links}</div>
-          ${s.image ? `<span class="it-credit">${photoCredit(s.image)}</span>` : ''}
+          ${s.image ? `<span class="it-credit">${photoCredit(s.image, s)}</span>` : ''}
         </div>
       </div>
     </article>`;

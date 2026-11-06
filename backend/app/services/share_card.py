@@ -229,38 +229,50 @@ def _kicker(plan: dict) -> str:
     return " · ".join(parts).upper()
 
 
-def photo_source(url: str | None) -> str | None:
-    """Where a photo is from, as the card credits it: "Wikimedia Commons" or the site's name."""
+def photo_source(url: str | None, venue: str | None = None) -> str | None:
+    """Who a photo is from, as the card credits it: "Wikimedia Commons", or the venue
+    itself (its own website's photo; the web host it sits on means nothing to people)."""
     host = (urlparse(url or "").hostname or "").removeprefix("www.")
     if not host:
         return None
-    return "Wikimedia Commons" if host.endswith("wikimedia.org") else host
+    if host.endswith("wikimedia.org"):
+        return "Wikimedia Commons"
+    return (venue or "").strip() or host
 
 
 def render_card(plan: dict, link_text: str, photos: list[Image.Image | None] | None = None) -> bytes:
     """Draw the card. `photos` (for the first three stops) is fetched if not given."""
     stops = plan.get("stops") or []
-    urls = [s.get("image") for s in stops if s.get("image")][:3]
+    with_img = [s for s in stops if s.get("image")][:3]
     if photos is None:
         with ThreadPoolExecutor(max_workers=3) as ex:
-            photos = list(ex.map(fetch_image, urls))
-    photos = (list(photos) + [None, None, None])[:3]
-    # credit the photos actually drawn (Commons photos are licensed on that condition)
+            photos = list(ex.map(fetch_image, [s["image"] for s in with_img]))
+    # only the photos that actually loaded; the collage is laid out for however many there are
+    shown = [(s, ph) for s, ph in zip(with_img, photos) if ph is not None]
+    # credit the photos drawn (Commons photos are licensed on that condition)
     sources = []
-    for url, ph in zip(urls, photos):
-        src = photo_source(url) if ph is not None else None
+    for st, _ in shown:
+        src = photo_source(st.get("image"), st.get("name"))
         if src and src not in sources:
             sources.append(src)
 
     img = Image.new("RGB", (W, H), CHARCOAL)
     draw = ImageDraw.Draw(img)
 
-    # collage: one wide photo over two
+    # collage, for the photos there are: one fills it, two sit side by side,
+    # three are one wide over two; none leaves the quiet mark
+    pics = [ph for _, ph in shown]
     top_h = round((COLLAGE_H - GAP) * 2 / 3)
     half = (W - GAP) // 2
-    _tile(img, photos[0], (0, 0, W, top_h))
-    _tile(img, photos[1], (0, top_h + GAP, half, COLLAGE_H))
-    _tile(img, photos[2], (half + GAP, top_h + GAP, W, COLLAGE_H))
+    if len(pics) >= 3:
+        _tile(img, pics[0], (0, 0, W, top_h))
+        _tile(img, pics[1], (0, top_h + GAP, half, COLLAGE_H))
+        _tile(img, pics[2], (half + GAP, top_h + GAP, W, COLLAGE_H))
+    elif len(pics) == 2:
+        _tile(img, pics[0], (0, 0, half, COLLAGE_H))
+        _tile(img, pics[1], (half + GAP, 0, W, COLLAGE_H))
+    else:
+        _tile(img, pics[0] if pics else None, (0, 0, W, COLLAGE_H))
 
     y = COLLAGE_H + 66
     k = _kicker(plan)
@@ -302,7 +314,7 @@ def render_card(plan: dict, link_text: str, photos: list[Image.Image | None] | N
     fy = H - 66 - 45
     if sources:
         cf = _font(SANS, 24)
-        credit = "Photos: " + ", ".join(sources)
+        credit = ("Photo: " if len(shown) == 1 else "Photos: ") + ", ".join(sources)
         while len(credit) > 12 and cf.getlength(credit) > W - 2 * PAD:
             credit = credit[:-2].rstrip(", ") + "…"
         draw.text((PAD, fy - 42 - 3 - 24 - 18), credit, font=cf, fill=(0x6F, 0x6A, 0x61))

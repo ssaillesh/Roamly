@@ -150,5 +150,21 @@ def test_photo_fetch_rechecks_redirects(monkeypatch):
 def test_card_credits_where_its_photos_come_from():
     assert share_card.photo_source("https://commons.wikimedia.org/wiki/Special:FilePath/X.jpg?width=640") == "Wikimedia Commons"
     assert share_card.photo_source("https://upload.wikimedia.org/x.jpg") == "Wikimedia Commons"
-    assert share_card.photo_source("https://www.barraval.com/og.jpg") == "barraval.com"
+    assert share_card.photo_source("https://cdn.prod.website-files.com/x/bliss.avif", "Fran's Restaurant") == "Fran's Restaurant"
+    assert share_card.photo_source("https://www.barraval.com/og.jpg") == "barraval.com"     # no name given
     assert share_card.photo_source(None) is None
+
+
+def test_card_lays_out_the_photos_it_has(monkeypatch):
+    from PIL import Image
+    seen = []
+    real_tile = share_card._tile
+    monkeypatch.setattr(share_card, "_tile", lambda img, ph, box: (seen.append((ph is not None, box)), real_tile(img, ph, box)))
+    photo = Image.new("RGB", (800, 600), (120, 80, 40))
+    plan = {"title": "Coffee and dinner", "stops": [{"name": "A", "image": "https://a.example/1.jpg"},
+                                                    {"name": "B"}, {"name": "C", "image": "https://c.example/2.jpg"}]}
+    share_card.render_card(plan, "rova.app/n/x", photos=[photo, None])     # C's photo didn't load
+    assert seen == [(True, (0, 0, share_card.W, share_card.COLLAGE_H))]    # one photo fills the collage
+    seen.clear()
+    share_card.render_card(plan, "rova.app/n/x", photos=[photo, photo])
+    assert len(seen) == 2 and all(has for has, _ in seen)                    # two, side by side, no empty tile
