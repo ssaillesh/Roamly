@@ -116,6 +116,6 @@ The code, pages, files and storage keys all say Rova now (old `/roamly` links re
 |---|---|
 | `backend/alembic/versions/0001`–`0009` | The live database's schema history. Never delete or renumber these. |
 | `localStorage` key `wander_saved` | Renaming it loses everyone's saved plans unless it's migrated (the sign-in keys moved from `trek_*` to `rova_*` with a one-time migration in `config.js`). |
-| `https://trekrank.onrender.com` | The live API URL. `config.js`, `keepalive.yml` and cron-job.org use it. |
+| `https://trekrank.onrender.com` | The live API URL. `config.js`, `keepalive.yml`, cron-job.org, and the share-card forwarding in `webui/vercel.json` and `webui/Caddyfile` use it — change them together. |
 | `.github/workflows/keepalive.yml` | In use: an hourly outage alert. |
 | `backend/scripts/smoke_test.py` | Current: tests exactly what the web app uses. |

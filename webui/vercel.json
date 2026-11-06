@@ -8,6 +8,7 @@
     { "source": "/roamly.html", "destination": "/rova", "permanent": true }
   ],
   "rewrites": [
+    { "source": "/n/:code/card.jpg", "destination": "https://trekrank.onrender.com/api/v1/share/plan/:code/card.jpg" },
     { "source": "/n/:code", "destination": "/n" }
   ]
 }

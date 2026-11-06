@@ -1801,12 +1801,17 @@ async function shareNight(){
     if (!$('share').hidden) openShare({ res });
   }catch(e){ if (!$('share').hidden) openShare({ error:true }); }
 }
+/* The story card is linked from the site's own address (/n/<code>/card.jpg; the host
+   forwards it to the API), so a shared image says Rova, not the API's server. Local
+   dev has nothing forwarding, so it uses the API directly. */
+const cardUrl = res => /^(localhost|127\.0\.0\.1)$/.test(location.hostname)
+  ? `${API}${res.image_path}` : `${location.origin}/n/${res.code}/card.jpg`;
 let shareFrom = null;
 function openShare(o){
   const el = $('share'), bg = $('shareBg');
   if (el.hidden) shareFrom = document.activeElement;
   bg.hidden = false; el.hidden = false;
-  const img = o.res ? `${API}${o.res.image_path}` : null;
+  const img = o.res ? cardUrl(o.res) : null;
   el.innerHTML = `<div class="share-card">${img ? `<img src="${esc(img)}" alt="The story card for this night">` : '<i class="skel"></i>'}</div>
     <div class="share-r">
       <div class="share-top"><h2 id="shareTitle">Share the night</h2><button class="ibtn" data-x aria-label="Close">${ic('x')}</button></div>
