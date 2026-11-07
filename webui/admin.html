@@ -818,8 +818,12 @@ async function renderTraffic(seq){
   $('secSub').textContent = rangeText();
   const ws = panel('Waitlist sign-ups by source', barList(t.waitlist_sources, { label: r => r.source }),
     'The “source” the landing page sent with each waitlist sign-up');
+  const va = panel('Vercel Web Analytics',
+    `<p class="t-meta" style="margin:0 0 12px">Every visitor, counted without cookies: pages, referrers, countries and devices. Vercel keeps these numbers in its own dashboard.</p>
+     <a class="btn btn-ghost btn-sm" href="${esc(window.VERCEL_ANALYTICS_URL || 'https://vercel.com/dashboard')}" target="_blank" rel="noopener noreferrer">Open in Vercel <i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>`,
+    'All visitors, including those who declined cookies');
   if (!t.web.connected || t.web.error){
-    $('sec').innerHTML = `${webBlock(t.web)}<div class="grid g-2 sec">${ws}</div>`; return;
+    $('sec').innerHTML = `${webBlock(t.web)}<div class="grid g-2 sec">${va}${ws}</div>`; return;
   }
   const w = t.web;
   const daily = (w.daily || []).slice().sort((a, b) => a.date.localeCompare(b.date));
@@ -838,6 +842,7 @@ async function renderTraffic(seq){
         { h:'Bounce', n:1, f: r => pct(r.bounceRate, 0) }], w.landing_pages))}
       ${panel('Devices', barList(w.devices, { label: r => r.deviceCategory, value: r => r.sessions }))}
       ${ws}
+      ${va}
     </div>`;
   drawChart('trDaily', { type:'line', labels: daily.map(r => ({ display: dshort(`${r.date.slice(0,4)}-${r.date.slice(4,6)}-${r.date.slice(6)}`) })),
     series:[{ label:'Sessions', data: daily.map(r => r.sessions) }, { label:'Visitors', data: daily.map(r => r.totalUsers) }] });
