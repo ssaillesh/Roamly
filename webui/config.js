@@ -91,21 +91,10 @@ try {
 })();
 
 // ---------------------------------------------------------------------------
-// Vercel Web Analytics: page views and visitors, seen in the Vercel dashboard
-// (project → Analytics; turn it on there once). No cookies and nothing that
-// identifies a person, so it runs for everyone, admin pages included. The
-// script is served by Vercel itself, so it's skipped on a local server.
-// (The plain-HTML form of @vercel/analytics; no npm package needed.)
-window.VERCEL_ANALYTICS_URL = 'https://vercel.com/dashboard';   // paste your project's Analytics page here
-(function () {
-  if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return;
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-  const s = document.createElement('script');
-  s.defer = true;
-  s.src = '/_vercel/insights/script.js';
-  document.head.appendChild(s);
-})();
-
+// Vercel Web Analytics: implemented in each HTML file's <head> section
+// (inline initialization script + deferred script tag). Tracks page views
+// and visitors in the Vercel dashboard (project → Analytics). No cookies,
+// no personal identifiers, runs for everyone including admin pages.
 // ---------------------------------------------------------------------------
 // Google Analytics 4 — page views, traffic sources and the sign-up funnel
 // (shown in admin.html). Paste your Measurement ID (G-XXXXXXX) below; blank
