@@ -13,6 +13,11 @@
    Everything shown is computed from the plan — nothing is invented. */
 window.RovaItin = (() => {
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+  /* The Rova wordmark (Brand Kit), inline so its champagne blade draws everywhere;
+     each drawing gets its own gradient id. Ink takes the text colour. */
+  let wmSeq = 0;
+  const wordmark = () => { const g = 'rvwm-it' + (++wmSeq);
+    return `<svg viewBox="385 108 651 160" width="98" height="24" aria-hidden="true" focusable="false"><defs><linearGradient id="${g}" gradientUnits="userSpaceOnUse" x1="815" y1="222" x2="928" y2="112"><stop offset="0" stop-color="#BC956C"/><stop offset=".15" stop-color="#D6B38A"/><stop offset=".55" stop-color="#C29C71"/><stop offset="1" stop-color="#A8835A"/></linearGradient></defs><g fill="currentColor"><path d="M389 159H402V262.5H389Z"/><path d="M389 159H468.5A30.5 30.5 0 0 1 468.5 220H464L509.7 262.5H491L427.7 205H468.5A15.5 15.5 0 0 0 468.5 174H389Z"/><path d="M567 212a60 54 0 1 0 120 0a60 54 0 1 0 -120 0Z M580 211a47 44 0 1 1 94 0a47 44 0 1 1 -94 0Z"/><path d="M744.7 162H760.7L819.5 252L811.5 265Z"/><path d="M901.5 262.5L967 159.3L1032.5 262.5H1016.6L966.8 182.8L916.4 262.5Z"/></g><path d="M864 186L830.5 236L827.5 241L823 234.5Z" fill="#7A5C3C"/><path d="M928 112L811 217L823 234.5Z" fill="url(#${g})"/></svg>`; };
   const ic = (n, cls = '') => `<i class="ph ph-${n}${cls ? ' ' + cls : ''}" aria-hidden="true"></i>`;
   const safeUrl = u => (typeof u === 'string' && /^https?:\/\//i.test(u.trim())) ? u.trim() : null;
   const pad = n => String(n).padStart(2, '0');
@@ -249,7 +254,7 @@ window.RovaItin = (() => {
 
     root.innerHTML = `<div class="itin${o.readOnly ? ' ro' : ''}">
       <header class="it-bar">
-        <a class="it-wm" href="/" aria-label="Rova home"><svg width="85" height="20" aria-hidden="true"><use href="/brand/rova.svg#wordmark"/></svg></a>
+        <a class="it-wm" href="/" aria-label="Rova home">${wordmark()}</a>
         ${o.barLinks || ''}
         <div class="it-bar-r">
           ${o.coming ? `<span class="it-together" title="Coming soon"><span class="it-avs"><i>+</i><i></i></span>Plan together <b>Soon</b></span>` : ''}
@@ -417,7 +422,7 @@ window.RovaItin = (() => {
     const on = o.on || {};
     if (cur && cur.map){ cur.map.remove(); cur = null; }
     root.innerHTML = `<div class="itin">
-      <header class="it-bar"><a class="it-wm" href="/" aria-label="Rova home"><svg width="85" height="20" aria-hidden="true"><use href="/brand/rova.svg#wordmark"/></svg></a>
+      <header class="it-bar"><a class="it-wm" href="/" aria-label="Rova home">${wordmark()}</a>
         <div class="it-bar-r">${on.close ? `<button type="button" class="it-ib" data-close aria-label="Back to the map">${ic('x')}</button>` : ''}</div></header>
       <section class="it-hero it-wrap it-status">
         ${on.close ? `<button type="button" class="it-back" data-close>${ic('arrow-left')} Back to the map</button>` : ''}

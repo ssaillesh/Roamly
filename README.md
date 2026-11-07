@@ -51,10 +51,16 @@ everything runs in the API process, with Redis for caching and rate limiting.
 - `admin.html` — the **admin dashboard** (admins only): users & retention, sign-up funnel,
   traffic sources, where users are, planner quality, taste insights, server health, outside-API
   usage, user management, waitlist invites, admin activity and CSV exports.
-- `brand/` — the Rova logo (the wordmark R O A with a route mark for the V):
-  - `rova.svg` holds the route mark (`#mark`) and the wordmark (`#wordmark`) as symbols. Their ink parts take the text colour (ink on ivory, ivory on charcoal); the accent reads the CSS variable `--rova-accent` (brass `#8C6A2F` by default, champagne `#D4B47A` on dark).
-  - `logo.svg` / `logo-white.svg` are the full lockups.
-  - `icon.svg`, `favicon-32.png`, `apple-touch-icon.png` and `icon-192/512.png` are the app icon.
+- `brand/` — the Rova logo, from the Brand Kit (Claude Design: `RovaMark`). The wordmark is
+  R O V A with a champagne blade through the V; the symbol is the blade with an ivory (or charcoal) wing.
+  Never retype the wordmark, never show it under 96 px wide (use the symbol), and keep the blade a gradient.
+  - The pages draw the wordmark inline (ink takes the text colour, so ink on ivory and ivory on charcoal),
+    since a gradient inside an external `<use>` doesn't draw in every browser.
+  - `wordmark.svg` / `wordmark-ivory.svg` (also as `logo.svg` / `logo-white.svg`): the wordmark as files.
+  - `symbol.svg` (ivory wing, for dark grounds), `symbol-charcoal.svg` / `mark.svg` (for ivory grounds).
+  - `icon.svg`, `favicon-32.png`, `apple-touch-icon.png`, `icon-192/512.png`, `app-icon.svg`: the app icon,
+    the symbol on a charcoal tile. `rova.svg` keeps the old `#wordmark` / `#mark` symbol ids for anything
+    still pointing at it. The share card uses PNG copies in `backend/app/assets/brand/`.
 - `rova.css` — the shared design system (tokens, buttons, chips, cards, sheet, nav) used by the
   planner, My taste and sign-in pages.
 

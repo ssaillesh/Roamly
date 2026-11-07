@@ -3,7 +3,7 @@
 Layout follows the Rova design (screen 4f, drawn at 3x): a photo collage of the
 first stops on top, then on charcoal the day and area, the plan's title (Inter
 SemiBold with an Instrument Serif italic tail), the stops with their times, and
-the wordmark with the link back to the plan.
+the Rova wordmark with the link back to the plan.
 
 Stop photos are fetched from the web, from URLs that came from the browser, so
 fetching is locked down: https only, every hop's host must resolve to public
@@ -157,52 +157,26 @@ def _layout_title(head: str, tail: str, size: int, width: int):
 
 
 # ---------------------------------------------------------------- the mark
-def _mark(height: int, ink=IVORY, accent=CHAMPAGNE) -> Image.Image:
-    """The route mark (design viewBox 5 5 38 39), drawn 4x and scaled down for smooth edges."""
-    s = 4 * height / 39
-    w = round(38 * s)
-    im = Image.new("RGBA", (w, round(39 * s)), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    P = lambda x, y: ((x - 5) * s, (y - 5) * s)
-
-    def line(a, b, width, color):
-        d.line([P(*a), P(*b)], fill=color, width=round(width * s))
-        r = width * s / 2
-        for x, y in (P(*a), P(*b)):
-            d.ellipse([x - r, y - r, x + r, y + r], fill=color)
-
-    def ring(cx, cy, r, sw, color):
-        x, y = P(cx, cy)
-        ro, ri = (r + sw / 2) * s, (r - sw / 2) * s
-        d.ellipse([x - ro, y - ro, x + ro, y + ro], fill=color)
-        d.ellipse([x - ri, y - ri, x + ri, y + ri], fill=(0, 0, 0, 0))
-
-    line((8, 8), (24, 40), 2.6, accent)
-    # punch the line out inside the rings, as the design's ivory-filled circles do
-    for cx, cy in ((12.4, 16.8), (17.2, 26.4)):
-        x, y = P(cx, cy)
-        r = 2.4 * s
-        d.ellipse([x - r, y - r, x + r, y + r], fill=(0, 0, 0, 0))
-        ring(cx, cy, 3.6, 2.4, accent)
-    line((40, 8), (24, 40), 5.6, ink)
-    x, y = P(24, 38.5)
-    d.ellipse([x - 5 * s, y - 5 * s, x + 5 * s, y + 5 * s], fill=accent)
-    return im.resize((max(1, w // 4), height), Image.LANCZOS)
+# The Rova wordmark and symbol (Brand Kit), drawn from its SVG at 2x and kept as PNGs
+# beside the fonts: the champagne blade is a gradient Pillow can't draw itself.
+BRAND = Path(__file__).resolve().parent.parent / "assets" / "brand"
 
 
-def _wordmark(img: Image.Image, draw: ImageDraw.ImageDraw, x: float, y: float, size: int) -> None:
-    """R O [mark] A, with the design's spacing (letter-spacing .02em, gaps .12/.1/.08em)."""
-    f = _font(SANS_SB, size)
-    tr = 0.02 * size
-    asc, _ = f.getmetrics()
-    x += _draw_tracked(draw, (x, y), "R", f, IVORY) + tr + 0.12 * size
-    x += _draw_tracked(draw, (x, y), "O", f, IVORY) + tr + 0.10 * size
-    mh = round(0.76 * size)
-    mark = _mark(mh)
-    cap_top = y + asc - 0.727 * size          # Inter's cap height is .727em
-    img.paste(mark, (round(x + (0.78 * size - mark.width) / 2), round(cap_top - 0.02 * size)), mark)
-    x += 0.78 * size + 0.08 * size
-    draw.text((x, y), "A", font=f, fill=IVORY)
+@lru_cache(maxsize=8)
+def _brand(name: str, height: int, alpha: float = 1.0) -> Image.Image:
+    im = Image.open(BRAND / name).convert("RGBA")
+    im = im.crop(im.getbbox())
+    out = im.resize((max(1, round(im.width * height / im.height)), height), Image.LANCZOS)
+    if alpha < 1:
+        out.putalpha(out.getchannel("A").point(lambda a: round(a * alpha)))
+    return out
+
+
+def _wordmark(img: Image.Image, x: float, y: float, height: int) -> int:
+    """The wordmark, ivory ink, its top-left at (x, y). Returns its width."""
+    mark = _brand("wordmark-ivory.png", height)
+    img.paste(mark, (round(x), round(y)), mark)
+    return mark.width
 
 
 # ---------------------------------------------------------------- the card
@@ -213,7 +187,7 @@ def _tile(img: Image.Image, photo: Image.Image | None, box: tuple[int, int, int,
         img.paste(ImageOps.fit(photo, (w, h), Image.LANCZOS), (x0, y0))
         return
     ImageDraw.Draw(img).rectangle(box, fill=SURFACE)
-    mark = _mark(min(120, h // 3), ink=(0x3A, 0x37, 0x32), accent=(0x5A, 0x50, 0x3C))
+    mark = _brand("symbol-ivory.png", min(110, h // 3), alpha=0.18)     # a quiet symbol where a photo would be
     img.paste(mark, (x0 + (w - mark.width) // 2, y0 + (h - mark.height) // 2), mark)
 
 
@@ -319,7 +293,7 @@ def render_card(plan: dict, link_text: str, photos: list[Image.Image | None] | N
             credit = credit[:-2].rstrip(", ") + "…"
         draw.text((PAD, fy - 42 - 3 - 24 - 18), credit, font=cf, fill=(0x6F, 0x6A, 0x61))
     draw.rectangle([PAD, fy - 42 - 3, W - PAD, fy - 42], fill=RULE)
-    _wordmark(img, draw, PAD, fy, 45)
+    _wordmark(img, PAD, fy + 4, 38)                                     # cap height ≈ the old 45 px type
     lf = _font(SANS, 36)
     draw.text((W - PAD - lf.getlength(link_text), fy + 6), link_text, font=lf, fill=MUTED)
 

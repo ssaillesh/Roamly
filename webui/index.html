@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
-<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
-<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+<link rel="icon" href="/brand/icon.svg?v=2026-11-06" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png?v=2026-11-06" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=2026-11-06" />
 <title>Rova — plan less, go out more</title>
 <meta name="description" content="Tell Rova the mood. It finds the places worth going to, times every stop, and keeps the whole night on budget." />
 <meta name="theme-color" content="#F4EFE6" />
@@ -58,14 +58,12 @@
   .btn-ink:hover{background:#2A2824;}
   .btn-ink:active{transform:scale(.98);}
 
-  /* wordmark: R O [route mark] A */
-  .wm{display:inline-flex; align-items:center; font-weight:600; letter-spacing:.02em; line-height:1; color:var(--ink);}
-  .wm .r{margin-right:.12em;} .wm .o{margin-right:.1em;} .wm .a{margin-left:.08em;}
-  .wm svg{width:.78em; height:.76em; overflow:visible;}
+  /* the wordmark (Brand Kit): ink takes the text colour, the blade is champagne */
+  .wm{display:block; width:auto; height:24px; color:var(--ink);}
 
   /* nav */
   .nav{display:flex; align-items:center; gap:44px; padding-top:24px; padding-bottom:24px;}
-  .nav .wm{font-size:20px;}
+  .nav .wm{height:26px;}
   .nav .links{display:flex; gap:30px; font-size:14px; color:var(--stone);}
   .nav .links a:hover,.nav .links a[aria-current]{color:var(--ink);}
   .nav .links a[aria-current]{font-weight:500;}
@@ -188,7 +186,7 @@
     :root{--gutter:22px;}
     body{padding-bottom:calc(76px + env(safe-area-inset-bottom));}
     .nav{padding-top:18px; padding-bottom:0;}
-    .nav .wm{font-size:17px;}
+    .nav .wm{height:24px;}
     .nav .acts > :not(.city){display:none;}
     .nav .city{display:flex; font-size:13px;}
     .hero{padding-top:26px; gap:0;}
@@ -238,7 +236,7 @@
 <body>
 
 <header class="wrap nav">
-  <a href="/" aria-label="Rova home"><span class="wm" aria-hidden="true"><span class="r">R</span><span class="o">O</span><svg viewBox="5 5 38 39" fill="none"><path d="M8 8 L24 40" stroke="#8C6A2F" stroke-width="2.6" stroke-linecap="round"/><path d="M40 8 L24 40" stroke="currentColor" stroke-width="5.6" stroke-linecap="round"/><circle cx="12.4" cy="16.8" r="3.6" fill="#F4EFE6" stroke="#8C6A2F" stroke-width="2.4"/><circle cx="17.2" cy="26.4" r="3.6" fill="#F4EFE6" stroke="#8C6A2F" stroke-width="2.4"/><circle cx="24" cy="38.5" r="5" fill="#8C6A2F"/></svg><span class="a">A</span></span></a>
+  <a href="/" aria-label="Rova home"><svg class="wm" viewBox="385 108 651 160" width="98" height="24" aria-hidden="true" focusable="false"><defs><linearGradient id="rvwm-home" gradientUnits="userSpaceOnUse" x1="815" y1="222" x2="928" y2="112"><stop offset="0" stop-color="#BC956C"/><stop offset=".15" stop-color="#D6B38A"/><stop offset=".55" stop-color="#C29C71"/><stop offset="1" stop-color="#A8835A"/></linearGradient></defs><g fill="currentColor"><path d="M389 159H402V262.5H389Z"/><path d="M389 159H468.5A30.5 30.5 0 0 1 468.5 220H464L509.7 262.5H491L427.7 205H468.5A15.5 15.5 0 0 0 468.5 174H389Z"/><path d="M567 212a60 54 0 1 0 120 0a60 54 0 1 0 -120 0Z M580 211a47 44 0 1 1 94 0a47 44 0 1 1 -94 0Z"/><path d="M744.7 162H760.7L819.5 252L811.5 265Z"/><path d="M901.5 262.5L967 159.3L1032.5 262.5H1016.6L966.8 182.8L916.4 262.5Z"/></g><path d="M864 186L830.5 236L827.5 241L823 234.5Z" fill="#7A5C3C"/><path d="M928 112L811 217L823 234.5Z" fill="url(#rvwm-home)"/></svg></a>
   <nav class="links" aria-label="Primary">
     <a href="/" aria-current="page">Discover</a>
     <a href="rova.html?q=What%27s%20on%20tonight%20near%20me">Tonight</a>

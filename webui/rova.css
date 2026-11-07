@@ -81,7 +81,7 @@ img{display:block; max-width:100%;}
 
 /* ---------------------------------------------------------------- logo */
 .logo{display:inline-flex; align-items:center; gap:8px; font-weight:800; font-size:20px; letter-spacing:-.03em; color:var(--ink);}
-.wordmark{display:block; width:85px; height:20px; flex:0 0 auto;}   /* brand/rova.svg#wordmark: R O [route mark] A */
+.wordmark{display:block; width:98px; height:24px; flex:0 0 auto;}   /* the Rova wordmark; never under 96 px wide */
 .logo.on-dark{color:#fff; --rova-accent:#D4B47A;}
 
 /* ---------------------------------------------------------------- buttons */

@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="icon" href="/brand/icon.svg" type="image/svg+xml" />
-<link rel="icon" href="/brand/favicon-32.png" sizes="32x32" type="image/png" />
-<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
+<link rel="icon" href="/brand/icon.svg?v=2026-11-06" type="image/svg+xml" />
+<link rel="icon" href="/brand/favicon-32.png?v=2026-11-06" sizes="32x32" type="image/png" />
+<link rel="apple-touch-icon" href="/brand/apple-touch-icon.png?v=2026-11-06" />
 <meta name="robots" content="noindex, nofollow" />
 <title>Rova Admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
 <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css" />
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<link rel="stylesheet" href="/rova.css?v=2026-10-11" />
+<link rel="stylesheet" href="/rova.css?v=2026-11-06" />
 <script src="/config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -528,7 +528,7 @@ function shell(){
   }
   const me = state.me, init = String(me.display_name || me.username || '?').trim()[0].toUpperCase();
   $('app').innerHTML = `<div class="shell">
-    <aside class="aside"><a class="logo on-dark" href="rova.html" aria-label="Rova admin"><svg class="wordmark" width="85" height="20" aria-hidden="true"><use href="/brand/rova.svg#wordmark"/></svg><small>Admin</small></a>
+    <aside class="aside"><a class="logo on-dark" href="rova.html" aria-label="Rova admin"><svg class="wordmark" viewBox="385 108 651 160" width="98" height="24" aria-hidden="true" focusable="false"><defs><linearGradient id="rvwm-admin" gradientUnits="userSpaceOnUse" x1="815" y1="222" x2="928" y2="112"><stop offset="0" stop-color="#BC956C"/><stop offset=".15" stop-color="#D6B38A"/><stop offset=".55" stop-color="#C29C71"/><stop offset="1" stop-color="#A8835A"/></linearGradient></defs><g fill="currentColor"><path d="M389 159H402V262.5H389Z"/><path d="M389 159H468.5A30.5 30.5 0 0 1 468.5 220H464L509.7 262.5H491L427.7 205H468.5A15.5 15.5 0 0 0 468.5 174H389Z"/><path d="M567 212a60 54 0 1 0 120 0a60 54 0 1 0 -120 0Z M580 211a47 44 0 1 1 94 0a47 44 0 1 1 -94 0Z"/><path d="M744.7 162H760.7L819.5 252L811.5 265Z"/><path d="M901.5 262.5L967 159.3L1032.5 262.5H1016.6L966.8 182.8L916.4 262.5Z"/></g><path d="M864 186L830.5 236L827.5 241L823 234.5Z" fill="#7A5C3C"/><path d="M928 112L811 217L823 234.5Z" fill="url(#rvwm-admin)"/></svg><small>Admin</small></a>
       <nav class="nav" aria-label="Dashboard sections">${groups}</nav>
       <div class="aside-foot"><span class="av" aria-hidden="true">${esc(init)}</span><div style="min-width:0"><b>@${esc(me.username)}</b><small>Admin</small></div>
         <a class="out" href="rova.html" title="Back to the app" aria-label="Back to the app"><i class="ph ph-sign-out" aria-hidden="true"></i></a></div></aside>
